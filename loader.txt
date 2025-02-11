@@ -1,0 +1,7 @@
+-- LoaderScript.lua
+-- Place this script in Workspace.
+local InsertService = game:GetService("InsertService")
+local asset = InsertService:LoadAsset(113313881427819)
+local moduleScript = asset:GetChildren()[1]
+local module = require(moduleScript)
+module.Initialize()
