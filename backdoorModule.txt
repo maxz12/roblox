@@ -1,12 +1,21 @@
 -- AdminModule.lua
 -- This module sets up RemoteEvents for admin functionalities and listens for admin requests/commands.
--- It now fully implements Kick, Bring, Teleport, Kill, GodMode, Speed,
--- and it toggles Fly by firing a "FlyClient" event to the target's client.
---
--- Note: For the fly command, the server simply signals the target to toggle their local fly mode.
+-- It now fully implements Kick, Bring, Teleport, Kill, GodMode, Speed, Heal, Fly, and Invisible.
+-- Commands are applied to the specified target regardless of who sends the command.
+
 local AdminModule = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+
+-- Utility: Case-insensitive player search by name.
+local function findPlayerByName(name)
+	for _, p in ipairs(Players:GetPlayers()) do
+		if string.lower(p.Name) == string.lower(name) then
+			return p
+		end
+	end
+	return nil
+end
 
 function AdminModule.Initialize()
 	-- Create or find the folder that holds our RemoteEvents.
@@ -50,13 +59,15 @@ function AdminModule.Initialize()
 		print("AdminModule: Created FlyClient RemoteEvent.")
 	end
 
+	-- Utility to send a console update to a specified player.
 	local function sendConsoleUpdate(player, message)
 		consoleUpdate:FireClient(player, message)
 		print("AdminModule: Sent console update to " .. player.Name .. ": " .. message)
 	end
 
+	-- Process a command received from an admin.
 	local function processAdminCommand(player, command, targetName, extra)
-		local target = Players:FindFirstChild(targetName)
+		local target = findPlayerByName(targetName)
 		if not target or not target.Character then
 			sendConsoleUpdate(player, "Player '" .. targetName .. "' not found or has no character.")
 			return
@@ -66,7 +77,9 @@ function AdminModule.Initialize()
 		if command == "Kick" then
 			target:Kick("Kicked by admin command.")
 			sendConsoleUpdate(player, "Player '" .. targetName .. "' has been kicked.")
+
 		elseif command == "Bring" then
+			-- Bring target to the admin's location (with a small offset).
 			if target.Character and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 				local pos = player.Character.HumanoidRootPart.Position + Vector3.new(5, 0, 0)
 				target.Character:MoveTo(pos)
@@ -74,14 +87,21 @@ function AdminModule.Initialize()
 			else
 				sendConsoleUpdate(player, "Unable to bring '" .. targetName .. "'.")
 			end
+
 		elseif command == "Teleport" then
+			-- Teleport: Move the admin's character near to the target's character.
 			if target.Character and player.Character and target.Character:FindFirstChild("HumanoidRootPart") then
 				local pos = target.Character.HumanoidRootPart.CFrame + Vector3.new(5, 0, 0)
-				player.Character:SetPrimaryPartCFrame(pos)
-				sendConsoleUpdate(player, "Teleported to '" .. targetName .. "'.")
+				if player.Character.PrimaryPart then
+					player.Character:SetPrimaryPartCFrame(pos)
+					sendConsoleUpdate(player, "Teleported to '" .. targetName .. "'.")
+				else
+					sendConsoleUpdate(player, "Your character is missing a PrimaryPart.")
+				end
 			else
 				sendConsoleUpdate(player, "Unable to teleport to '" .. targetName .. "'.")
 			end
+
 		elseif command == "Kill" then
 			if target.Character and target.Character:FindFirstChild("Humanoid") then
 				target.Character.Humanoid.Health = 0
@@ -89,13 +109,14 @@ function AdminModule.Initialize()
 			else
 				sendConsoleUpdate(player, "Unable to kill '" .. targetName .. "'.")
 			end
+
 		elseif command == "GodMode" then
 			if target.Character then
 				local humanoid = target.Character:FindFirstChildOfClass("Humanoid")
 				if humanoid then
 					local godModeTag = target.Character:FindFirstChild("GodModeEnabled")
 					if godModeTag then
-						-- Disable God Mode
+						-- Disable God Mode.
 						godModeTag:Destroy()
 						humanoid.MaxHealth = 100
 						if humanoid.Health > 100 then
@@ -103,7 +124,7 @@ function AdminModule.Initialize()
 						end
 						sendConsoleUpdate(player, "Disabled God Mode for '" .. targetName .. "'.")
 					else
-						-- Enable God Mode
+						-- Enable God Mode.
 						local tag = Instance.new("BoolValue")
 						tag.Name = "GodModeEnabled"
 						tag.Parent = target.Character
@@ -115,21 +136,28 @@ function AdminModule.Initialize()
 					sendConsoleUpdate(player, "No humanoid found for '" .. targetName .. "'.")
 				end
 			end
+
 		elseif command == "Fly" then
-			-- Instead of manipulating physics on the server, signal the target's client.
-			local flyTag = target.Character:FindFirstChild("FlyEnabled")
-			if flyTag then
-				flyTag:Destroy()
-				flyClient:FireClient(target, "Disable")
-				sendConsoleUpdate(player, "Disabled Fly for '" .. targetName .. "'.")
+			-- Toggle Fly on target's client.
+			if target.Character then
+				local flyTag = target.Character:FindFirstChild("FlyEnabled")
+				if flyTag then
+					flyTag:Destroy()
+					flyClient:FireClient(target, "Disable")
+					sendConsoleUpdate(player, "Disabled Fly for '" .. targetName .. "'.")
+				else
+					local tag = Instance.new("BoolValue")
+					tag.Name = "FlyEnabled"
+					tag.Parent = target.Character
+					flyClient:FireClient(target, "Enable")
+					sendConsoleUpdate(player, "Enabled Fly for '" .. targetName .. "'.")
+				end
 			else
-				local tag = Instance.new("BoolValue")
-				tag.Name = "FlyEnabled"
-				tag.Parent = target.Character
-				flyClient:FireClient(target, "Enable")
-				sendConsoleUpdate(player, "Enabled Fly for '" .. targetName .. "'.")
+				sendConsoleUpdate(player, "Target '" .. targetName .. "' has no character.")
 			end
+
 		elseif command == "Speed" then
+			-- Set the target's WalkSpeed to the provided value (default to 16 if invalid).
 			if target.Character then
 				local humanoid = target.Character:FindFirstChildOfClass("Humanoid")
 				if humanoid then
@@ -140,18 +168,66 @@ function AdminModule.Initialize()
 					sendConsoleUpdate(player, "No humanoid found for speed command on '" .. targetName .. "'.")
 				end
 			end
+
+		elseif command == "Heal" then
+			-- Heal: set the target's health back to maximum.
+			if target.Character then
+				local humanoid = target.Character:FindFirstChildOfClass("Humanoid")
+				if humanoid then
+					humanoid.Health = humanoid.MaxHealth
+					sendConsoleUpdate(player, "Healed '" .. targetName .. "'.")
+				else
+					sendConsoleUpdate(player, "No humanoid found for healing '" .. targetName .. "'.")
+				end
+			end
+
+		elseif command == "Invisible" then
+			-- Toggle invisibility for all BaseParts (except HumanoidRootPart) on the target.
+			if target.Character then
+				local humanoid = target.Character:FindFirstChildOfClass("Humanoid")
+				if humanoid then
+					local invisibleTag = target.Character:FindFirstChild("InvisibleEnabled")
+					if invisibleTag then
+						-- Disable invisibility.
+						for _, part in ipairs(target.Character:GetDescendants()) do
+							if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+								part.Transparency = 0
+							end
+						end
+						invisibleTag:Destroy()
+						sendConsoleUpdate(player, "Disabled Invisibility for '" .. targetName .. "'.")
+					else
+						-- Enable invisibility.
+						for _, part in ipairs(target.Character:GetDescendants()) do
+							if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+								part.Transparency = 1
+							end
+						end
+						local tag = Instance.new("BoolValue")
+						tag.Name = "InvisibleEnabled"
+						tag.Parent = target.Character
+						sendConsoleUpdate(player, "Enabled Invisibility for '" .. targetName .. "'.")
+					end
+				else
+					sendConsoleUpdate(player, "No humanoid found for '" .. targetName .. "'.")
+				end
+			end
+
 		else
 			sendConsoleUpdate(player, "Unknown command: " .. command)
 		end
 	end
 
+	-- When an admin requests access, acknowledge and activate their admin panel.
 	requestAdmin.OnServerEvent:Connect(function(player)
 		print("AdminModule: Received RequestAdmin from " .. player.Name)
 		sendConsoleUpdate(player, "Admin request received. Activating admin panel.")
+		-- Signal to the client to activate (handled on the client side).
 		adminCommand:FireClient(player, "Activate")
 		print("AdminModule: Fired Activate command to " .. player.Name)
 	end)
 
+	-- Listen for admin commands.
 	adminCommand.OnServerEvent:Connect(function(player, command, targetName, extra)
 		processAdminCommand(player, command, targetName, extra)
 	end)
