@@ -21,20 +21,14 @@ local remoteFolder = ReplicatedStorage:WaitForChild("AdminRemoteEvents")
 local requestAdmin = remoteFolder:WaitForChild("RequestAdmin")
 local adminCommand = remoteFolder:WaitForChild("AdminCommand")
 local consoleUpdate = remoteFolder:WaitForChild("ConsoleUpdate")
-local flyClient = remoteFolder:WaitForChild("FlyClient")
 
 -- State management
 local selectedPlayer = player
 local playerStates = {}
-local localFlyActive = false
-local flyConnection
-local flyBodyVelocity
-local flyBodyGyro
 
 -- Initialize player states
 local function initPlayerState(p)
     return {
-        fly = false,
         invisible = false,
         freeze = false,
         speed = 16,
@@ -157,31 +151,18 @@ local function createCommandButton(name)
     return button
 end
 
--- Create command buttons (including new "Freeze" and "Trip")
+-- Create command buttons (including the new "Give" command; removed "Fly")
 local commands = {
     "Kick", "Bring", "Teleport", "Kill", "GodMode",
-    "Fly", "Heal", "Fling", "Invisible", "Freeze", "Trip"
+    "Heal", "Fling", "Invisible", "Freeze", "Trip", "Give"
 }
 
 local buttons = {}
 for _, cmd in ipairs(commands) do
     buttons[cmd] = createCommandButton(cmd)
-    
+
     buttons[cmd].MouseButton1Click:Connect(function()
-        if cmd == "Fly" then
-            local state = not playerStates[selectedPlayer].fly
-            playerStates[selectedPlayer].fly = state
-            if selectedPlayer == player then
-                if state then
-                    enableFly()
-                else
-                    disableFly()
-                end
-            else
-                adminCommand:FireServer(cmd, selectedPlayer.Name, state)
-            end
-            buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
-        elseif cmd == "Invisible" then
+        if cmd == "Invisible" then
             local state = not playerStates[selectedPlayer].invisible
             playerStates[selectedPlayer].invisible = state
             adminCommand:FireServer(cmd, selectedPlayer.Name, state)
@@ -191,86 +172,70 @@ for _, cmd in ipairs(commands) do
             playerStates[selectedPlayer].freeze = state
             adminCommand:FireServer(cmd, selectedPlayer.Name, state)
             buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
-        elseif cmd == "Trip" then
-            adminCommand:FireServer(cmd, selectedPlayer.Name)
+        elseif cmd == "Give" then
+            -- Show a prompt to enter a Gear ID.
+            local promptFrame = Instance.new("Frame")
+            promptFrame.Size = UDim2.new(0, 300, 0, 150)
+            promptFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
+            promptFrame.BackgroundColor3 = UITheme.AccentColor
+            promptFrame.Parent = gui
+
+            local promptLabel = Instance.new("TextLabel")
+            promptLabel.Size = UDim2.new(1, -20, 0, 30)
+            promptLabel.Position = UDim2.new(0, 10, 0, 10)
+            promptLabel.BackgroundTransparency = 1
+            promptLabel.TextColor3 = UITheme.TextColor
+            promptLabel.Text = "Enter Gear ID:"
+            promptLabel.Font = Enum.Font.GothamBold
+            promptLabel.TextSize = 18
+            promptLabel.Parent = promptFrame
+
+            local gearTextBox = Instance.new("TextBox")
+            gearTextBox.Size = UDim2.new(1, -20, 0, 30)
+            gearTextBox.Position = UDim2.new(0, 10, 0, 50)
+            gearTextBox.BackgroundColor3 = UITheme.ButtonColor
+            gearTextBox.TextColor3 = UITheme.TextColor
+            gearTextBox.Text = ""
+            gearTextBox.Font = Enum.Font.Gotham
+            gearTextBox.TextSize = 16
+            gearTextBox.Parent = promptFrame
+
+            local giveButton = Instance.new("TextButton")
+            giveButton.Size = UDim2.new(0, 100, 0, 30)
+            giveButton.Position = UDim2.new(0.5, -110, 1, -40)
+            giveButton.BackgroundColor3 = UITheme.ButtonColor
+            giveButton.TextColor3 = UITheme.TextColor
+            giveButton.Text = "Give"
+            giveButton.Font = Enum.Font.GothamBold
+            giveButton.TextSize = 16
+            giveButton.Parent = promptFrame
+
+            local cancelButton = Instance.new("TextButton")
+            cancelButton.Size = UDim2.new(0, 100, 0, 30)
+            cancelButton.Position = UDim2.new(0.5, 10, 1, -40)
+            cancelButton.BackgroundColor3 = UITheme.ButtonColor
+            cancelButton.TextColor3 = UITheme.TextColor
+            cancelButton.Text = "Cancel"
+            cancelButton.Font = Enum.Font.GothamBold
+            cancelButton.TextSize = 16
+            cancelButton.Parent = promptFrame
+
+            giveButton.MouseButton1Click:Connect(function()
+                local gearId = gearTextBox.Text
+                adminCommand:FireServer("Give", selectedPlayer.Name, gearId)
+                promptFrame:Destroy()
+            end)
+
+            cancelButton.MouseButton1Click:Connect(function()
+                promptFrame:Destroy()
+            end)
         else
             adminCommand:FireServer(cmd, selectedPlayer.Name)
         end
     end)
 end
 
--- Flight functions with smoothing
-local function enableFly()
-    local char = player.Character
-    if not char then return end
-    
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    if flyBodyVelocity then flyBodyVelocity:Destroy() end
-    if flyBodyGyro then flyBodyGyro:Destroy() end
-    
-    flyBodyVelocity = Instance.new("BodyVelocity")
-    flyBodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-    flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
-    flyBodyVelocity.Parent = hrp
-    
-    flyBodyGyro = Instance.new("BodyGyro")
-    flyBodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
-    flyBodyGyro.P = 1500
-    flyBodyGyro.Parent = hrp
-    
-    localFlyActive = true
-    
-    if flyConnection then flyConnection:Disconnect() end
-    flyConnection = RunService.RenderStepped:Connect(function(dt)
-        if not localFlyActive then return end
-        
-        local moveDirection = Vector3.new(0, 0, 0)
-        
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveDirection = moveDirection + workspace.CurrentCamera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveDirection = moveDirection - workspace.CurrentCamera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveDirection = moveDirection - workspace.CurrentCamera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveDirection = moveDirection + workspace.CurrentCamera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            moveDirection = moveDirection + Vector3.new(0, 1, 0)
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            moveDirection = moveDirection - Vector3.new(0, 1, 0)
-        end
-        
-        local flySpeed = 75
-        local targetVelocity = moveDirection.Magnitude > 0 and moveDirection.Unit * flySpeed or Vector3.new(0, 0, 0)
-        flyBodyVelocity.Velocity = flyBodyVelocity.Velocity:Lerp(targetVelocity, 0.2)
-        flyBodyGyro.CFrame = workspace.CurrentCamera.CFrame
-    end)
-end
-
-local function disableFly()
-    localFlyActive = false
-    if flyConnection then
-        flyConnection:Disconnect()
-        flyConnection = nil
-    end
-    if flyBodyVelocity then
-        flyBodyVelocity:Destroy()
-        flyBodyVelocity = nil
-    end
-    if flyBodyGyro then
-        flyBodyGyro:Destroy()
-        flyBodyGyro = nil
-    end
-end
-
--- Update command states based on selected player's current status
+-- Update command states based on the selected player's current status.
 local function updateCommandStates()
     if playerStates[selectedPlayer] then
         if selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("Humanoid") then
@@ -280,10 +245,7 @@ local function updateCommandStates()
         else
             speedValue.Text = "N/A"
         end
-        
-        if buttons["Fly"] then
-            buttons["Fly"].BackgroundColor3 = playerStates[selectedPlayer].fly and UITheme.ToggledButtonColor or UITheme.ButtonColor
-        end
+
         if buttons["Invisible"] then
             buttons["Invisible"].BackgroundColor3 = playerStates[selectedPlayer].invisible and UITheme.ToggledButtonColor or UITheme.ButtonColor
         end
@@ -293,19 +255,19 @@ local function updateCommandStates()
     end
 end
 
--- Update players list and UI state
+-- Update players list and UI state.
 local function updatePlayersList()
     for _, child in ipairs(playersList:GetChildren()) do
         if child:IsA("TextButton") then
             child:Destroy()
         end
     end
-    
+
     for _, p in ipairs(Players:GetPlayers()) do
         if not playerStates[p] then
             playerStates[p] = initPlayerState(p)
         end
-        
+
         local button = Instance.new("TextButton")
         button.Size = UDim2.new(1, -10, 0, 25)
         button.BackgroundColor3 = p == selectedPlayer and UITheme.HighlightColor or UITheme.ButtonColor
@@ -314,7 +276,7 @@ local function updatePlayersList()
         button.TextSize = 14
         button.Font = Enum.Font.Gotham
         button.Parent = playersList
-        
+
         button.MouseButton1Click:Connect(function()
             selectedPlayer = p
             updatePlayersList()
@@ -324,7 +286,7 @@ local function updatePlayersList()
     updateCommandStates()
 end
 
--- Speed control
+-- Speed control.
 speedValue.FocusLost:Connect(function(enterPressed)
     if enterPressed then
         local speed = tonumber(speedValue.Text)
@@ -332,19 +294,6 @@ speedValue.FocusLost:Connect(function(enterPressed)
             adminCommand:FireServer("Speed", selectedPlayer.Name, speed)
         end
     end
-end)
-
--- Handle remote events
-flyClient.OnClientEvent:Connect(function(action)
-    if action == "Enable" then
-        enableFly()
-    else
-        disableFly()
-    end
-end)
-
-consoleUpdate.OnClientEvent:Connect(function(message)
-    consoleText.Text = consoleText.Text .. "\n" .. message
 end)
 
 Players.PlayerAdded:Connect(function(p)
@@ -363,5 +312,3 @@ end)
 -- Initialize the UI and request admin control.
 updatePlayersList()
 requestAdmin:FireServer()
-
-player.CharacterRemoving:Connect(disableFly)

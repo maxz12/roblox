@@ -2,6 +2,7 @@
 local AdminModule = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local InsertService = game:GetService("InsertService")  -- Needed for the "Give" command
 
 -- Utility: Case-insensitive player search by name.
 local function findPlayerByName(name)
@@ -42,13 +43,6 @@ function AdminModule.Initialize()
 		consoleUpdate = Instance.new("RemoteEvent")
 		consoleUpdate.Name = "ConsoleUpdate"
 		consoleUpdate.Parent = remoteFolder
-	end
-
-	local flyClient = remoteFolder:FindFirstChild("FlyClient")
-	if not flyClient then
-		flyClient = Instance.new("RemoteEvent")
-		flyClient.Name = "FlyClient"
-		flyClient.Parent = remoteFolder
 	end
 
 	-- Utility to send a console update to a specified player.
@@ -108,10 +102,6 @@ function AdminModule.Initialize()
 					end
 				end
 			end
-
-		elseif command == "Fly" then
-			flyClient:FireClient(target, extra and "Enable" or "Disable")
-			sendConsoleUpdate(player, (extra and "Enabled" or "Disabled") .. " Fly for '" .. targetName .. "'.")
 
 		elseif command == "Speed" then
 			if target.Character then
@@ -208,6 +198,37 @@ function AdminModule.Initialize()
 						humanoid.PlatformStand = false
 					end
 				end)
+			end
+
+		elseif command == "Give" then
+			-- "extra" is expected to be the gear (asset) ID
+			local gearId = tonumber(extra)
+			if gearId then
+				local asset = InsertService:LoadAsset(gearId)
+				if asset then
+					local tool = nil
+					for _, child in ipairs(asset:GetChildren()) do
+						if child:IsA("Tool") then
+							tool = child
+							break
+						end
+					end
+					if tool then
+						local backpack = target:FindFirstChild("Backpack")
+						if backpack then
+							tool.Parent = backpack
+							sendConsoleUpdate(player, "Gave gear (" .. gearId .. ") to '" .. targetName .. "'.")
+						else
+							sendConsoleUpdate(player, "Target does not have a Backpack.")
+						end
+					else
+						sendConsoleUpdate(player, "Asset " .. gearId .. " does not contain a Tool.")
+					end
+				else
+					sendConsoleUpdate(player, "Could not load asset " .. gearId .. ".")
+				end
+			else
+				sendConsoleUpdate(player, "Invalid gear id: " .. tostring(extra))
 			end
 		end
 	end
