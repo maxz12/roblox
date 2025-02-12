@@ -2,7 +2,7 @@
 local AdminModule = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local InsertService = game:GetService("InsertService")  -- Needed for the "Give" command
+local InsertService = game:GetService("InsertService")  -- Used for the "Give" command
 
 -- Utility: Case-insensitive player search by name.
 local function findPlayerByName(name)
@@ -15,7 +15,7 @@ local function findPlayerByName(name)
 end
 
 function AdminModule.Initialize()
-	-- Create or find the folder that holds our RemoteEvents.
+	-- Create (or find) the folder that holds our RemoteEvents.
 	local remoteFolder = ReplicatedStorage:FindFirstChild("AdminRemoteEvents")
 	if not remoteFolder then
 		remoteFolder = Instance.new("Folder")
@@ -45,7 +45,7 @@ function AdminModule.Initialize()
 		consoleUpdate.Parent = remoteFolder
 	end
 
-	-- Utility to send a console update to a specified player.
+	-- Helper: send a console update to a given player.
 	local function sendConsoleUpdate(player, message)
 		consoleUpdate:FireClient(player, message)
 	end
@@ -69,11 +69,11 @@ function AdminModule.Initialize()
 				sendConsoleUpdate(player, "Brought player '" .. targetName .. "' to you.")
 			end
 
-		elseif command == "Teleport" then
+		elseif command == "To Go" then  -- Renamed from "Teleport".
 			if target.Character and player.Character and target.Character:FindFirstChild("HumanoidRootPart") then
 				local pos = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 5)
 				player.Character:SetPrimaryPartCFrame(pos)
-				sendConsoleUpdate(player, "Teleported to '" .. targetName .. "'.")
+				sendConsoleUpdate(player, "Sent you to '" .. targetName .. "'.")
 			end
 
 		elseif command == "Kill" then
@@ -96,11 +96,16 @@ function AdminModule.Initialize()
 						local tag = Instance.new("BoolValue")
 						tag.Name = "GodModeEnabled"
 						tag.Parent = target.Character
-						humanoid.MaxHealth = math.huge
-						humanoid.Health = math.huge
+						-- Use a very large (finite) number.
+						humanoid.MaxHealth = 1000000
+						humanoid.Health = 1000000
 						sendConsoleUpdate(player, "Enabled God Mode for '" .. targetName .. "'.")
 					end
+				else
+					sendConsoleUpdate(player, "No humanoid found in " .. targetName .. "'s character.")
 				end
+			else
+				sendConsoleUpdate(player, "No character found for " .. targetName .. ".")
 			end
 
 		elseif command == "Speed" then
@@ -166,7 +171,7 @@ function AdminModule.Initialize()
 			if target.Character then
 				local frozenTag = target.Character:FindFirstChild("FrozenEnabled")
 				if frozenTag then
-					-- Unfreeze: set Anchored false on all parts
+					-- Unfreeze: set Anchored = false on all BaseParts.
 					for _, part in ipairs(target.Character:GetDescendants()) do
 						if part:IsA("BasePart") then
 							part.Anchored = false
@@ -175,7 +180,7 @@ function AdminModule.Initialize()
 					frozenTag:Destroy()
 					sendConsoleUpdate(player, "Unfroze '" .. targetName .. "'.")
 				else
-					-- Freeze: anchor all parts and add a tag.
+					-- Freeze: anchor all BaseParts and add a tag.
 					for _, part in ipairs(target.Character:GetDescendants()) do
 						if part:IsA("BasePart") then
 							part.Anchored = true
@@ -201,7 +206,7 @@ function AdminModule.Initialize()
 			end
 
 		elseif command == "Give" then
-			-- "extra" is expected to be the gear (asset) ID
+			-- "extra" is expected to be the gear (asset) ID.
 			local gearId = tonumber(extra)
 			if gearId then
 				local asset = InsertService:LoadAsset(gearId)

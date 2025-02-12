@@ -2,18 +2,18 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
-local mouse = player:GetMouse()
+local workspace = game:GetService("Workspace")
+local gameLighting = game:GetService("Lighting")
 
 -- UI Theme settings.
 local UITheme = {
-    BackgroundColor = Color3.fromRGB(30, 30, 30),
-    AccentColor = Color3.fromRGB(45, 45, 45),
-    TextColor = Color3.fromRGB(235, 235, 235),
-    ButtonColor = Color3.fromRGB(50, 150, 250),
-    ToggledButtonColor = Color3.fromRGB(30, 100, 200),
-    HighlightColor = Color3.fromRGB(255, 165, 0)
+	BackgroundColor = Color3.fromRGB(30, 30, 30),
+	AccentColor = Color3.fromRGB(45, 45, 45),
+	TextColor = Color3.fromRGB(235, 235, 235),
+	ButtonColor = Color3.fromRGB(50, 150, 250),
+	ToggledButtonColor = Color3.fromRGB(30, 100, 200),
+	HighlightColor = Color3.fromRGB(255, 165, 0)
 }
 
 -- RemoteEvents
@@ -21,6 +21,7 @@ local remoteFolder = ReplicatedStorage:WaitForChild("AdminRemoteEvents")
 local requestAdmin = remoteFolder:WaitForChild("RequestAdmin")
 local adminCommand = remoteFolder:WaitForChild("AdminCommand")
 local consoleUpdate = remoteFolder:WaitForChild("ConsoleUpdate")
+-- (No trolling commands are used on the client anymore.)
 
 -- State management
 local selectedPlayer = player
@@ -28,33 +29,70 @@ local playerStates = {}
 
 -- Initialize player states
 local function initPlayerState(p)
-    return {
-        invisible = false,
-        freeze = false,
-        speed = 16,
-        jump = 50
-    }
+	return {
+		invisible = false,
+		freeze = false,
+		speed = 16,
+		jump = 50
+	}
 end
 
--- Setup UI
 local gui = Instance.new("ScreenGui")
 gui.Name = "AdminGui"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
--- Create console output
-local console = Instance.new("Frame")
-console.Name = "Console"
-console.Size = UDim2.new(0, 400, 0, 150)
-console.Position = UDim2.new(0.5, -200, 0, 10)
-console.BackgroundColor3 = UITheme.BackgroundColor
-console.BackgroundTransparency = 0.1
-console.BorderSizePixel = 0
-console.Parent = gui
+--------------------------------------------
+-- Create Dynamic Console (Draggable, with Title, Minimize/Maximize, and Clear)
+--------------------------------------------
+local consoleFrame = Instance.new("Frame")
+consoleFrame.Name = "ConsoleFrame"
+consoleFrame.Size = UDim2.new(0, 400, 0, 150)
+consoleFrame.Position = UDim2.new(0.5, -200, 0, 10)
+consoleFrame.BackgroundColor3 = UITheme.BackgroundColor
+consoleFrame.BackgroundTransparency = 0.1
+consoleFrame.BorderSizePixel = 0
+consoleFrame.Active = true
+consoleFrame.Draggable = true
+consoleFrame.Parent = gui
+
+local consoleTitle = Instance.new("TextLabel")
+consoleTitle.Name = "ConsoleTitle"
+consoleTitle.Size = UDim2.new(1, -110, 0, 30)
+consoleTitle.Position = UDim2.new(0, 0, 0, 0)
+consoleTitle.BackgroundColor3 = UITheme.AccentColor
+consoleTitle.TextColor3 = UITheme.TextColor
+consoleTitle.Text = "Admin Console"
+consoleTitle.Font = Enum.Font.GothamBold
+consoleTitle.TextSize = 18
+consoleTitle.Parent = consoleFrame
+
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Name = "MinimizeButton"
+minimizeButton.Size = UDim2.new(0, 50, 0, 30)
+minimizeButton.Position = UDim2.new(1, -110, 0, 0)
+minimizeButton.BackgroundColor3 = UITheme.ButtonColor
+minimizeButton.TextColor3 = UITheme.TextColor
+minimizeButton.Text = "-"
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.TextSize = 18
+minimizeButton.Parent = consoleFrame
+
+local clearButton = Instance.new("TextButton")
+clearButton.Name = "ClearButton"
+clearButton.Size = UDim2.new(0, 50, 0, 30)
+clearButton.Position = UDim2.new(1, -60, 0, 0)
+clearButton.BackgroundColor3 = UITheme.ButtonColor
+clearButton.TextColor3 = UITheme.TextColor
+clearButton.Text = "Clear"
+clearButton.Font = Enum.Font.GothamBold
+clearButton.TextSize = 14
+clearButton.Parent = consoleFrame
 
 local consoleText = Instance.new("TextLabel")
-consoleText.Size = UDim2.new(1, -10, 1, -10)
-consoleText.Position = UDim2.new(0, 5, 0, 5)
+consoleText.Name = "ConsoleText"
+consoleText.Size = UDim2.new(1, -10, 1, -40)
+consoleText.Position = UDim2.new(0, 5, 0, 35)
 consoleText.BackgroundTransparency = 1
 consoleText.TextColor3 = UITheme.TextColor
 consoleText.TextXAlignment = Enum.TextXAlignment.Left
@@ -62,9 +100,30 @@ consoleText.TextYAlignment = Enum.TextYAlignment.Top
 consoleText.TextSize = 14
 consoleText.Font = Enum.Font.Gotham
 consoleText.Text = "Admin Console:"
-consoleText.Parent = console
+consoleText.Parent = consoleFrame
 
--- Create main panel
+local consoleExpandedSize = UDim2.new(0, 400, 0, 150)
+local consoleMinimizedSize = UDim2.new(0, 400, 0, 30)
+local consoleIsMinimized = false
+
+minimizeButton.MouseButton1Click:Connect(function()
+	if consoleIsMinimized then
+		consoleFrame:TweenSize(consoleExpandedSize, "Out", "Quad", 0.3, true)
+		minimizeButton.Text = "-"
+	else
+		consoleFrame:TweenSize(consoleMinimizedSize, "Out", "Quad", 0.3, true)
+		minimizeButton.Text = "+"
+	end
+	consoleIsMinimized = not consoleIsMinimized
+end)
+
+clearButton.MouseButton1Click:Connect(function()
+	consoleText.Text = "Admin Console:"
+end)
+
+--------------------------------------------
+-- Create Main Admin Panel
+--------------------------------------------
 local panel = Instance.new("Frame")
 panel.Name = "MainPanel"
 panel.Size = UDim2.new(0, 520, 0, 400)
@@ -74,7 +133,6 @@ panel.Active = true
 panel.Draggable = true
 panel.Parent = gui
 
--- Create title bar
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 30)
 title.BackgroundColor3 = UITheme.AccentColor
@@ -84,7 +142,6 @@ title.TextSize = 18
 title.Font = Enum.Font.GothamBold
 title.Parent = panel
 
--- Create players list
 local playersList = Instance.new("ScrollingFrame")
 playersList.Size = UDim2.new(0.4, -10, 1, -40)
 playersList.Position = UDim2.new(0, 5, 0, 35)
@@ -97,7 +154,6 @@ local listLayout = Instance.new("UIListLayout")
 listLayout.Padding = UDim.new(0, 2)
 listLayout.Parent = playersList
 
--- Create commands panel
 local commandsPanel = Instance.new("Frame")
 commandsPanel.Size = UDim2.new(0.6, -10, 1, -40)
 commandsPanel.Position = UDim2.new(0.4, 5, 0, 35)
@@ -105,13 +161,11 @@ commandsPanel.BackgroundColor3 = UITheme.AccentColor
 commandsPanel.BorderSizePixel = 0
 commandsPanel.Parent = panel
 
--- Create buttons grid
 local buttonsGrid = Instance.new("UIGridLayout")
 buttonsGrid.CellSize = UDim2.new(0.5, -5, 0, 30)
 buttonsGrid.CellPadding = UDim2.new(0, 5, 0, 5)
 buttonsGrid.Parent = commandsPanel
 
--- Create speed slider
 local speedSlider = Instance.new("Frame")
 speedSlider.Name = "SpeedSlider"
 speedSlider.Size = UDim2.new(1, -10, 0, 20)
@@ -137,178 +191,182 @@ speedValue.TextColor3 = UITheme.TextColor
 speedValue.Text = "16"
 speedValue.TextSize = 14
 speedValue.Font = Enum.Font.Gotham
-speedValue.Parent = speedSlider
+	speedValue.Parent = speedSlider
 
--- Command button creation helper
-local function createCommandButton(name)
-    local button = Instance.new("TextButton")
-    button.BackgroundColor3 = UITheme.ButtonColor
-    button.TextColor3 = UITheme.TextColor
-    button.Text = name
-    button.Font = Enum.Font.GothamSemibold
-    button.TextSize = 14
-    button.Parent = commandsPanel
-    return button
-end
-
--- Create command buttons (including the new "Give" command; removed "Fly")
+--------------------------------------------
+-- Command Buttons Setup
+--------------------------------------------
+-- Command list: only the commands you originally had.
 local commands = {
-    "Kick", "Bring", "Teleport", "Kill", "GodMode",
-    "Heal", "Fling", "Invisible", "Freeze", "Trip", "Give"
+	"Kick", "Bring", "To Go", "Kill", "GodMode",
+	"Heal", "Fling", "Invisible", "Freeze", "Trip", "Give", "Speed"
 }
 
 local buttons = {}
 for _, cmd in ipairs(commands) do
-    buttons[cmd] = createCommandButton(cmd)
+	buttons[cmd] = Instance.new("TextButton")
+	buttons[cmd].BackgroundColor3 = UITheme.ButtonColor
+	buttons[cmd].TextColor3 = UITheme.TextColor
+	buttons[cmd].Text = cmd
+	buttons[cmd].Font = Enum.Font.GothamSemibold
+	buttons[cmd].TextSize = 14
+	buttons[cmd].Parent = commandsPanel
 
-    buttons[cmd].MouseButton1Click:Connect(function()
-        if cmd == "Invisible" then
-            local state = not playerStates[selectedPlayer].invisible
-            playerStates[selectedPlayer].invisible = state
-            adminCommand:FireServer(cmd, selectedPlayer.Name, state)
-            buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
-        elseif cmd == "Freeze" then
-            local state = not (playerStates[selectedPlayer].freeze or false)
-            playerStates[selectedPlayer].freeze = state
-            adminCommand:FireServer(cmd, selectedPlayer.Name, state)
-            buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
-        elseif cmd == "Give" then
-            -- Show a prompt to enter a Gear ID.
-            local promptFrame = Instance.new("Frame")
-            promptFrame.Size = UDim2.new(0, 300, 0, 150)
-            promptFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
-            promptFrame.BackgroundColor3 = UITheme.AccentColor
-            promptFrame.Parent = gui
+	buttons[cmd].MouseButton1Click:Connect(function()
+		if cmd == "Invisible" then
+			local state = not playerStates[selectedPlayer].invisible
+			playerStates[selectedPlayer].invisible = state
+			adminCommand:FireServer(cmd, selectedPlayer.Name, state)
+			buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
+		elseif cmd == "Freeze" then
+			local state = not (playerStates[selectedPlayer].freeze or false)
+			playerStates[selectedPlayer].freeze = state
+			adminCommand:FireServer(cmd, selectedPlayer.Name, state)
+			buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
+		elseif cmd == "Give" then
+			-- Prompt for a Gear ID.
+			local promptFrame = Instance.new("Frame")
+			promptFrame.Size = UDim2.new(0, 300, 0, 150)
+			promptFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
+			promptFrame.BackgroundColor3 = UITheme.AccentColor
+			promptFrame.Parent = gui
 
-            local promptLabel = Instance.new("TextLabel")
-            promptLabel.Size = UDim2.new(1, -20, 0, 30)
-            promptLabel.Position = UDim2.new(0, 10, 0, 10)
-            promptLabel.BackgroundTransparency = 1
-            promptLabel.TextColor3 = UITheme.TextColor
-            promptLabel.Text = "Enter Gear ID:"
-            promptLabel.Font = Enum.Font.GothamBold
-            promptLabel.TextSize = 18
-            promptLabel.Parent = promptFrame
+			local promptLabel = Instance.new("TextLabel")
+			promptLabel.Size = UDim2.new(1, -20, 0, 30)
+			promptLabel.Position = UDim2.new(0, 10, 0, 10)
+			promptLabel.BackgroundTransparency = 1
+			promptLabel.TextColor3 = UITheme.TextColor
+			promptLabel.Text = "Enter Gear ID:"
+			promptLabel.Font = Enum.Font.GothamBold
+			promptLabel.TextSize = 18
+			promptLabel.Parent = promptFrame
 
-            local gearTextBox = Instance.new("TextBox")
-            gearTextBox.Size = UDim2.new(1, -20, 0, 30)
-            gearTextBox.Position = UDim2.new(0, 10, 0, 50)
-            gearTextBox.BackgroundColor3 = UITheme.ButtonColor
-            gearTextBox.TextColor3 = UITheme.TextColor
-            gearTextBox.Text = ""
-            gearTextBox.Font = Enum.Font.Gotham
-            gearTextBox.TextSize = 16
-            gearTextBox.Parent = promptFrame
+			local gearTextBox = Instance.new("TextBox")
+			gearTextBox.Size = UDim2.new(1, -20, 0, 30)
+			gearTextBox.Position = UDim2.new(0, 10, 0, 50)
+			gearTextBox.BackgroundColor3 = UITheme.ButtonColor
+			gearTextBox.TextColor3 = UITheme.TextColor
+			gearTextBox.Text = ""
+			gearTextBox.Font = Enum.Font.Gotham
+			gearTextBox.TextSize = 16
+			gearTextBox.Parent = promptFrame
 
-            local giveButton = Instance.new("TextButton")
-            giveButton.Size = UDim2.new(0, 100, 0, 30)
-            giveButton.Position = UDim2.new(0.5, -110, 1, -40)
-            giveButton.BackgroundColor3 = UITheme.ButtonColor
-            giveButton.TextColor3 = UITheme.TextColor
-            giveButton.Text = "Give"
-            giveButton.Font = Enum.Font.GothamBold
-            giveButton.TextSize = 16
-            giveButton.Parent = promptFrame
+			local giveButton = Instance.new("TextButton")
+			giveButton.Size = UDim2.new(0, 100, 0, 30)
+			giveButton.Position = UDim2.new(0.5, -110, 1, -40)
+			giveButton.BackgroundColor3 = UITheme.ButtonColor
+			giveButton.TextColor3 = UITheme.TextColor
+			giveButton.Text = "Give"
+			giveButton.Font = Enum.Font.GothamBold
+			giveButton.TextSize = 16
+			giveButton.Parent = promptFrame
 
-            local cancelButton = Instance.new("TextButton")
-            cancelButton.Size = UDim2.new(0, 100, 0, 30)
-            cancelButton.Position = UDim2.new(0.5, 10, 1, -40)
-            cancelButton.BackgroundColor3 = UITheme.ButtonColor
-            cancelButton.TextColor3 = UITheme.TextColor
-            cancelButton.Text = "Cancel"
-            cancelButton.Font = Enum.Font.GothamBold
-            cancelButton.TextSize = 16
-            cancelButton.Parent = promptFrame
+			local cancelButton = Instance.new("TextButton")
+			cancelButton.Size = UDim2.new(0, 100, 0, 30)
+			cancelButton.Position = UDim2.new(0.5, 10, 1, -40)
+			cancelButton.BackgroundColor3 = UITheme.ButtonColor
+			cancelButton.TextColor3 = UITheme.TextColor
+			cancelButton.Text = "Cancel"
+			cancelButton.Font = Enum.Font.GothamBold
+			cancelButton.TextSize = 16
+			cancelButton.Parent = promptFrame
 
-            giveButton.MouseButton1Click:Connect(function()
-                local gearId = gearTextBox.Text
-                adminCommand:FireServer("Give", selectedPlayer.Name, gearId)
-                promptFrame:Destroy()
-            end)
+			giveButton.MouseButton1Click:Connect(function()
+				local gearId = gearTextBox.Text
+				adminCommand:FireServer("Give", selectedPlayer.Name, gearId)
+				promptFrame:Destroy()
+			end)
 
-            cancelButton.MouseButton1Click:Connect(function()
-                promptFrame:Destroy()
-            end)
-        else
-            adminCommand:FireServer(cmd, selectedPlayer.Name)
-        end
-    end)
+			cancelButton.MouseButton1Click:Connect(function()
+				promptFrame:Destroy()
+			end)
+		else
+			adminCommand:FireServer(cmd, selectedPlayer.Name)
+		end
+	end)
 end
 
--- Update command states based on the selected player's current status.
+--------------------------------------------
+-- Update Command States Based on Selected Player
+--------------------------------------------
 local function updateCommandStates()
-    if playerStates[selectedPlayer] then
-        if selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("Humanoid") then
-            local currentSpeed = selectedPlayer.Character.Humanoid.WalkSpeed
-            playerStates[selectedPlayer].speed = currentSpeed
-            speedValue.Text = tostring(currentSpeed)
-        else
-            speedValue.Text = "N/A"
-        end
+	if playerStates[selectedPlayer] then
+		if selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("Humanoid") then
+			local currentSpeed = selectedPlayer.Character.Humanoid.WalkSpeed
+			playerStates[selectedPlayer].speed = currentSpeed
+			speedValue.Text = tostring(currentSpeed)
+		else
+			speedValue.Text = "N/A"
+		end
 
-        if buttons["Invisible"] then
-            buttons["Invisible"].BackgroundColor3 = playerStates[selectedPlayer].invisible and UITheme.ToggledButtonColor or UITheme.ButtonColor
-        end
-        if buttons["Freeze"] then
-            buttons["Freeze"].BackgroundColor3 = playerStates[selectedPlayer].freeze and UITheme.ToggledButtonColor or UITheme.ButtonColor
-        end
-    end
+		if buttons["Invisible"] then
+			buttons["Invisible"].BackgroundColor3 = playerStates[selectedPlayer].invisible and UITheme.ToggledButtonColor or UITheme.ButtonColor
+		end
+		if buttons["Freeze"] then
+			buttons["Freeze"].BackgroundColor3 = playerStates[selectedPlayer].freeze and UITheme.ToggledButtonColor or UITheme.ButtonColor
+		end
+	end
 end
 
--- Update players list and UI state.
 local function updatePlayersList()
-    for _, child in ipairs(playersList:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
+	for _, child in ipairs(playersList:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
 
-    for _, p in ipairs(Players:GetPlayers()) do
-        if not playerStates[p] then
-            playerStates[p] = initPlayerState(p)
-        end
+	for _, p in ipairs(Players:GetPlayers()) do
+		if not playerStates[p] then
+			playerStates[p] = initPlayerState(p)
+		end
 
-        local button = Instance.new("TextButton")
-        button.Size = UDim2.new(1, -10, 0, 25)
-        button.BackgroundColor3 = p == selectedPlayer and UITheme.HighlightColor or UITheme.ButtonColor
-        button.TextColor3 = UITheme.TextColor
-        button.Text = p.Name
-        button.TextSize = 14
-        button.Font = Enum.Font.Gotham
-        button.Parent = playersList
+		local button = Instance.new("TextButton")
+		button.Size = UDim2.new(1, -10, 0, 25)
+		button.BackgroundColor3 = p == selectedPlayer and UITheme.HighlightColor or UITheme.ButtonColor
+		button.TextColor3 = UITheme.TextColor
+		button.Text = p.Name
+		button.TextSize = 14
+		button.Font = Enum.Font.Gotham
+		button.Parent = playersList
 
-        button.MouseButton1Click:Connect(function()
-            selectedPlayer = p
-            updatePlayersList()
-            updateCommandStates()
-        end)
-    end
-    updateCommandStates()
+		button.MouseButton1Click:Connect(function()
+			selectedPlayer = p
+			updatePlayersList()
+			updateCommandStates()
+		end)
+	end
+	updateCommandStates()
 end
 
--- Speed control.
 speedValue.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        local speed = tonumber(speedValue.Text)
-        if speed then
-            adminCommand:FireServer("Speed", selectedPlayer.Name, speed)
-        end
-    end
+	if enterPressed then
+		local speed = tonumber(speedValue.Text)
+		if speed then
+			adminCommand:FireServer("Speed", selectedPlayer.Name, speed)
+		end
+	end
 end)
 
 Players.PlayerAdded:Connect(function(p)
-    playerStates[p] = initPlayerState(p)
-    updatePlayersList()
+	playerStates[p] = initPlayerState(p)
+	updatePlayersList()
 end)
 
 Players.PlayerRemoving:Connect(function(p)
-    playerStates[p] = nil
-    if selectedPlayer == p then
-        selectedPlayer = player
-    end
-    updatePlayersList()
+	playerStates[p] = nil
+	if selectedPlayer == p then
+		selectedPlayer = player
+	end
+	updatePlayersList()
 end)
 
--- Initialize the UI and request admin control.
 updatePlayersList()
 requestAdmin:FireServer()
+
+--------------------------------------------
+-- Listen for Console Updates
+--------------------------------------------
+consoleUpdate.OnClientEvent:Connect(function(message)
+	print("ConsoleUpdate received:", message)
+	consoleText.Text = consoleText.Text .. "\n" .. message
+end)
