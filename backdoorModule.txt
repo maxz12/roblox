@@ -1,3 +1,4 @@
+-- AdminModule.lua
 local AdminModule = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -135,12 +136,18 @@ function AdminModule.Initialize()
 			if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
 				local hrp = target.Character.HumanoidRootPart
 				local bv = Instance.new("BodyVelocity")
-				bv.Velocity = Vector3.new(0, 500, 0)
-				bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+				bv.Velocity = Vector3.new(0, 100, 0)
+				bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
 				bv.P = 1250
 				bv.Parent = hrp
-				game:GetService("Debris"):AddItem(bv, 0.1)
-				sendConsoleUpdate(player, "Flung '" .. targetName .. "'.")
+				local bav = Instance.new("BodyAngularVelocity")
+				bav.AngularVelocity = Vector3.new(10, 10, 10)
+				bav.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+				bav.P = 1250
+				bav.Parent = hrp
+				game:GetService("Debris"):AddItem(bv, 0.5)
+				game:GetService("Debris"):AddItem(bav, 0.5)
+				sendConsoleUpdate(player, "Flung '" .. targetName .. "' with a cartwheel!")
 			end
 
 		elseif command == "Invisible" then
@@ -163,6 +170,44 @@ function AdminModule.Initialize()
 				end
 
 				sendConsoleUpdate(player, (extra and "Enabled" or "Disabled") .. " Invisibility for '" .. targetName .. "'.")
+			end
+
+		elseif command == "Freeze" then
+			if target.Character then
+				local frozenTag = target.Character:FindFirstChild("FrozenEnabled")
+				if frozenTag then
+					-- Unfreeze: set Anchored false on all parts
+					for _, part in ipairs(target.Character:GetDescendants()) do
+						if part:IsA("BasePart") then
+							part.Anchored = false
+						end
+					end
+					frozenTag:Destroy()
+					sendConsoleUpdate(player, "Unfroze '" .. targetName .. "'.")
+				else
+					-- Freeze: anchor all parts and add a tag.
+					for _, part in ipairs(target.Character:GetDescendants()) do
+						if part:IsA("BasePart") then
+							part.Anchored = true
+						end
+					end
+					local tag = Instance.new("BoolValue")
+					tag.Name = "FrozenEnabled"
+					tag.Parent = target.Character
+					sendConsoleUpdate(player, "Froze '" .. targetName .. "'.")
+				end
+			end
+
+		elseif command == "Trip" then
+			if target.Character and target.Character:FindFirstChild("Humanoid") then
+				local humanoid = target.Character.Humanoid
+				humanoid.PlatformStand = true
+				sendConsoleUpdate(player, "Tripped '" .. targetName .. "'.")
+				delay(2, function()
+					if humanoid then
+						humanoid.PlatformStand = false
+					end
+				end)
 			end
 		end
 	end

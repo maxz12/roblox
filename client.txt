@@ -1,3 +1,4 @@
+-- LocalScript placed in StarterPlayerScripts (or inside the PlayerGui)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -35,6 +36,7 @@ local function initPlayerState(p)
     return {
         fly = false,
         invisible = false,
+        freeze = false,
         speed = 16,
         jump = 50
     }
@@ -155,16 +157,16 @@ local function createCommandButton(name)
     return button
 end
 
--- Create command buttons
+-- Create command buttons (including new "Freeze" and "Trip")
 local commands = {
     "Kick", "Bring", "Teleport", "Kill", "GodMode",
-    "Fly", "Heal", "Fling", "Invisible"
+    "Fly", "Heal", "Fling", "Invisible", "Freeze", "Trip"
 }
 
 local buttons = {}
 for _, cmd in ipairs(commands) do
     buttons[cmd] = createCommandButton(cmd)
-
+    
     buttons[cmd].MouseButton1Click:Connect(function()
         if cmd == "Fly" then
             local state = not playerStates[selectedPlayer].fly
@@ -184,41 +186,48 @@ for _, cmd in ipairs(commands) do
             playerStates[selectedPlayer].invisible = state
             adminCommand:FireServer(cmd, selectedPlayer.Name, state)
             buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
+        elseif cmd == "Freeze" then
+            local state = not (playerStates[selectedPlayer].freeze or false)
+            playerStates[selectedPlayer].freeze = state
+            adminCommand:FireServer(cmd, selectedPlayer.Name, state)
+            buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
+        elseif cmd == "Trip" then
+            adminCommand:FireServer(cmd, selectedPlayer.Name)
         else
             adminCommand:FireServer(cmd, selectedPlayer.Name)
         end
     end)
 end
 
--- Handle fly command locally
+-- Flight functions with smoothing
 local function enableFly()
     local char = player.Character
     if not char then return end
-
+    
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-
+    
     if flyBodyVelocity then flyBodyVelocity:Destroy() end
     if flyBodyGyro then flyBodyGyro:Destroy() end
-
+    
     flyBodyVelocity = Instance.new("BodyVelocity")
-    flyBodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    flyBodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
     flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
     flyBodyVelocity.Parent = hrp
-
+    
     flyBodyGyro = Instance.new("BodyGyro")
-    flyBodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    flyBodyGyro.P = 1000
+    flyBodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+    flyBodyGyro.P = 1500
     flyBodyGyro.Parent = hrp
-
+    
     localFlyActive = true
-
+    
     if flyConnection then flyConnection:Disconnect() end
-    flyConnection = RunService.RenderStepped:Connect(function()
+    flyConnection = RunService.RenderStepped:Connect(function(dt)
         if not localFlyActive then return end
-
+        
         local moveDirection = Vector3.new(0, 0, 0)
-
+        
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
             moveDirection = moveDirection + workspace.CurrentCamera.CFrame.LookVector
         end
@@ -237,13 +246,10 @@ local function enableFly()
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
             moveDirection = moveDirection - Vector3.new(0, 1, 0)
         end
-
-        if moveDirection.Magnitude > 0 then
-            flyBodyVelocity.Velocity = moveDirection.Unit * 50
-        else
-            flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
-        end
-
+        
+        local flySpeed = 75
+        local targetVelocity = moveDirection.Magnitude > 0 and moveDirection.Unit * flySpeed or Vector3.new(0, 0, 0)
+        flyBodyVelocity.Velocity = flyBodyVelocity.Velocity:Lerp(targetVelocity, 0.2)
         flyBodyGyro.CFrame = workspace.CurrentCamera.CFrame
     end)
 end
@@ -264,19 +270,42 @@ local function disableFly()
     end
 end
 
--- Update players list
+-- Update command states based on selected player's current status
+local function updateCommandStates()
+    if playerStates[selectedPlayer] then
+        if selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("Humanoid") then
+            local currentSpeed = selectedPlayer.Character.Humanoid.WalkSpeed
+            playerStates[selectedPlayer].speed = currentSpeed
+            speedValue.Text = tostring(currentSpeed)
+        else
+            speedValue.Text = "N/A"
+        end
+        
+        if buttons["Fly"] then
+            buttons["Fly"].BackgroundColor3 = playerStates[selectedPlayer].fly and UITheme.ToggledButtonColor or UITheme.ButtonColor
+        end
+        if buttons["Invisible"] then
+            buttons["Invisible"].BackgroundColor3 = playerStates[selectedPlayer].invisible and UITheme.ToggledButtonColor or UITheme.ButtonColor
+        end
+        if buttons["Freeze"] then
+            buttons["Freeze"].BackgroundColor3 = playerStates[selectedPlayer].freeze and UITheme.ToggledButtonColor or UITheme.ButtonColor
+        end
+    end
+end
+
+-- Update players list and UI state
 local function updatePlayersList()
     for _, child in ipairs(playersList:GetChildren()) do
         if child:IsA("TextButton") then
             child:Destroy()
         end
     end
-
+    
     for _, p in ipairs(Players:GetPlayers()) do
         if not playerStates[p] then
             playerStates[p] = initPlayerState(p)
         end
-
+        
         local button = Instance.new("TextButton")
         button.Size = UDim2.new(1, -10, 0, 25)
         button.BackgroundColor3 = p == selectedPlayer and UITheme.HighlightColor or UITheme.ButtonColor
@@ -285,12 +314,14 @@ local function updatePlayersList()
         button.TextSize = 14
         button.Font = Enum.Font.Gotham
         button.Parent = playersList
-
+        
         button.MouseButton1Click:Connect(function()
             selectedPlayer = p
             updatePlayersList()
+            updateCommandStates()
         end)
     end
+    updateCommandStates()
 end
 
 -- Speed control
@@ -316,7 +347,6 @@ consoleUpdate.OnClientEvent:Connect(function(message)
     consoleText.Text = consoleText.Text .. "\n" .. message
 end)
 
--- Player added/removed handlers
 Players.PlayerAdded:Connect(function(p)
     playerStates[p] = initPlayerState(p)
     updatePlayersList()
@@ -330,9 +360,8 @@ Players.PlayerRemoving:Connect(function(p)
     updatePlayersList()
 end)
 
--- Initialize
+-- Initialize the UI and request admin control.
 updatePlayersList()
 requestAdmin:FireServer()
 
--- Clean up
 player.CharacterRemoving:Connect(disableFly)
