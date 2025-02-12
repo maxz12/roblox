@@ -1,10 +1,7 @@
 -- LocalScript placed in StarterPlayerScripts (or inside the PlayerGui)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
-local workspace = game:GetService("Workspace")
-local gameLighting = game:GetService("Lighting")
 
 -- UI Theme settings.
 local UITheme = {
@@ -12,8 +9,9 @@ local UITheme = {
 	AccentColor = Color3.fromRGB(45, 45, 45),
 	TextColor = Color3.fromRGB(235, 235, 235),
 	ButtonColor = Color3.fromRGB(50, 150, 250),
-	ToggledButtonColor = Color3.fromRGB(30, 100, 200),
-	HighlightColor = Color3.fromRGB(255, 165, 0)
+	-- Use a soft yellow for toggled states and selected highlights:
+	ToggledButtonColor = Color3.fromRGB(255, 255, 153),
+	HighlightColor = Color3.fromRGB(255, 255, 153)
 }
 
 -- RemoteEvents
@@ -21,13 +19,11 @@ local remoteFolder = ReplicatedStorage:WaitForChild("AdminRemoteEvents")
 local requestAdmin = remoteFolder:WaitForChild("RequestAdmin")
 local adminCommand = remoteFolder:WaitForChild("AdminCommand")
 local consoleUpdate = remoteFolder:WaitForChild("ConsoleUpdate")
--- (No trolling commands are used on the client anymore.)
 
 -- State management
 local selectedPlayer = player
 local playerStates = {}
 
--- Initialize player states
 local function initPlayerState(p)
 	return {
 		invisible = false,
@@ -166,6 +162,9 @@ buttonsGrid.CellSize = UDim2.new(0.5, -5, 0, 30)
 buttonsGrid.CellPadding = UDim2.new(0, 5, 0, 5)
 buttonsGrid.Parent = commandsPanel
 
+--------------------------------------------
+-- Speed Textbox Setup (no separate Speed button)
+--------------------------------------------
 local speedSlider = Instance.new("Frame")
 speedSlider.Name = "SpeedSlider"
 speedSlider.Size = UDim2.new(1, -10, 0, 20)
@@ -191,15 +190,22 @@ speedValue.TextColor3 = UITheme.TextColor
 speedValue.Text = "16"
 speedValue.TextSize = 14
 speedValue.Font = Enum.Font.Gotham
-	speedValue.Parent = speedSlider
+speedValue.Parent = speedSlider
+
+-- When you finish editing the textbox, update your speed automatically.
+speedValue.FocusLost:Connect(function(enterPressed)
+	local speed = tonumber(speedValue.Text)
+	if speed then
+		adminCommand:FireServer("Speed", selectedPlayer.Name, speed)
+	end
+end)
 
 --------------------------------------------
--- Command Buttons Setup
+-- Command Buttons Setup (no Speed button here)
 --------------------------------------------
--- Command list: only the commands you originally had.
 local commands = {
 	"Kick", "Bring", "To Go", "Kill", "GodMode",
-	"Heal", "Fling", "Invisible", "Freeze", "Trip", "Give", "Speed"
+	"Heal", "Fling", "Invisible", "Freeze", "Trip", "Give"
 }
 
 local buttons = {}
@@ -217,12 +223,24 @@ for _, cmd in ipairs(commands) do
 			local state = not playerStates[selectedPlayer].invisible
 			playerStates[selectedPlayer].invisible = state
 			adminCommand:FireServer(cmd, selectedPlayer.Name, state)
-			buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
+			if state then
+				buttons[cmd].BackgroundColor3 = UITheme.ToggledButtonColor
+				buttons[cmd].TextColor3 = Color3.fromRGB(0, 0, 0)  -- black text for readability
+			else
+				buttons[cmd].BackgroundColor3 = UITheme.ButtonColor
+				buttons[cmd].TextColor3 = UITheme.TextColor
+			end
 		elseif cmd == "Freeze" then
 			local state = not (playerStates[selectedPlayer].freeze or false)
 			playerStates[selectedPlayer].freeze = state
 			adminCommand:FireServer(cmd, selectedPlayer.Name, state)
-			buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
+			if state then
+				buttons[cmd].BackgroundColor3 = UITheme.ToggledButtonColor
+				buttons[cmd].TextColor3 = Color3.fromRGB(0, 0, 0)
+			else
+				buttons[cmd].BackgroundColor3 = UITheme.ButtonColor
+				buttons[cmd].TextColor3 = UITheme.TextColor
+			end
 		elseif cmd == "Give" then
 			-- Prompt for a Gear ID.
 			local promptFrame = Instance.new("Frame")
@@ -294,27 +312,41 @@ local function updateCommandStates()
 		if selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("Humanoid") then
 			local currentSpeed = selectedPlayer.Character.Humanoid.WalkSpeed
 			playerStates[selectedPlayer].speed = currentSpeed
+			-- Dynamically update the speed textbox with the selected player's speed.
 			speedValue.Text = tostring(currentSpeed)
-		else
-			speedValue.Text = "N/A"
 		end
 
+		-- Update toggle button states (if any)
 		if buttons["Invisible"] then
-			buttons["Invisible"].BackgroundColor3 = playerStates[selectedPlayer].invisible and UITheme.ToggledButtonColor or UITheme.ButtonColor
+			if playerStates[selectedPlayer].invisible then
+				buttons["Invisible"].BackgroundColor3 = UITheme.ToggledButtonColor
+				buttons["Invisible"].TextColor3 = Color3.fromRGB(0,0,0)
+			else
+				buttons["Invisible"].BackgroundColor3 = UITheme.ButtonColor
+				buttons["Invisible"].TextColor3 = UITheme.TextColor
+			end
 		end
 		if buttons["Freeze"] then
-			buttons["Freeze"].BackgroundColor3 = playerStates[selectedPlayer].freeze and UITheme.ToggledButtonColor or UITheme.ButtonColor
+			if playerStates[selectedPlayer].freeze then
+				buttons["Freeze"].BackgroundColor3 = UITheme.ToggledButtonColor
+				buttons["Freeze"].TextColor3 = Color3.fromRGB(0,0,0)
+			else
+				buttons["Freeze"].BackgroundColor3 = UITheme.ButtonColor
+				buttons["Freeze"].TextColor3 = UITheme.TextColor
+			end
 		end
 	end
 end
 
 local function updatePlayersList()
+	-- Clear out old player buttons.
 	for _, child in ipairs(playersList:GetChildren()) do
 		if child:IsA("TextButton") then
 			child:Destroy()
 		end
 	end
 
+	-- Create a button for each player.
 	for _, p in ipairs(Players:GetPlayers()) do
 		if not playerStates[p] then
 			playerStates[p] = initPlayerState(p)
@@ -322,8 +354,14 @@ local function updatePlayersList()
 
 		local button = Instance.new("TextButton")
 		button.Size = UDim2.new(1, -10, 0, 25)
-		button.BackgroundColor3 = p == selectedPlayer and UITheme.HighlightColor or UITheme.ButtonColor
-		button.TextColor3 = UITheme.TextColor
+		-- When this player is selected, use the soft yellow background and black text.
+		if p == selectedPlayer then
+			button.BackgroundColor3 = UITheme.HighlightColor
+			button.TextColor3 = Color3.fromRGB(0, 0, 0)
+		else
+			button.BackgroundColor3 = UITheme.ButtonColor
+			button.TextColor3 = UITheme.TextColor
+		end
 		button.Text = p.Name
 		button.TextSize = 14
 		button.Font = Enum.Font.Gotham
@@ -337,15 +375,6 @@ local function updatePlayersList()
 	end
 	updateCommandStates()
 end
-
-speedValue.FocusLost:Connect(function(enterPressed)
-	if enterPressed then
-		local speed = tonumber(speedValue.Text)
-		if speed then
-			adminCommand:FireServer("Speed", selectedPlayer.Name, speed)
-		end
-	end
-end)
 
 Players.PlayerAdded:Connect(function(p)
 	playerStates[p] = initPlayerState(p)
