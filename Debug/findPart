@@ -1,0 +1,239 @@
+--[[
+    Part Selector with Info Display, Teleport & Highlight Toggle GUI
+    ------------------------------------------------------------------
+    • Highlights the part under your mouse (if enabled).
+    • On click, displays the part's details (name, position, CFrame) in a modern, draggable GUI.
+    • The GUI includes:
+         - A Teleport button to move your character to the selected part.
+         - A Highlight Toggle button to enable/disable live highlighting.
+         - A panel toggle button to show/hide the info panel.
+    
+    Place this script in StarterPlayerScripts.
+--]]
+
+-----------------------------
+-- Services & Variables
+-----------------------------
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+local selectedPart = nil      -- The part you last clicked on
+local currentTarget = nil     -- The part currently under the mouse (for highlighting)
+local currentHighlight = nil  -- The highlight instance applied to currentTarget
+local highlightingEnabled = true  -- Whether live highlighting is enabled
+
+-----------------------------
+-- Create the GUI
+-----------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PartSelectorGui"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Toggle Panel Button (always visible)
+local panelToggleButton = Instance.new("TextButton")
+panelToggleButton.Name = "PanelToggleButton"
+panelToggleButton.Size = UDim2.new(0, 120, 0, 30)
+panelToggleButton.Position = UDim2.new(0, 20, 0, 20)
+panelToggleButton.BackgroundColor3 = Color3.fromRGB(0, 122, 204)
+panelToggleButton.TextColor3 = Color3.new(1, 1, 1)
+panelToggleButton.Font = Enum.Font.SourceSansBold
+panelToggleButton.TextSize = 18
+panelToggleButton.Text = "Show Panel"
+panelToggleButton.Parent = screenGui
+panelToggleButton.AutoButtonColor = true
+
+-- Main Panel that shows the selected part’s info and options
+local mainPanel = Instance.new("Frame")
+mainPanel.Name = "MainPanel"
+-- Increased height to accommodate two buttons at the bottom
+mainPanel.Size = UDim2.new(0, 300, 0, 220)
+mainPanel.Position = UDim2.new(0.5, -150, 0.5, -110) -- centered
+mainPanel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+mainPanel.Visible = false
+mainPanel.Parent = screenGui
+
+-- Modern look: rounded corners for the panel
+local panelCorner = Instance.new("UICorner")
+panelCorner.CornerRadius = UDim.new(0, 8)
+panelCorner.Parent = mainPanel
+
+-- Title Label inside mainPanel
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Selected Part Info"
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 20
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.Parent = mainPanel
+
+-- Info Label to show part details
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, -20, 0, 100)
+infoLabel.Position = UDim2.new(0, 10, 0, 40)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = "No part selected."
+infoLabel.TextWrapped = true
+infoLabel.Font = Enum.Font.SourceSans
+infoLabel.TextSize = 16
+infoLabel.TextColor3 = Color3.new(1, 1, 1)
+infoLabel.Parent = mainPanel
+
+-- Teleport Button inside the panel
+local teleportButton = Instance.new("TextButton")
+teleportButton.Size = UDim2.new(0, 120, 0, 30)
+teleportButton.Position = UDim2.new(0.5, -60, 1, -70)
+teleportButton.BackgroundColor3 = Color3.fromRGB(0, 122, 204)
+teleportButton.TextColor3 = Color3.new(1, 1, 1)
+teleportButton.Font = Enum.Font.SourceSansBold
+teleportButton.TextSize = 18
+teleportButton.Text = "Teleport"
+teleportButton.Parent = mainPanel
+teleportButton.AutoButtonColor = true
+
+-- Highlight Toggle Button inside the panel
+local highlightToggleButton = Instance.new("TextButton")
+highlightToggleButton.Size = UDim2.new(0, 120, 0, 30)
+highlightToggleButton.Position = UDim2.new(0.5, -60, 1, -35)
+highlightToggleButton.BackgroundColor3 = Color3.fromRGB(0, 122, 204)
+highlightToggleButton.TextColor3 = Color3.new(1, 1, 1)
+highlightToggleButton.Font = Enum.Font.SourceSansBold
+highlightToggleButton.TextSize = 18
+highlightToggleButton.Text = "Disable Highlight"
+highlightToggleButton.Parent = mainPanel
+highlightToggleButton.AutoButtonColor = true
+
+-----------------------------
+-- Make the Main Panel Draggable
+-----------------------------
+local dragging = false
+local dragStart, startPos
+
+mainPanel.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainPanel.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+mainPanel.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainPanel.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-----------------------------
+-- Toggle Panel Visibility
+-----------------------------
+local panelVisible = false
+panelToggleButton.MouseButton1Click:Connect(function()
+    panelVisible = not panelVisible
+    mainPanel.Visible = panelVisible
+    panelToggleButton.Text = panelVisible and "Hide Panel" or "Show Panel"
+end)
+
+-----------------------------
+-- Update the Panel with Part Info
+-----------------------------
+local function updatePanel(part)
+    if part then
+        local fullName = part:GetFullName()
+        local pos = part:IsA("BasePart") and part.Position or "N/A"
+        local cframe = part:IsA("BasePart") and part.CFrame or "N/A"
+        local infoText = string.format("Name: %s\nPosition: %s\nCFrame: %s", fullName, tostring(pos), tostring(cframe))
+        infoLabel.Text = infoText
+    else
+        infoLabel.Text = "No part selected."
+    end
+end
+
+-----------------------------
+-- Teleport Button Functionality
+-----------------------------
+teleportButton.MouseButton1Click:Connect(function()
+    if selectedPart and selectedPart:IsA("BasePart") then
+        local character = player.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            -- Teleport to just above the selected part
+            character.HumanoidRootPart.CFrame = selectedPart.CFrame + Vector3.new(0, selectedPart.Size.Y/2 + 5, 0)
+        end
+    end
+end)
+
+-----------------------------
+-- Highlight Toggle Button Functionality
+-----------------------------
+highlightToggleButton.MouseButton1Click:Connect(function()
+    highlightingEnabled = not highlightingEnabled
+    if highlightingEnabled then
+        highlightToggleButton.Text = "Disable Highlight"
+    else
+        highlightToggleButton.Text = "Enable Highlight"
+        -- Remove any current highlight if disabling
+        if currentHighlight then
+            currentHighlight:Destroy()
+            currentHighlight = nil
+            currentTarget = nil
+        end
+    end
+end)
+
+-----------------------------
+-- Mouse Hover Highlighting (if enabled)
+-----------------------------
+local function updateHighlight()
+    if not highlightingEnabled then
+        return
+    end
+
+    local target = mouse.Target
+    if target and target:IsA("BasePart") then
+        if target ~= currentTarget then
+            if currentHighlight then
+                currentHighlight:Destroy()
+                currentHighlight = nil
+            end
+            currentTarget = target
+            currentHighlight = Instance.new("Highlight")
+            currentHighlight.Adornee = target
+            currentHighlight.FillColor = Color3.fromRGB(255, 255, 0)   -- Yellow fill
+            currentHighlight.OutlineColor = Color3.fromRGB(255, 0, 0)    -- Red outline
+            currentHighlight.Parent = target
+        end
+    else
+        if currentHighlight then
+            currentHighlight:Destroy()
+            currentHighlight = nil
+        end
+        currentTarget = nil
+    end
+end
+
+mouse.Move:Connect(updateHighlight)
+
+-----------------------------
+-- Select a Part on Click
+-----------------------------
+mouse.Button1Down:Connect(function()
+    if currentTarget then
+        selectedPart = currentTarget
+        updatePanel(selectedPart)
+    end
+end)
+
+print("Part Selector with Teleport & Highlight Toggle GUI loaded.")
