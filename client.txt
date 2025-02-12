@@ -1,23 +1,3 @@
--- AdminClientScript.lua
--- Place this LocalScript in StarterPlayerScripts.
--- This client script creates a modern, movable admin GUI with two dynamic columns:
---  • Left: A list of players (auto-refresh on join/leave) where you can select any player.
---         The selected player's row is highlighted with a distinct color.
---  • Right: A commands panel with dynamic sliders and toggle buttons which reflect the
---         enabled/disabled states and current settings of the selected player.
---
--- Commands can be executed for all players. For the LocalPlayer, some commands run locally
--- (e.g. Fly, Invisibility, Heal) while others (e.g. Speed and JumpPower adjustments) update both
--- the client and send a remote event. For remote players, all commands are fired via the remote event.
---
--- Commands implemented:
---  • Fly: Toggles traditional flying (using the mouse's hit position for direction).
---  • Invisibility: Toggles the character's visibility.
---  • JumpPower & Speed: Adjust via sliders.
---  • Fling: Applies a temporary angular impulse.
---  • Heal: Restores the player’s health to maximum.
---
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -25,601 +5,334 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 
--- Ensure PlayerGui is ready.
-local PlayerGui = player:WaitForChild("PlayerGui")
+-- UI Theme settings.
+local UITheme = {
+    BackgroundColor = Color3.fromRGB(30, 30, 30),
+    AccentColor = Color3.fromRGB(45, 45, 45),
+    TextColor = Color3.fromRGB(235, 235, 235),
+    ButtonColor = Color3.fromRGB(50, 150, 250),
+    ToggledButtonColor = Color3.fromRGB(30, 100, 200),
+    HighlightColor = Color3.fromRGB(255, 165, 0)
+}
 
--- RemoteEvents from the AdminRemoteEvents folder.
+-- RemoteEvents
 local remoteFolder = ReplicatedStorage:WaitForChild("AdminRemoteEvents")
 local requestAdmin = remoteFolder:WaitForChild("RequestAdmin")
 local adminCommand = remoteFolder:WaitForChild("AdminCommand")
 local consoleUpdate = remoteFolder:WaitForChild("ConsoleUpdate")
 local flyClient = remoteFolder:WaitForChild("FlyClient")
 
--- UI Theme settings.
-local UITheme = {
-	BackgroundColor = Color3.fromRGB(30, 30, 30),
-	AccentColor = Color3.fromRGB(45, 45, 45),
-	TextColor = Color3.fromRGB(235, 235, 235),
-	ButtonColor = Color3.fromRGB(50, 150, 250),
-	ToggledButtonColor = Color3.fromRGB(30, 100, 200),
-	HighlightColor = Color3.fromRGB(255, 165, 0) -- distinct highlight for selected player.
+-- State management
+local selectedPlayer = player
+local playerStates = {}
+local localFlyActive = false
+local flyConnection
+local flyBodyVelocity
+local flyBodyGyro
+
+-- Initialize player states
+local function initPlayerState(p)
+    return {
+        fly = false,
+        invisible = false,
+        speed = 16,
+        jump = 50
+    }
+end
+
+-- Setup UI
+local gui = Instance.new("ScreenGui")
+gui.Name = "AdminGui"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- Create console output
+local console = Instance.new("Frame")
+console.Name = "Console"
+console.Size = UDim2.new(0, 400, 0, 150)
+console.Position = UDim2.new(0.5, -200, 0, 10)
+console.BackgroundColor3 = UITheme.BackgroundColor
+console.BackgroundTransparency = 0.1
+console.BorderSizePixel = 0
+console.Parent = gui
+
+local consoleText = Instance.new("TextLabel")
+consoleText.Size = UDim2.new(1, -10, 1, -10)
+consoleText.Position = UDim2.new(0, 5, 0, 5)
+consoleText.BackgroundTransparency = 1
+consoleText.TextColor3 = UITheme.TextColor
+consoleText.TextXAlignment = Enum.TextXAlignment.Left
+consoleText.TextYAlignment = Enum.TextYAlignment.Top
+consoleText.TextSize = 14
+consoleText.Font = Enum.Font.Gotham
+consoleText.Text = "Admin Console:"
+consoleText.Parent = console
+
+-- Create main panel
+local panel = Instance.new("Frame")
+panel.Name = "MainPanel"
+panel.Size = UDim2.new(0, 520, 0, 400)
+panel.Position = UDim2.new(0.5, -260, 0.5, -200)
+panel.BackgroundColor3 = UITheme.BackgroundColor
+panel.Active = true
+panel.Draggable = true
+panel.Parent = gui
+
+-- Create title bar
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundColor3 = UITheme.AccentColor
+title.TextColor3 = UITheme.TextColor
+title.Text = "Admin Panel"
+title.TextSize = 18
+title.Font = Enum.Font.GothamBold
+title.Parent = panel
+
+-- Create players list
+local playersList = Instance.new("ScrollingFrame")
+playersList.Size = UDim2.new(0.4, -10, 1, -40)
+playersList.Position = UDim2.new(0, 5, 0, 35)
+playersList.BackgroundColor3 = UITheme.AccentColor
+playersList.BorderSizePixel = 0
+playersList.ScrollBarThickness = 6
+playersList.Parent = panel
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 2)
+listLayout.Parent = playersList
+
+-- Create commands panel
+local commandsPanel = Instance.new("Frame")
+commandsPanel.Size = UDim2.new(0.6, -10, 1, -40)
+commandsPanel.Position = UDim2.new(0.4, 5, 0, 35)
+commandsPanel.BackgroundColor3 = UITheme.AccentColor
+commandsPanel.BorderSizePixel = 0
+commandsPanel.Parent = panel
+
+-- Create buttons grid
+local buttonsGrid = Instance.new("UIGridLayout")
+buttonsGrid.CellSize = UDim2.new(0.5, -5, 0, 30)
+buttonsGrid.CellPadding = UDim2.new(0, 5, 0, 5)
+buttonsGrid.Parent = commandsPanel
+
+-- Create speed slider
+local speedSlider = Instance.new("Frame")
+speedSlider.Name = "SpeedSlider"
+speedSlider.Size = UDim2.new(1, -10, 0, 20)
+speedSlider.Position = UDim2.new(0, 5, 0, 280)
+speedSlider.BackgroundColor3 = UITheme.ButtonColor
+speedSlider.BorderSizePixel = 0
+speedSlider.Parent = commandsPanel
+
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(0, 50, 1, 0)
+speedLabel.BackgroundTransparency = 1
+speedLabel.TextColor3 = UITheme.TextColor
+speedLabel.Text = "Speed:"
+speedLabel.TextSize = 14
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.Parent = speedSlider
+
+local speedValue = Instance.new("TextBox")
+speedValue.Size = UDim2.new(0, 50, 1, 0)
+speedValue.Position = UDim2.new(1, -50, 0, 0)
+speedValue.BackgroundColor3 = UITheme.AccentColor
+speedValue.TextColor3 = UITheme.TextColor
+speedValue.Text = "16"
+speedValue.TextSize = 14
+speedValue.Font = Enum.Font.Gotham
+speedValue.Parent = speedSlider
+
+-- Command button creation helper
+local function createCommandButton(name)
+    local button = Instance.new("TextButton")
+    button.BackgroundColor3 = UITheme.ButtonColor
+    button.TextColor3 = UITheme.TextColor
+    button.Text = name
+    button.Font = Enum.Font.GothamSemibold
+    button.TextSize = 14
+    button.Parent = commandsPanel
+    return button
+end
+
+-- Create command buttons
+local commands = {
+    "Kick", "Bring", "Teleport", "Kill", "GodMode",
+    "Fly", "Heal", "Fling", "Invisible"
 }
 
--- Global state for local commands.
-local localFlyActive = false
-local localInvisibleActive = false
+local buttons = {}
+for _, cmd in ipairs(commands) do
+    buttons[cmd] = createCommandButton(cmd)
 
--- Default settings.
-local defaultSpeed = 16
-local defaultJumpPower = 50
-
--- Global variable to track the currently selected player.
-local selectedPlayer = player
-
--- Table to store command states per player.
--- Each player state includes:
---   fly       -- whether fly is enabled.
---   invisible -- whether invisibility is enabled.
---   speed     -- current WalkSpeed.
---   jump      -- current JumpPower.
-local playerStates = {}
-
-local function initializePlayerState(p)
-	local state = {
-		fly = false,
-		invisible = false,
-		speed = defaultSpeed,
-		jump = defaultJumpPower
-	}
-	if p == player then
-		local character = p.Character
-		if character and character:FindFirstChildOfClass("Humanoid") then
-			state.speed = character:FindFirstChildOfClass("Humanoid").WalkSpeed or defaultSpeed
-			state.jump = character:FindFirstChildOfClass("Humanoid").JumpPower or defaultJumpPower
-		end
-	end
-	return state
+    buttons[cmd].MouseButton1Click:Connect(function()
+        if cmd == "Fly" then
+            local state = not playerStates[selectedPlayer].fly
+            playerStates[selectedPlayer].fly = state
+            if selectedPlayer == player then
+                if state then
+                    enableFly()
+                else
+                    disableFly()
+                end
+            else
+                adminCommand:FireServer(cmd, selectedPlayer.Name, state)
+            end
+            buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
+        elseif cmd == "Invisible" then
+            local state = not playerStates[selectedPlayer].invisible
+            playerStates[selectedPlayer].invisible = state
+            adminCommand:FireServer(cmd, selectedPlayer.Name, state)
+            buttons[cmd].BackgroundColor3 = state and UITheme.ToggledButtonColor or UITheme.ButtonColor
+        else
+            adminCommand:FireServer(cmd, selectedPlayer.Name)
+        end
+    end)
 end
 
--- Initialize states for existing players.
-for _, p in ipairs(Players:GetPlayers()) do
-	playerStates[p] = initializePlayerState(p)
+-- Handle fly command locally
+local function enableFly()
+    local char = player.Character
+    if not char then return end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    if flyBodyVelocity then flyBodyVelocity:Destroy() end
+    if flyBodyGyro then flyBodyGyro:Destroy() end
+
+    flyBodyVelocity = Instance.new("BodyVelocity")
+    flyBodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    flyBodyVelocity.Parent = hrp
+
+    flyBodyGyro = Instance.new("BodyGyro")
+    flyBodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    flyBodyGyro.P = 1000
+    flyBodyGyro.Parent = hrp
+
+    localFlyActive = true
+
+    if flyConnection then flyConnection:Disconnect() end
+    flyConnection = RunService.RenderStepped:Connect(function()
+        if not localFlyActive then return end
+
+        local moveDirection = Vector3.new(0, 0, 0)
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveDirection = moveDirection + workspace.CurrentCamera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveDirection = moveDirection - workspace.CurrentCamera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveDirection = moveDirection - workspace.CurrentCamera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveDirection = moveDirection + workspace.CurrentCamera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveDirection = moveDirection + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveDirection = moveDirection - Vector3.new(0, 1, 0)
+        end
+
+        if moveDirection.Magnitude > 0 then
+            flyBodyVelocity.Velocity = moveDirection.Unit * 50
+        else
+            flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+
+        flyBodyGyro.CFrame = workspace.CurrentCamera.CFrame
+    end)
 end
 
--- Continuously update local player's speed and jump based on current character settings.
-RunService.RenderStepped:Connect(function()
-	if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-		playerStates[player].speed = player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed
-		playerStates[player].jump = player.Character:FindFirstChildOfClass("Humanoid").JumpPower
-	end
+local function disableFly()
+    localFlyActive = false
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    if flyBodyVelocity then
+        flyBodyVelocity:Destroy()
+        flyBodyVelocity = nil
+    end
+    if flyBodyGyro then
+        flyBodyGyro:Destroy()
+        flyBodyGyro = nil
+    end
+end
+
+-- Update players list
+local function updatePlayersList()
+    for _, child in ipairs(playersList:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if not playerStates[p] then
+            playerStates[p] = initPlayerState(p)
+        end
+
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(1, -10, 0, 25)
+        button.BackgroundColor3 = p == selectedPlayer and UITheme.HighlightColor or UITheme.ButtonColor
+        button.TextColor3 = UITheme.TextColor
+        button.Text = p.Name
+        button.TextSize = 14
+        button.Font = Enum.Font.Gotham
+        button.Parent = playersList
+
+        button.MouseButton1Click:Connect(function()
+            selectedPlayer = p
+            updatePlayersList()
+        end)
+    end
+end
+
+-- Speed control
+speedValue.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local speed = tonumber(speedValue.Text)
+        if speed then
+            adminCommand:FireServer("Speed", selectedPlayer.Name, speed)
+        end
+    end
 end)
 
---------------------------------------------------------------------------------
--- Create ScreenGui and Console Frame.
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdminConsoleScreenGui"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = PlayerGui
-
-local consoleFrame = Instance.new("Frame")
-consoleFrame.Name = "ConsoleFrame"
-consoleFrame.Size = UDim2.new(0, 450, 0, 150)
-consoleFrame.Position = UDim2.new(0.5, -225, 0.02, 0)
-consoleFrame.BackgroundColor3 = UITheme.BackgroundColor
-consoleFrame.BackgroundTransparency = 0.1
-consoleFrame.BorderSizePixel = 0
-consoleFrame.AnchorPoint = Vector2.new(0.5, 0)
-consoleFrame.Parent = screenGui
-
-local consoleLabel = Instance.new("TextLabel")
-consoleLabel.Name = "ConsoleLabel"
-consoleLabel.Size = UDim2.new(1, -20, 1, -20)
-consoleLabel.Position = UDim2.new(0, 10, 0, 10)
-consoleLabel.BackgroundTransparency = 1
-consoleLabel.TextColor3 = UITheme.TextColor
-consoleLabel.Font = Enum.Font.Gotham
-consoleLabel.TextSize = 18
-consoleLabel.TextWrapped = true
-consoleLabel.TextXAlignment = Enum.TextXAlignment.Left
-consoleLabel.TextYAlignment = Enum.TextYAlignment.Top
-consoleLabel.Text = "Console:\n"
-consoleLabel.Parent = consoleFrame
-
-local function AppendConsole(message)
-	consoleLabel.Text = consoleLabel.Text .. "\n" .. message
-end
+-- Handle remote events
+flyClient.OnClientEvent:Connect(function(action)
+    if action == "Enable" then
+        enableFly()
+    else
+        disableFly()
+    end
+end)
 
 consoleUpdate.OnClientEvent:Connect(function(message)
-	AppendConsole(message)
-	print("Console:", message)
+    consoleText.Text = consoleText.Text .. "\n" .. message
 end)
 
---------------------------------------------------------------------------------
--- Local Command Implementations for the LocalPlayer
-
--- Invisibility: Toggle transparency for all BaseParts (except HumanoidRootPart).
-local function toggleInvisibility(char)
-	for _, part in ipairs(char:GetDescendants()) do
-		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-			part.Transparency = localInvisibleActive and 0 or 1
-		end
-	end
-	-- Toggle state.
-	localInvisibleActive = not localInvisibleActive
-	playerStates[player].invisible = localInvisibleActive
-	AppendConsole("Invisibility " .. (localInvisibleActive and "enabled" or "disabled") .. " for " .. player.Name)
-end
-
--- Traditional Fly (local): use mouse hit for direction.
-local localFlyConnection, localFlyVelocity, localFlyGyro
-
-local function startLocalFly()
-	local character = player.Character or player.CharacterAdded:Wait()
-	local hrp = character:WaitForChild("HumanoidRootPart")
-	-- Create BodyVelocity and BodyGyro.
-	localFlyVelocity = Instance.new("BodyVelocity", hrp)
-	localFlyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-	localFlyVelocity.Velocity = Vector3.new(0, 0, 0)
-
-	localFlyGyro = Instance.new("BodyGyro", hrp)
-	localFlyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
-	localFlyGyro.P = 1000
-
-	localFlyActive = true
-	playerStates[player].fly = true
-	AppendConsole("Fly enabled for " .. player.Name)
-
-	-- Update movement based on mouse.Hit.
-	localFlyConnection = RunService.RenderStepped:Connect(function()
-		local hrpPos = hrp.Position
-		local targetPos = mouse.Hit.p
-		local direction = (targetPos - hrpPos)
-		if direction.Magnitude > 0 then
-			localFlyVelocity.Velocity = direction.Unit * 50
-			localFlyGyro.CFrame = CFrame.new(hrpPos, hrpPos + direction)
-		else
-			localFlyVelocity.Velocity = Vector3.new(0, 0, 0)
-		end
-	end)
-end
-
-local function stopLocalFly()
-	if localFlyConnection then
-		localFlyConnection:Disconnect()
-		localFlyConnection = nil
-	end
-	if localFlyVelocity then localFlyVelocity:Destroy() end
-	if localFlyGyro then localFlyGyro:Destroy() end
-	localFlyActive = false
-	playerStates[player].fly = false
-	AppendConsole("Fly disabled for " .. player.Name)
-end
-
--- Fling: Applies a temporary BodyAngularVelocity for a fling effect.
-local function flingCharacter(char)
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if hrp then
-		local bav = Instance.new("BodyAngularVelocity", hrp)
-		bav.AngularVelocity = Vector3.new(20, 20, 20)
-		bav.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
-		delay(0.5, function()
-			if bav then bav:Destroy() end
-		end)
-		AppendConsole("Fling executed for " .. player.Name)
-	end
-end
-
--- Heal: Restores the character's health to maximum.
-local function healCharacter(char)
-	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid.Health = humanoid.MaxHealth
-		AppendConsole("Healed " .. player.Name)
-	end
-end
-
---------------------------------------------------------------------------------
--- Main Admin Panel (Movable)
-local adminPanelGui = Instance.new("Frame")
-adminPanelGui.Name = "AdminPanelGui"
-adminPanelGui.Size = UDim2.new(0, 520, 0, 500)
-adminPanelGui.Position = UDim2.new(0, 50, 0, 200)
-adminPanelGui.BackgroundColor3 = UITheme.BackgroundColor
-adminPanelGui.BorderSizePixel = 0
-adminPanelGui.Active = true
-adminPanelGui.Draggable = true
-adminPanelGui.Parent = screenGui
-
-local adminTitle = Instance.new("TextLabel")
-adminTitle.Name = "AdminTitle"
-adminTitle.Size = UDim2.new(1, 0, 0, 40)
-adminTitle.BackgroundColor3 = UITheme.AccentColor
-adminTitle.TextColor3 = UITheme.TextColor
-adminTitle.Font = Enum.Font.GothamSemibold
-adminTitle.TextScaled = true
-adminTitle.Text = "Admin Panel"
-adminTitle.Parent = adminPanelGui
-
---------------------------------------------------------------------------------
--- Left Panel: Players List.
-local playersPanel = Instance.new("Frame")
-playersPanel.Name = "PlayersPanel"
-playersPanel.Size = UDim2.new(0, 200, 0, 440)
-playersPanel.Position = UDim2.new(0, 10, 0, 50)
-playersPanel.BackgroundColor3 = UITheme.BackgroundColor
-playersPanel.BackgroundTransparency = 0.2
-playersPanel.BorderSizePixel = 0
-playersPanel.Parent = adminPanelGui
-
-local playersTitle = Instance.new("TextLabel")
-playersTitle.Name = "PlayersTitle"
-playersTitle.Size = UDim2.new(1, 0, 0, 30)
-playersTitle.BackgroundColor3 = UITheme.AccentColor
-playersTitle.TextColor3 = UITheme.TextColor
-playersTitle.Font = Enum.Font.GothamSemibold
-playersTitle.TextScaled = true
-playersTitle.Text = "Players"
-playersTitle.Parent = playersPanel
-
-local playersScroll = Instance.new("ScrollingFrame")
-playersScroll.Name = "PlayersScroll"
-playersScroll.Size = UDim2.new(1, -10, 1, -40)
-playersScroll.Position = UDim2.new(0, 5, 0, 35)
-playersScroll.BackgroundTransparency = 1
-playersScroll.BorderSizePixel = 0
-playersScroll.ScrollBarThickness = 6
-playersScroll.Parent = playersPanel
-
-local playersListLayout = Instance.new("UIListLayout")
-playersListLayout.Parent = playersScroll
-playersListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-playersListLayout.Padding = UDim.new(0, 5)
-
--- Function to refresh the players list.
-local function RefreshPlayersList()
-	-- Clear existing player rows.
-	for _, child in ipairs(playersScroll:GetChildren()) do
-		if child:IsA("TextButton") then
-			child:Destroy()
-		end
-	end
-
-	-- Ensure state exists for every player.
-	for _, p in ipairs(Players:GetPlayers()) do
-		if not playerStates[p] then
-			playerStates[p] = initializePlayerState(p)
-		end
-	end
-
-	-- Get all players, with the local player always appearing first.
-	local allPlayers = Players:GetPlayers()
-	table.sort(allPlayers, function(a, b)
-		if a == player then return true end
-		if b == player then return false end
-		return a.Name < b.Name
-	end)
-
-	-- Create a button for each player.
-	for _, p in ipairs(allPlayers) do
-		local row = Instance.new("TextButton")
-		row.Name = "PlayerRow_" .. p.Name
-		row.Size = UDim2.new(1, 0, 0, 30)
-		-- Highlight the selected player's row.
-		row.BackgroundColor3 = (p == selectedPlayer) and UITheme.HighlightColor or UITheme.AccentColor
-		row.TextColor3 = UITheme.TextColor
-		row.Font = Enum.Font.Gotham
-		row.TextScaled = true
-		row.Text = p.Name
-		row.Parent = playersScroll
-
-		row.MouseButton1Click:Connect(function()
-			selectedPlayer = p
-			-- Update selected player label.
-			selectedPlayerLabel.Text = "Selected: " .. selectedPlayer.Name
-			RefreshPlayersList()
-		end)
-	end
-end
-
---------------------------------------------------------------------------------
--- Right Panel: Commands Panel.
-local commandsPanel = Instance.new("Frame")
-commandsPanel.Name = "CommandsPanel"
-commandsPanel.Size = UDim2.new(0, 280, 0, 440)
-commandsPanel.Position = UDim2.new(0, 220, 0, 50)
-commandsPanel.BackgroundColor3 = UITheme.BackgroundColor
-commandsPanel.BackgroundTransparency = 0.2
-commandsPanel.BorderSizePixel = 0
-commandsPanel.Parent = adminPanelGui
-
-local commandsTitle = Instance.new("TextLabel")
-commandsTitle.Name = "CommandsTitle"
-commandsTitle.Size = UDim2.new(1, 0, 0, 30)
-commandsTitle.BackgroundColor3 = UITheme.AccentColor
-commandsTitle.TextColor3 = UITheme.TextColor
-commandsTitle.Font = Enum.Font.GothamSemibold
-commandsTitle.TextScaled = true
-commandsTitle.Text = "Commands"
-commandsTitle.Parent = commandsPanel
-
-local selectedPlayerLabel = Instance.new("TextLabel")
-selectedPlayerLabel.Name = "SelectedPlayerLabel"
-selectedPlayerLabel.Size = UDim2.new(1, -10, 0, 30)
-selectedPlayerLabel.Position = UDim2.new(0, 5, 0, 35)
-selectedPlayerLabel.BackgroundTransparency = 1
-selectedPlayerLabel.TextColor3 = UITheme.TextColor
-selectedPlayerLabel.Font = Enum.Font.GothamSemibold
-selectedPlayerLabel.TextScaled = true
-selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Left
-selectedPlayerLabel.Text = "Selected: " .. selectedPlayer.Name
-selectedPlayerLabel.Parent = commandsPanel
-
---------------------------------------------------------------------------------
--- Dynamic Sliders: Create sliders that return their UI elements.
-local function createSlider(parent, labelText, initialValue, minValue, maxValue, callback, posY)
-	local container = Instance.new("Frame")
-	container.Size = UDim2.new(1, -10, 0, 40)
-	container.Position = UDim2.new(0, 5, 0, posY)
-	container.BackgroundTransparency = 1
-	container.Parent = parent
-
-	local sliderLabel = Instance.new("TextLabel")
-	sliderLabel.Name = labelText.."Label"
-	sliderLabel.Size = UDim2.new(1, 0, 0, 20)
-	sliderLabel.BackgroundTransparency = 1
-	sliderLabel.TextColor3 = UITheme.TextColor
-	sliderLabel.Font = Enum.Font.Gotham
-	sliderLabel.TextScaled = true
-	sliderLabel.Text = labelText .. ": " .. tostring(initialValue)
-	sliderLabel.Parent = container
-
-	local sliderBg = Instance.new("Frame")
-	sliderBg.Name = labelText.."SliderBg"
-	sliderBg.Size = UDim2.new(1, 0, 0, 10)
-	sliderBg.Position = UDim2.new(0, 0, 0, 25)
-	sliderBg.BackgroundColor3 = UITheme.AccentColor
-	sliderBg.BorderSizePixel = 0
-	sliderBg.Parent = container
-
-	local sliderFill = Instance.new("Frame")
-	sliderFill.Name = labelText.."SliderFill"
-	sliderFill.Size = UDim2.new((initialValue - minValue) / (maxValue - minValue), 0, 1, 0)
-	sliderFill.BackgroundColor3 = UITheme.ButtonColor
-	sliderFill.BorderSizePixel = 0
-	sliderFill.Parent = sliderBg
-
-	local sliderHandle = Instance.new("TextButton")
-	sliderHandle.Name = labelText.."SliderHandle"
-	sliderHandle.Size = UDim2.new(0, 18, 1, 0)
-	sliderHandle.BackgroundColor3 = UITheme.TextColor
-	sliderHandle.Text = ""
-	sliderHandle.BorderSizePixel = 0
-	sliderHandle.Parent = sliderBg
-	sliderHandle.Position = UDim2.new((initialValue - minValue) / (maxValue - minValue), -9, 0, 0)
-
-	local dragging = false
-	local function updateSlider(posX)
-		local relative = math.clamp(posX / sliderBg.AbsoluteSize.X, 0, 1)
-		local value = minValue + relative * (maxValue - minValue)
-		sliderFill.Size = UDim2.new(relative, 0, 1, 0)
-		sliderHandle.Position = UDim2.new(relative, -9, 0, 0)
-		sliderLabel.Text = labelText .. ": " .. tostring(math.floor(value))
-		callback(math.floor(value))
-	end
-
-	sliderHandle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-			local pos = sliderBg.AbsolutePosition.X
-			local x = input.Position.X - pos
-			updateSlider(x)
-		end
-	end)
-
-	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
-		end
-	end)
-
-	return {
-		container = container,
-		label = sliderLabel,
-		bg = sliderBg,
-		fill = sliderFill,
-		handle = sliderHandle,
-		min = minValue,
-		max = maxValue
-	}
-end
-
--- Create Speed slider UI.
-local speedSliderUI = createSlider(commandsPanel, "Speed", playerStates[selectedPlayer].speed, 16, 100, function(value)
-	-- For local player, update character; for remote, fire event.
-	if selectedPlayer == player and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-		player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = value
-	end
-	playerStates[selectedPlayer].speed = value
-	AppendConsole("Speed set to " .. value .. " for " .. selectedPlayer.Name)
-end, 70)
-
--- Create JumpPower slider UI.
-local jumpSliderUI = createSlider(commandsPanel, "JumpPower", playerStates[selectedPlayer].jump, 50, 200, function(value)
-	if selectedPlayer == player and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-		player.Character:FindFirstChildOfClass("Humanoid").JumpPower = value
-	end
-	playerStates[selectedPlayer].jump = value
-	AppendConsole("JumpPower set to " .. value .. " for " .. selectedPlayer.Name)
-end, 120)
-
---------------------------------------------------------------------------------
--- Grid for command buttons.
-local cmdsGridParent = Instance.new("Frame")
-cmdsGridParent.Size = UDim2.new(1, -10, 1, -180)
-cmdsGridParent.Position = UDim2.new(0, 5, 0, 180)
-cmdsGridParent.BackgroundTransparency = 1
-cmdsGridParent.Parent = commandsPanel
-
-local gridLayout = Instance.new("UIGridLayout")
-gridLayout.CellSize = UDim2.new(0, 120, 0, 50)
-gridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
-gridLayout.Parent = cmdsGridParent
-
--- List of command buttons.
-local commandsList = {
-	"Kick",
-	"Bring",
-	"Teleport",
-	"Kill",
-	"GodMode",
-	"Fly",
-	"Heal",
-	"Fling",
-	"Invisible"
-}
-
-local commandButtonRefs = {}
-
-local function SetupCommandButtons()
-	-- Clear existing buttons.
-	for _, child in ipairs(cmdsGridParent:GetChildren()) do
-		if child:IsA("TextButton") then
-			child:Destroy()
-		end
-	end
-	commandButtonRefs = {}
-	-- Create a button for each command.
-	for _, cmd in ipairs(commandsList) do
-		local button = Instance.new("TextButton")
-		button.Name = cmd.."Button"
-		button.Text = cmd
-		button.BackgroundColor3 = UITheme.ButtonColor
-		button.TextColor3 = UITheme.TextColor
-		button.Font = Enum.Font.GothamSemibold
-		button.TextScaled = true
-		button.Parent = cmdsGridParent
-		commandButtonRefs[cmd] = button
-
-		button.Activated:Connect(function()
-			-- When executing a command, check if selected player is local.
-			if selectedPlayer == player then
-				-- Local execution.
-				if cmd == "Fly" then
-					if localFlyActive then
-						stopLocalFly()
-					else
-						startLocalFly()
-					end
-					button.BackgroundColor3 = localFlyActive and UITheme.ToggledButtonColor or UITheme.ButtonColor
-				elseif cmd == "Invisible" then
-					if player.Character then
-						toggleInvisibility(player.Character)
-					end
-					button.BackgroundColor3 = localInvisibleActive and UITheme.ToggledButtonColor or UITheme.ButtonColor
-				elseif cmd == "Heal" then
-					if player.Character then
-						healCharacter(player.Character)
-					end
-				elseif cmd == "Fling" then
-					if player.Character then
-						flingCharacter(player.Character)
-					end
-				else
-					-- For other commands, fire the remote event.
-					adminCommand:FireServer(cmd, selectedPlayer.Name)
-					AppendConsole(cmd .. " command fired on " .. selectedPlayer.Name)
-				end
-			else
-				-- For remote players, toggle the state for togglable commands.
-				if cmd == "Fly" then
-					local newState = not playerStates[selectedPlayer].fly
-					playerStates[selectedPlayer].fly = newState
-					adminCommand:FireServer("Fly", selectedPlayer.Name, newState)
-					AppendConsole("Fly " .. (newState and "enabled" or "disabled") .. " on " .. selectedPlayer.Name)
-				elseif cmd == "Invisible" then
-					local newState = not playerStates[selectedPlayer].invisible
-					playerStates[selectedPlayer].invisible = newState
-					adminCommand:FireServer("Invisible", selectedPlayer.Name, newState)
-					AppendConsole("Invisible " .. (newState and "enabled" or "disabled") .. " on " .. selectedPlayer.Name)
-				elseif cmd == "Heal" then
-					adminCommand:FireServer("Heal", selectedPlayer.Name)
-					AppendConsole("Heal command fired on " .. selectedPlayer.Name)
-				elseif cmd == "Fling" then
-					adminCommand:FireServer("Fling", selectedPlayer.Name)
-					AppendConsole("Fling executed on " .. selectedPlayer.Name)
-				else
-					adminCommand:FireServer(cmd, selectedPlayer.Name)
-					AppendConsole(cmd .. " command fired on " .. selectedPlayer.Name)
-				end
-			end
-		end)
-	end
-end
-
-SetupCommandButtons()
-
---------------------------------------------------------------------------------
--- Dynamic UI Update: Refresh sliders and toggle button appearance based on player's state.
-local function updateDynamicUI()
-	-- Update selected player label.
-	selectedPlayerLabel.Text = "Selected: " .. selectedPlayer.Name
-
-	-- Get state for the selected player.
-	local state = playerStates[selectedPlayer]
-	if not state then
-		state = initializePlayerState(selectedPlayer)
-		playerStates[selectedPlayer] = state
-	end
-
-	-- Update sliders.
-	local speedVal = state.speed
-	local sp = speedSliderUI
-	local relSpeed = math.clamp((speedVal - sp.min) / (sp.max - sp.min), 0, 1)
-	sp.fill.Size = UDim2.new(relSpeed, 0, 1, 0)
-	sp.handle.Position = UDim2.new(relSpeed, -9, 0, 0)
-	sp.label.Text = "Speed: " .. tostring(speedVal)
-
-	local jumpVal = state.jump
-	local jp = jumpSliderUI
-	local relJump = math.clamp((jumpVal - jp.min) / (jp.max - jp.min), 0, 1)
-	jp.fill.Size = UDim2.new(relJump, 0, 1, 0)
-	jp.handle.Position = UDim2.new(relJump, -9, 0, 0)
-	jp.label.Text = "JumpPower: " .. tostring(jumpVal)
-
-	-- Update toggle button appearance.
-	if commandButtonRefs["Fly"] then
-		commandButtonRefs["Fly"].BackgroundColor3 = state.fly and UITheme.ToggledButtonColor or UITheme.ButtonColor
-	end
-	if commandButtonRefs["Invisible"] then
-		commandButtonRefs["Invisible"].BackgroundColor3 = state.invisible and UITheme.ToggledButtonColor or UITheme.ButtonColor
-	end
-end
-
-RunService.RenderStepped:Connect(function()
-	updateDynamicUI()
-end)
-
---------------------------------------------------------------------------------
--- Refresh panels when players join or leave.
+-- Player added/removed handlers
 Players.PlayerAdded:Connect(function(p)
-	playerStates[p] = initializePlayerState(p)
-	wait(0.5)
-	RefreshPlayersList()
+    playerStates[p] = initPlayerState(p)
+    updatePlayersList()
 end)
-Players.PlayerRemoving:Connect(function(p)
-	playerStates[p] = nil
-	wait(0.5)
-	RefreshPlayersList()
-end)
-RefreshPlayersList()
 
---------------------------------------------------------------------------------
--- Request admin access.
-wait(1)
-AppendConsole("Requesting admin access...")
+Players.PlayerRemoving:Connect(function(p)
+    playerStates[p] = nil
+    if selectedPlayer == p then
+        selectedPlayer = player
+    end
+    updatePlayersList()
+end)
+
+-- Initialize
+updatePlayersList()
 requestAdmin:FireServer()
+
+-- Clean up
+player.CharacterRemoving:Connect(disableFly)
