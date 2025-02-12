@@ -1,0 +1,146 @@
+--[[
+    Enhanced Console Emulator Script
+    - Creates a draggable console window with a header.
+    - The header has a toggle button (minus/plus) that minimizes/expands the console.
+    - LogService.MessageOut is used to capture output messages.
+    - Log messages are formatted to be readable (wrapped, smaller text).
+    
+    Place this LocalScript inside StarterGui.
+--]]
+
+local Players = game:GetService("Players")
+local LogService = game:GetService("LogService")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+--------------------------
+-- Create the ScreenGui --
+--------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EnhancedConsoleGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+------------------------------------------
+-- Create the Main Console Container -----
+------------------------------------------
+local consoleContainer = Instance.new("Frame")
+consoleContainer.Name = "ConsoleContainer"
+consoleContainer.Size = UDim2.new(0, 500, 0, 300)  -- initial size when expanded
+consoleContainer.Position = UDim2.new(0.5, -250, 0.5, -150)
+consoleContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+consoleContainer.BorderSizePixel = 0
+consoleContainer.Active = true     -- required for dragging
+consoleContainer.Draggable = true
+consoleContainer.Parent = screenGui
+
+-- Store the expanded size so we can restore it later.
+local expandedSize = consoleContainer.Size
+
+------------------------------------------
+-- Create the Header (Always Visible) ---
+------------------------------------------
+local headerFrame = Instance.new("Frame")
+headerFrame.Name = "Header"
+headerFrame.Size = UDim2.new(1, 0, 0, 30)
+headerFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+headerFrame.BorderSizePixel = 0
+headerFrame.Parent = consoleContainer
+
+-- Header Label
+local headerLabel = Instance.new("TextLabel")
+headerLabel.Name = "HeaderLabel"
+headerLabel.Size = UDim2.new(1, -40, 1, 0)  -- leave room for the toggle button
+headerLabel.Position = UDim2.new(0, 5, 0, 0)
+headerLabel.BackgroundTransparency = 1
+headerLabel.Text = "Console"
+headerLabel.Font = Enum.Font.SourceSansBold
+headerLabel.TextColor3 = Color3.new(1, 1, 1)
+headerLabel.TextSize = 18
+headerLabel.TextXAlignment = Enum.TextXAlignment.Left
+headerLabel.Parent = headerFrame
+
+-- Toggle Button (Minimize/Expand)
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 30, 1, 0)
+toggleButton.Position = UDim2.new(1, -30, 0, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 24
+toggleButton.Text = "–"  -- initially expanded (minus sign)
+toggleButton.Parent = headerFrame
+
+------------------------------------------
+-- Create the Body for Log Output -------
+------------------------------------------
+local bodyFrame = Instance.new("Frame")
+bodyFrame.Name = "Body"
+bodyFrame.Size = UDim2.new(1, 0, 1, -30)  -- fills the container below the header
+bodyFrame.Position = UDim2.new(0, 0, 0, 30)
+bodyFrame.BackgroundTransparency = 1
+bodyFrame.Parent = consoleContainer
+
+local scrollingFrame = Instance.new("ScrollingFrame")
+scrollingFrame.Name = "LogScrollingFrame"
+scrollingFrame.Size = UDim2.new(1, -10, 1, -10)
+scrollingFrame.Position = UDim2.new(0, 5, 0, 5)
+scrollingFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+scrollingFrame.BorderSizePixel = 0
+scrollingFrame.ScrollBarThickness = 8
+scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollingFrame.Parent = bodyFrame
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Parent = scrollingFrame
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 5)
+listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y)
+	-- Automatically scroll to the bottom when new messages are added.
+	scrollingFrame.CanvasPosition = Vector2.new(0, listLayout.AbsoluteContentSize.Y)
+end)
+
+------------------------------------------
+-- Log Message Functionality ------------
+------------------------------------------
+local function addLog(message, messageType)
+	local logLabel = Instance.new("TextLabel")
+	logLabel.Name = "LogMessage"
+	logLabel.Size = UDim2.new(1, -10, 0, 20)
+	logLabel.BackgroundTransparency = 1
+	logLabel.TextColor3 = Color3.new(1, 1, 1)
+	logLabel.Font = Enum.Font.Code
+	logLabel.TextSize = 14  -- smaller text size for readability
+	logLabel.TextWrapped = true
+	logLabel.TextXAlignment = Enum.TextXAlignment.Left
+	logLabel.Text = string.format("[%s] %s", tostring(messageType), message)
+	-- Enable automatic Y-size to accommodate multi-line messages
+	logLabel.AutomaticSize = Enum.AutomaticSize.Y
+	logLabel.Parent = scrollingFrame
+end
+
+-- Connect LogService.MessageOut to log messages in the console.
+LogService.MessageOut:Connect(function(message, messageType)
+	addLog(message, messageType)
+end)
+
+------------------------------------------
+-- Toggle (Minimize/Expand) Behavior ----
+------------------------------------------
+local isMinimized = false
+toggleButton.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+	if isMinimized then
+		-- Minimize: hide the body and resize the container to header only.
+		bodyFrame.Visible = false
+		consoleContainer.Size = UDim2.new(expandedSize.X.Scale, expandedSize.X.Offset, 0, headerFrame.Size.Y.Offset)
+		toggleButton.Text = "+"  -- show plus sign when minimized
+	else
+		-- Expand: show the body and restore the original container size.
+		bodyFrame.Visible = true
+		consoleContainer.Size = expandedSize
+		toggleButton.Text = "–"  -- show minus sign when expanded
+	end
+end)
