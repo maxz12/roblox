@@ -1,0 +1,155 @@
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local localPlayer = Players.LocalPlayer
+local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+-- List of model names to ignore.
+local excludeModels = {
+	"SniperRifle_01",
+	"Noob1",
+	"Terrain",
+	"Camera",
+	"SpawnLocation",
+	"Status",
+	localPlayer.Name
+}
+
+-- We'll store info for each tracker here.
+-- Each element is a table with:
+--   tracker: the beam part,
+--   model: the model it's connected to,
+--   highlight: a Highlight instance that outlines the model.
+local trackers = {}
+
+--[[
+  createTrackerForModel(model)
+
+  This function creates:
+    - A tracker (beam) that connects from the model's base to near the player.
+    - A Highlight instance on the model that shows an outline (visible through walls).
+  It returns a table containing these objects.
+]]
+local function createTrackerForModel(model)
+	local info = {}  -- Table to hold our objects for this tracker.
+
+	-- Determine the model's base position using its bounding box.
+	local cframe, _ = model:GetBoundingBox()
+	local basePos = cframe.Position + Vector3.new(0, 2, 0)
+
+	-- Create the tracker (beam) part.
+	local tracker = Instance.new("Part")
+	tracker.Name = "Part1"
+	tracker.Anchored = true
+	tracker.CanCollide = true
+	tracker.Transparency = 0.5
+	tracker.Size = Vector3.new(1, 1, 5)  -- Initial size; will be updated dynamically.
+	tracker.Color = Color3.new(0, 1, 0)   -- Start as green.
+	tracker.Parent = Workspace
+
+	-- Create a Highlight instance to outline the model.
+	-- Highlight objects appear on top of all 3D objects (even through walls).
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "ModelHighlight"
+	highlight.Adornee = model
+	highlight.FillTransparency = 0           -- Fully transparent fill.
+	highlight.OutlineTransparency = 0        -- Fully visible outline.
+	highlight.OutlineColor = tracker.Color 
+	highlight.OutlineColor = Color3.new(255,255,255)-- Start with the same color as the tracker.
+	-- Parent the highlight to Workspace so it persists.
+	highlight.Parent = Workspace
+
+	-- Save our objects in the info table.
+	info.tracker = tracker
+	info.model = model
+	info.highlight = highlight
+
+	return info
+end
+
+--[[
+  addTrackers()
+
+  This function goes through every descendant in the Workspace.
+  For each object that is a Model (and not in the exclude list),
+  it creates a tracker (beam + highlight) and stores its info in our trackers table.
+]]
+local function addTrackers()
+	for _, obj in ipairs(Workspace:GetDescendants()) do
+		if obj:IsA("Model") and not table.find(excludeModels, obj.Name) then
+			print("Added tracker for: " .. obj.Name)
+			local trackerInfo = createTrackerForModel(obj)
+			table.insert(trackers, trackerInfo)
+		end
+	end
+end
+
+-- Create trackers for all eligible models.
+addTrackers()
+
+-- Offset (in studs) so that the beam stops a bit before reaching the player.
+local beamOffset = 5
+
+--[[
+  RunService.Heartbeat:Connect(function() ... end)
+
+  Every frame we:
+    - Update the model's base position (in case it moves).
+    - Calculate the distance from the model’s base to the player's HRP and subtract the offset.
+    - Update the tracker’s size and orientation so it connects from the model toward the player.
+    - Check for obstructions along the tracker (ignoring parts belonging to the model or the player's character).
+    - Set the tracker’s (and highlight’s) color to red if obstructed, or green if clear.
+]]
+RunService.Heartbeat:Connect(function()
+	for _, info in ipairs(trackers) do
+		local tracker = info.tracker
+		local model = info.model
+		local highlight = info.highlight
+
+		if tracker and tracker.Parent and model and model.Parent and highlight then
+			-- Recalculate the model's base position.
+			local cframe, _ = model:GetBoundingBox()
+			local basePos = cframe.Position + Vector3.new(0, 2, 0)
+
+			-- Calculate the raw distance from the model's base to the player's HRP.
+			local rawDistance = (hrp.Position - basePos).Magnitude
+			-- Subtract the offset so the beam stops before reaching the player.
+			local distance = rawDistance - beamOffset
+			-- Prevent negative or zero distance.
+			if distance < 0.1 then
+				distance = 0.1
+			end
+
+			-- Update the tracker’s size (its Z length equals the adjusted distance).
+			tracker.Size = Vector3.new(1, 1, distance)
+			-- Set the tracker’s CFrame so its starting end is at basePos and it points toward the player.
+			-- Using a negative offset so the beam extends away from the model.
+			tracker.CFrame = CFrame.lookAt(basePos, hrp.Position) * CFrame.new(0, 0, -distance/2)
+
+			-- Check for obstructions along the tracker.
+			local touching = tracker:GetTouchingParts()
+			local obstructionFound = false
+			-- Ignore parts that are part of the model or the player's character.
+			for _, part in ipairs(touching) do
+				if not (part:IsDescendantOf(model) or part:IsDescendantOf(localPlayer.Character)) then
+					obstructionFound = true
+					break
+				end
+			end
+
+			-- Update the tracker's color.
+			if obstructionFound then
+				tracker.Color = Color3.new(1, 0, 0)  -- Red if obstructed.
+			else
+				tracker.Color = Color3.new(0, 1, 0)  -- Green if clear.
+			end
+
+			-- Update the highlight's outline color to match the tracker.
+			--highlight.OutlineColor = tracker.Color
+			highlight.FillColor = tracker.Color
+		end
+	end
+end)
