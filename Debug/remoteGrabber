@@ -1,0 +1,235 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+-- Create the main GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "RemoteGrabberGUI"
+ScreenGui.Parent = game.CoreGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0.3, 0, 0.4, 0)
+MainFrame.Position = UDim2.new(0.7, 0, 0.5, 0)
+MainFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0.1, 0)
+Title.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.Text = "Remote Grabber"
+Title.TextSize = 14
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = MainFrame
+
+local TabsFrame = Instance.new("ScrollingFrame")
+TabsFrame.Name = "TabsFrame"
+TabsFrame.Size = UDim2.new(1, 0, 0.8, 0)
+TabsFrame.Position = UDim2.new(0, 0, 0.1, 0)
+TabsFrame.BackgroundTransparency = 1
+TabsFrame.ScrollBarThickness = 6
+TabsFrame.Parent = MainFrame
+
+local PauseButton = Instance.new("TextButton")
+PauseButton.Name = "PauseButton"
+PauseButton.Size = UDim2.new(0.3, 0, 0.1, 0)
+PauseButton.Position = UDim2.new(0.7, 0, 0.9, 0)
+PauseButton.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
+PauseButton.TextColor3 = Color3.new(1, 1, 1)
+PauseButton.Text = "Pause"
+PauseButton.TextSize = 12
+PauseButton.Font = Enum.Font.SourceSansBold
+PauseButton.Parent = MainFrame
+
+local PathFrame = Instance.new("Frame")
+PathFrame.Name = "PathFrame"
+PathFrame.Size = UDim2.new(1, 0, 0.8, 0)
+PathFrame.Position = UDim2.new(0, 0, 0.1, 0)
+PathFrame.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+PathFrame.BorderSizePixel = 0
+PathFrame.Visible = false
+PathFrame.Parent = MainFrame
+
+local PathTextBox = Instance.new("TextBox")
+PathTextBox.Name = "PathTextBox"
+PathTextBox.Size = UDim2.new(1, -10, 0.7, 0)
+PathTextBox.Position = UDim2.new(0, 5, 0, 5)
+PathTextBox.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+PathTextBox.TextColor3 = Color3.new(1, 1, 1)
+PathTextBox.TextSize = 12
+PathTextBox.Font = Enum.Font.SourceSans
+PathTextBox.TextWrapped = true
+PathTextBox.ClearTextOnFocus = false
+PathTextBox.Parent = PathFrame
+
+local CopyButton = Instance.new("TextButton")
+CopyButton.Name = "CopyButton"
+CopyButton.Size = UDim2.new(0.5, -10, 0.2, 0)
+CopyButton.Position = UDim2.new(0, 5, 0.8, 0)
+CopyButton.BackgroundColor3 = Color3.new(0.2, 0.6, 0.6)
+CopyButton.TextColor3 = Color3.new(1, 1, 1)
+CopyButton.Text = "Copy Path"
+CopyButton.TextSize = 12
+CopyButton.Font = Enum.Font.SourceSansBold
+CopyButton.Parent = PathFrame
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0.1, 0, 0.1, 0)
+CloseButton.Position = UDim2.new(0.9, 0, 0, 0)
+CloseButton.BackgroundColor3 = Color3.new(0.8, 0.2, 0.2)
+CloseButton.TextColor3 = Color3.new(1, 1, 1)
+CloseButton.Text = "X"
+CloseButton.TextSize = 14
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Parent = PathFrame
+
+-- Variables
+local isPaused = false
+local remotes = {}
+
+-- Functions
+local function createTab(remoteName, remoteType)
+    local tab = Instance.new("TextButton")
+    tab.Name = remoteName
+    tab.Size = UDim2.new(1, -10, 0, 20)
+    tab.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+    tab.TextColor3 = Color3.new(1, 1, 1)
+    tab.Text = string.format("%s: %s", remoteType, remoteName)
+    tab.TextSize = 12
+    tab.Font = Enum.Font.SourceSans
+    tab.TextXAlignment = Enum.TextXAlignment.Left
+    tab.BorderSizePixel = 0
+    
+    return tab
+end
+
+local function updateTabsLayout()
+    local yOffset = 0
+    for _, tab in ipairs(TabsFrame:GetChildren()) do
+        if tab:IsA("TextButton") then
+            tab.Position = UDim2.new(0, 5, 0, yOffset)
+            yOffset = yOffset + tab.Size.Y.Offset + 2
+        end
+    end
+    TabsFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+end
+
+local function showRemotePath(remote)
+    local path = remote:GetFullName()
+    PathTextBox.Text = path
+    TabsFrame.Visible = false
+    PathFrame.Visible = true
+end
+
+local function addRemote(remote)
+    if remotes[remote] then return end
+    
+    local tab = createTab(remote.Name, remote.ClassName)
+    tab.Parent = TabsFrame
+    updateTabsLayout()
+    
+    tab.MouseButton1Click:Connect(function()
+        showRemotePath(remote)
+    end)
+    
+    remotes[remote] = tab
+end
+
+local function wrapRemote(remote)
+    if isPaused then return end
+    
+    addRemote(remote)
+    
+    if remote:IsA("RemoteEvent") then
+        remote.OnClientEvent:Connect(function(...)
+            if not isPaused then
+                print(string.format("RemoteEvent fired: %s", remote.Name))
+                print("Arguments:", ...)
+            end
+        end)
+    elseif remote:IsA("RemoteFunction") then
+        remote.OnClientInvoke = function(...)
+            if not isPaused then
+                print(string.format("RemoteFunction invoked: %s", remote.Name))
+                print("Arguments:", ...)
+            end
+            return
+        end
+    end
+end
+
+local function wrapRemotesInFolder(folder)
+    for _, obj in ipairs(folder:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            wrapRemote(obj)
+        end
+    end
+    folder.DescendantAdded:Connect(function(descendant)
+        if descendant:IsA("RemoteEvent") or descendant:IsA("RemoteFunction") then
+            wrapRemote(descendant)
+        end
+    end)
+end
+
+-- Initialize
+wrapRemotesInFolder(game.ReplicatedStorage)
+wrapRemotesInFolder(game.StarterGui)
+wrapRemotesInFolder(game.StarterPack)
+wrapRemotesInFolder(game.StarterPlayer)
+
+-- GUI Functionality
+PauseButton.MouseButton1Click:Connect(function()
+    isPaused = not isPaused
+    PauseButton.Text = isPaused and "Resume" or "Pause"
+    PauseButton.BackgroundColor3 = isPaused and Color3.new(0.6, 0.2, 0.2) or Color3.new(0.2, 0.6, 0.2)
+end)
+
+CopyButton.MouseButton1Click:Connect(function()
+    setclipboard(PathTextBox.Text)
+    print("Copied: " .. PathTextBox.Text)
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    PathFrame.Visible = false
+    TabsFrame.Visible = true
+end)
+
+-- Make the GUI draggable
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+Title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+Title.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
