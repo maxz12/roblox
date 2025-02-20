@@ -1,0 +1,26 @@
+-- Script to be executed from an executor to decompile and print the contents of all LocalScripts in StarterPlayerScripts
+
+-- Function to print the contents of all LocalScripts in StarterPlayerScripts
+local function decompileScripts()
+    -- Get all children of StarterPlayerScripts
+    local scripts = game.StarterPlayer.StarterPlayerScripts:GetChildren()
+
+    for _, script in ipairs(scripts) do
+        if script:IsA("LocalScript") then
+            -- Attempt to get the contents of the LocalScript using the executor's decompile function
+            local success, scriptContents = pcall(function()
+                return decompile(script)
+            end)
+
+            if success then
+                print("Contents of '" .. script.Name .. "' script:")
+                print(scriptContents)
+            else
+                print("Failed to get contents of '" .. script.Name .. "' script.")
+            end
+        end
+    end
+end
+
+-- Execute the function to decompile and print the contents of all LocalScripts
+decompileScripts()
