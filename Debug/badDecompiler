@@ -1,26 +1,345 @@
--- Script to be executed from an executor to decompile and print the contents of all LocalScripts in StarterPlayerScripts
+--!strict
 
--- Function to print the contents of all LocalScripts in StarterPlayerScripts
-local function decompileScripts()
-    -- Get all children of StarterPlayerScripts
-    local scripts = game.StarterPlayer.StarterPlayerScripts:GetChildren()
+--[[
+  Enhanced Decompiler GUI with horizontal + vertical scroll:
+    • Vertical scroll with mouse wheel (default ScrollingFrame behavior).
+    • Horizontal scroll using a slider at the bottom.
+    • Shows special decompiler output text in a highlighted label separate from the code.
+    • The code portion is kept plain (no embedded <font> tags).
+    • Place this LocalScript in StarterGui.
+]]
 
-    for _, script in ipairs(scripts) do
-        if script:IsA("LocalScript") then
-            -- Attempt to get the contents of the LocalScript using the executor's decompile function
-            local success, scriptContents = pcall(function()
-                return decompile(script)
-            end)
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
 
-            if success then
-                print("Contents of '" .. script.Name .. "' script:")
-                print(scriptContents)
-            else
-                print("Failed to get contents of '" .. script.Name .. "' script.")
-            end
-        end
-    end
+-------------------------------------------------------------------
+-- Create ScreenGui and Main Window
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DecompilerGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 800, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -400, 0.5, -250)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+-------------------------------------------------------------------
+-- Top Bar (for dragging and minimizing)
+local TopBar = Instance.new("Frame")
+TopBar.Name = "TopBar"
+TopBar.Size = UDim2.new(1, 0, 0, 30)
+TopBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Text = "Decompiler"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 5, 0, 0)
+Title.Font = Enum.Font.SourceSans
+Title.TextSize = 18
+Title.Parent = TopBar
+
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Text = "-"
+MinimizeButton.TextColor3 = Color3.new(1, 1, 1)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+MinimizeButton.BorderSizePixel = 0
+MinimizeButton.Size = UDim2.new(0, 40, 1, 0)
+MinimizeButton.Position = UDim2.new(1, -40, 0, 0)
+MinimizeButton.Font = Enum.Font.SourceSans
+MinimizeButton.TextSize = 18
+MinimizeButton.Parent = TopBar
+
+-- Draggable window functionality
+local dragging = false
+local dragStart, startPos
+TopBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = MainFrame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStart
+		MainFrame.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-------------------------------------------------------------------
+-- Left Panel: Script List
+local ScriptListFrame = Instance.new("ScrollingFrame")
+ScriptListFrame.Name = "ScriptListFrame"
+ScriptListFrame.Size = UDim2.new(0, 200, 1, -30)
+ScriptListFrame.Position = UDim2.new(0, 0, 0, 30)
+ScriptListFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ScriptListFrame.BorderSizePixel = 0
+ScriptListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScriptListFrame.ScrollBarThickness = 6
+ScriptListFrame.Parent = MainFrame
+
+-------------------------------------------------------------------
+-- Right Panel: Content Display
+local ContentFrame = Instance.new("ScrollingFrame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Size = UDim2.new(1, -200, 1, -30)
+ContentFrame.Position = UDim2.new(0, 200, 0, 30)
+ContentFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ContentFrame.BorderSizePixel = 0
+ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ContentFrame.ScrollBarThickness = 6
+ContentFrame.ScrollingEnabled = false -- We will lay out content manually.
+ContentFrame.Parent = MainFrame
+
+-- Container for special text + code viewer
+local ContentContainer = Instance.new("Frame")
+ContentContainer.Name = "ContentContainer"
+ContentContainer.BackgroundTransparency = 1
+ContentContainer.Size = UDim2.new(1, 0, 1, 0)
+ContentContainer.Parent = ContentFrame
+
+-- Special label for "decompiler output text" (bold color or distinct style)
+local OutputLabel = Instance.new("TextLabel")
+OutputLabel.Name = "OutputLabel"
+OutputLabel.Size = UDim2.new(1, -10, 0, 70)
+OutputLabel.Position = UDim2.new(0, 5, 0, 5)
+OutputLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 120)
+OutputLabel.BorderSizePixel = 0
+OutputLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
+OutputLabel.Font = Enum.Font.SourceSansBold
+OutputLabel.TextSize = 15
+OutputLabel.TextWrapped = true
+OutputLabel.TextYAlignment = Enum.TextYAlignment.Top
+OutputLabel.Text = ""
+OutputLabel.Parent = ContentContainer
+
+local CodeContainer = Instance.new("Frame")
+CodeContainer.Name = "CodeContainer"
+CodeContainer.Position = UDim2.new(0, 0, 0, 80)
+CodeContainer.Size = UDim2.new(1, 0, 1, -80)
+CodeContainer.BackgroundTransparency = 1
+CodeContainer.Parent = ContentContainer
+
+-- CodeViewFrame: vertical ScrollingFrame
+local CodeViewFrame = Instance.new("ScrollingFrame")
+CodeViewFrame.Name = "CodeViewFrame"
+CodeViewFrame.Size = UDim2.new(1, 0, 1, -30)
+CodeViewFrame.BackgroundTransparency = 1
+CodeViewFrame.ScrollBarThickness = 6
+CodeViewFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+CodeViewFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+CodeViewFrame.Parent = CodeContainer
+
+local CodeTextBox = Instance.new("TextBox")
+CodeTextBox.Name = "CodeTextBox"
+CodeTextBox.Size = UDim2.new(1, -10, 0, 0)
+CodeTextBox.Position = UDim2.new(0, 5, 0, 5)
+CodeTextBox.BackgroundTransparency = 1
+CodeTextBox.TextColor3 = Color3.new(1, 1, 1)
+CodeTextBox.Font = Enum.Font.Code
+CodeTextBox.TextSize = 16
+CodeTextBox.RichText = false
+CodeTextBox.TextXAlignment = Enum.TextXAlignment.Left
+CodeTextBox.TextYAlignment = Enum.TextYAlignment.Top
+CodeTextBox.TextWrapped = false
+CodeTextBox.ClearTextOnFocus = false
+CodeTextBox.Text = "click on a script to see <-"
+CodeTextBox.AutomaticSize = Enum.AutomaticSize.Y
+CodeTextBox.Parent = CodeViewFrame
+pcall(function() CodeTextBox.TextEditable = false end)
+
+-- Keep track of bounding changes to adapt the ScrollingFrame
+CodeTextBox:GetPropertyChangedSignal("TextBounds"):Connect(function()
+	local tb = CodeTextBox.TextBounds
+	CodeTextBox.Size = UDim2.new(0, math.max(tb.X + 10, CodeViewFrame.AbsoluteSize.X - 10), 0, tb.Y + 10)
+	CodeViewFrame.CanvasSize = UDim2.new(0, CodeTextBox.AbsoluteSize.X, 0, CodeTextBox.AbsoluteSize.Y + 10)
+end)
+
+-- Horizontal slider
+local HScrollFrame = Instance.new("Frame")
+HScrollFrame.Name = "HScrollFrame"
+HScrollFrame.Size = UDim2.new(1, 0, 0, 30)
+HScrollFrame.Position = UDim2.new(0, 0, 1, -30)
+HScrollFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+HScrollFrame.BorderSizePixel = 0
+HScrollFrame.Parent = CodeContainer
+
+local HScrollBar = Instance.new("Frame")
+HScrollBar.Name = "HScrollBar"
+HScrollBar.Size = UDim2.new(0.2, 0, 1, 0)
+HScrollBar.Position = UDim2.new(0, 0, 0, 0)
+HScrollBar.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+HScrollBar.BorderSizePixel = 0
+HScrollBar.Parent = HScrollFrame
+
+local isScrolling = false
+local scrollStartX = 0
+local barStartPos = 0
+
+HScrollBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		isScrolling = true
+		scrollStartX = input.Position.X
+		barStartPos = HScrollBar.Position.X.Offset
+	end
+end)
+
+HScrollBar.InputChanged:Connect(function(input)
+	if isScrolling and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position.X - scrollStartX
+		local newPos = math.clamp(
+			barStartPos + delta,
+			0,
+			HScrollFrame.AbsoluteSize.X - HScrollBar.AbsoluteSize.X
+		)
+		HScrollBar.Position = UDim2.new(0, newPos, 0, 0)
+		-- Convert 0..(HScrollFrame width - bar width) -> 0..(CodeTextBox width - CodeViewFrame width)
+		local maxOffset = math.max(CodeTextBox.AbsoluteSize.X - CodeViewFrame.AbsoluteSize.X, 0)
+		local ratio = 0
+		if (HScrollFrame.AbsoluteSize.X - HScrollBar.AbsoluteSize.X) > 0 then
+			ratio = newPos / (HScrollFrame.AbsoluteSize.X - HScrollBar.AbsoluteSize.X)
+		end
+		CodeViewFrame.CanvasPosition = Vector2.new(maxOffset * ratio, CodeViewFrame.CanvasPosition.Y)
+	end
+end)
+
+HScrollBar.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		isScrolling = false
+	end
+end)
+
+HScrollFrame.InputBegan:Connect(function(input)
+	-- Clicking on the background of the scroll bar
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		local barHalfWidth = HScrollBar.AbsoluteSize.X / 2
+		local relativeX = input.Position.X - HScrollFrame.AbsolutePosition.X - barHalfWidth
+		local newPos = math.clamp(
+			relativeX,
+			0,
+			HScrollFrame.AbsoluteSize.X - HScrollBar.AbsoluteSize.X
+		)
+		HScrollBar.Position = UDim2.new(0, newPos, 0, 0)
+		local maxOffset = math.max(CodeTextBox.AbsoluteSize.X - CodeViewFrame.AbsoluteSize.X, 0)
+		local ratio = 0
+		if (HScrollFrame.AbsoluteSize.X - HScrollBar.AbsoluteSize.X) > 0 then
+			ratio = newPos / (HScrollFrame.AbsoluteSize.X - HScrollBar.AbsoluteSize.X)
+		end
+		CodeViewFrame.CanvasPosition = Vector2.new(maxOffset * ratio, CodeViewFrame.CanvasPosition.Y)
+	end
+end)
+
+-------------------------------------------------------------------
+-- Minimizing the window
+local minimized = false
+MinimizeButton.MouseButton1Click:Connect(function()
+	minimized = not minimized
+	if minimized then
+		MainFrame.Size = UDim2.new(0, 250, 0, 50)
+	else
+		MainFrame.Size = UDim2.new(0, 800, 0, 500)
+	end
+end)
+
+-------------------------------------------------------------------
+-- Helper to parse the special lines from code
+local function parseDecompileOutput(fullText: string)
+	-- We look for consecutive lines starting with `-- Decompiler ...`, up to some pattern,
+	-- or just lines that mention Konstant, etc. You can tailor as needed.
+	local outputLines = {}
+	local restLines = {}
+	local foundSpecialBlock = false
+
+	for line in fullText:gmatch("[^\n]*\n?") do
+		if line:match("^%-%-%s*Decompiler will be improved soon!") or
+			line:match("^%-%- Decompiled with") or
+			line:match("^%-%- Decompiled on") or
+			line:match("^%-%- Luau version") or
+			line:match("^%-%- Time taken:") then
+
+			foundSpecialBlock = true
+			table.insert(outputLines, line)
+		else
+			-- If it's not the recognized "output lines," just assume it's code
+			table.insert(restLines, line)
+		end
+	end
+
+	return table.concat(outputLines), table.concat(restLines)
 end
 
--- Execute the function to decompile and print the contents of all LocalScripts
+-------------------------------------------------------------------
+-- Populate Scripts and Handle Button Clicks
+local scriptData: { [string]: string } = {}
+
+local function decompileScripts()
+	local scripts = game.StarterPlayer.StarterPlayerScripts:GetChildren()
+	local yPos = 5
+	for _, scr in ipairs(scripts) do
+		if scr:IsA("LocalScript") then
+			local success, scriptContents = pcall(function()
+				return decompile(scr)
+			end)
+			if success and scriptContents then
+				scriptData[scr.Name] = scriptContents
+			else
+				scriptData[scr.Name] = "-- Failed to decompile script: " .. scr.Name
+			end
+
+			local button = Instance.new("TextButton")
+			button.Name = scr.Name .. "Button"
+			button.Text = scr.Name
+			button.TextColor3 = Color3.new(1, 1, 1)
+			button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+			button.BorderSizePixel = 0
+			button.Position = UDim2.new(0, 5, 0, yPos)
+			button.Size = UDim2.new(1, -10, 0, 30)
+			button.Font = Enum.Font.SourceSans
+			button.TextSize = 16
+			button.Parent = ScriptListFrame
+
+			button.MouseButton1Click:Connect(function()
+				local fullText = scriptData[scr.Name] or "No content available."
+				local outputSection, codeSection = parseDecompileOutput(fullText)
+
+				OutputLabel.Text = outputSection ~= "" and outputSection or ""
+				CodeTextBox.Text = codeSection ~= "" and codeSection or "-- No code."
+				
+				-- Reset size & scroll positions
+				local tb = CodeTextBox.TextBounds
+				CodeTextBox.Size = UDim2.new(0, math.max(tb.X + 10, CodeViewFrame.AbsoluteSize.X - 10), 0, tb.Y + 10)
+				CodeViewFrame.CanvasSize = UDim2.new(0, CodeTextBox.AbsoluteSize.X, 0, CodeTextBox.AbsoluteSize.Y + 10)
+				CodeViewFrame.CanvasPosition = Vector2.new()
+				HScrollBar.Position = UDim2.new(0, 0, 0, 0)
+			end)
+
+			yPos = yPos + 35
+		end
+	end
+
+	ScriptListFrame.CanvasSize = UDim2.new(0, 0, 0, yPos)
+end
+
 decompileScripts()
