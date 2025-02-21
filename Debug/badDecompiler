@@ -5,13 +5,31 @@
     • Vertical scroll with mouse wheel (default ScrollingFrame behavior).
     • Horizontal scroll using a slider at the bottom.
     • Shows special decompiler output text in a highlighted label separate from the code.
-    • The code portion is kept plain (no embedded <font> tags).
-    • Place this LocalScript in StarterGui.
+    • The code portion is editable like a basic IDE.
+    • Pressing Enter (or losing focus) or clicking the "Run" button executes the edited code.
+    • When executing new code, it attempts to “replace” the previously running version for that script.
+      During replacement, the old and new code are printed as output statements.
+    • Loads ALL LocalScripts from StarterPlayerScripts and StarterGui (recursively).
+
+  IMPORTANT: This script uses functions such as loadstring that are normally disabled in standard Roblox environments.
+  It also simulates script replacement by running the new code in a new coroutine.
+  Use advanced debug tools with caution.
+
+  Place this LocalScript in StarterGui.
 ]]
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
+
+-- Table to keep track of active threads per script name
+local activeThreads = {}
+
+-- The currently selected script's name (used to identify which script is being edited)
+local activeEditingScriptName: string? = nil
+
+-- Table to store each script's details: contents and full path.
+local scriptData: { [string]: {contents: string, path: string} } = {}
 
 -------------------------------------------------------------------
 -- Create ScreenGui and Main Window
@@ -110,20 +128,20 @@ ContentFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 ContentFrame.BorderSizePixel = 0
 ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 ContentFrame.ScrollBarThickness = 6
-ContentFrame.ScrollingEnabled = false -- We will lay out content manually.
+ContentFrame.ScrollingEnabled = false
 ContentFrame.Parent = MainFrame
 
--- Container for special text + code viewer
+-- Container for special text and code viewer
 local ContentContainer = Instance.new("Frame")
 ContentContainer.Name = "ContentContainer"
 ContentContainer.BackgroundTransparency = 1
 ContentContainer.Size = UDim2.new(1, 0, 1, 0)
 ContentContainer.Parent = ContentFrame
 
--- Special label for "decompiler output text" (bold color or distinct style)
+-- Special label for "decompiler output text"
 local OutputLabel = Instance.new("TextLabel")
 OutputLabel.Name = "OutputLabel"
-OutputLabel.Size = UDim2.new(1, -10, 0, 70)
+OutputLabel.Size = UDim2.new(1, -10, 0, 100)
 OutputLabel.Position = UDim2.new(0, 5, 0, 5)
 OutputLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 120)
 OutputLabel.BorderSizePixel = 0
@@ -137,8 +155,8 @@ OutputLabel.Parent = ContentContainer
 
 local CodeContainer = Instance.new("Frame")
 CodeContainer.Name = "CodeContainer"
-CodeContainer.Position = UDim2.new(0, 0, 0, 80)
-CodeContainer.Size = UDim2.new(1, 0, 1, -80)
+CodeContainer.Position = UDim2.new(0, 0, 0, 110)
+CodeContainer.Size = UDim2.new(1, 0, 1, -110)
 CodeContainer.BackgroundTransparency = 1
 CodeContainer.Parent = ContentContainer
 
@@ -154,7 +172,7 @@ CodeViewFrame.Parent = CodeContainer
 
 local CodeTextBox = Instance.new("TextBox")
 CodeTextBox.Name = "CodeTextBox"
-CodeTextBox.Size = UDim2.new(1, -10, 0, 0)
+CodeTextBox.Size = UDim2.new(1, -10, 0, 0) -- Height adjusts automatically
 CodeTextBox.Position = UDim2.new(0, 5, 0, 5)
 CodeTextBox.BackgroundTransparency = 1
 CodeTextBox.TextColor3 = Color3.new(1, 1, 1)
@@ -165,19 +183,21 @@ CodeTextBox.TextXAlignment = Enum.TextXAlignment.Left
 CodeTextBox.TextYAlignment = Enum.TextYAlignment.Top
 CodeTextBox.TextWrapped = false
 CodeTextBox.ClearTextOnFocus = false
-CodeTextBox.Text = "click on a script to see <-"
+CodeTextBox.MultiLine = true
+CodeTextBox.TextEditable = true
+CodeTextBox.Text = "Click on a script to view/edit its decompiled text."
 CodeTextBox.AutomaticSize = Enum.AutomaticSize.Y
 CodeTextBox.Parent = CodeViewFrame
-pcall(function() CodeTextBox.TextEditable = false end)
 
--- Keep track of bounding changes to adapt the ScrollingFrame
+-- Auto resize CodeTextBox and update canvas size accordingly
 CodeTextBox:GetPropertyChangedSignal("TextBounds"):Connect(function()
 	local tb = CodeTextBox.TextBounds
 	CodeTextBox.Size = UDim2.new(0, math.max(tb.X + 10, CodeViewFrame.AbsoluteSize.X - 10), 0, tb.Y + 10)
 	CodeViewFrame.CanvasSize = UDim2.new(0, CodeTextBox.AbsoluteSize.X, 0, CodeTextBox.AbsoluteSize.Y + 10)
 end)
 
--- Horizontal slider
+-------------------------------------------------------------------
+-- Horizontal slider for scrolling horizontally
 local HScrollFrame = Instance.new("Frame")
 HScrollFrame.Name = "HScrollFrame"
 HScrollFrame.Size = UDim2.new(1, 0, 0, 30)
@@ -215,7 +235,7 @@ HScrollBar.InputChanged:Connect(function(input)
 			HScrollFrame.AbsoluteSize.X - HScrollBar.AbsoluteSize.X
 		)
 		HScrollBar.Position = UDim2.new(0, newPos, 0, 0)
-		-- Convert 0..(HScrollFrame width - bar width) -> 0..(CodeTextBox width - CodeViewFrame width)
+		-- map horizontal slider position to canvas offset in code textbox
 		local maxOffset = math.max(CodeTextBox.AbsoluteSize.X - CodeViewFrame.AbsoluteSize.X, 0)
 		local ratio = 0
 		if (HScrollFrame.AbsoluteSize.X - HScrollBar.AbsoluteSize.X) > 0 then
@@ -232,7 +252,7 @@ HScrollBar.InputEnded:Connect(function(input)
 end)
 
 HScrollFrame.InputBegan:Connect(function(input)
-	-- Clicking on the background of the scroll bar
+	-- Clicking on the background of the scrollbar
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		local barHalfWidth = HScrollBar.AbsoluteSize.X / 2
 		local relativeX = input.Position.X - HScrollFrame.AbsolutePosition.X - barHalfWidth
@@ -252,94 +272,157 @@ HScrollFrame.InputBegan:Connect(function(input)
 end)
 
 -------------------------------------------------------------------
--- Minimizing the window
-local minimized = false
-MinimizeButton.MouseButton1Click:Connect(function()
-	minimized = not minimized
-	if minimized then
-		MainFrame.Size = UDim2.new(0, 250, 0, 50)
+-- Run Button to manually execute edited code
+local RunButton = Instance.new("TextButton")
+RunButton.Name = "RunButton"
+RunButton.Text = "Run"
+RunButton.TextColor3 = Color3.new(1, 1, 1)
+RunButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+RunButton.BorderSizePixel = 0
+RunButton.Size = UDim2.new(0, 60, 0, 30)
+-- Position near top-right of CodeContainer
+RunButton.Position = UDim2.new(1, -70, 0, 40)
+RunButton.Font = Enum.Font.SourceSans
+RunButton.TextSize = 16
+RunButton.Parent = CodeContainer
+
+-------------------------------------------------------------------
+-- Code execution function which simulates script replacement
+
+local function executeCode()
+	local code = CodeTextBox.Text
+	-- Use loadstring (or load in some environments) to compile code
+	local func, err = loadstring(code)
+	if not func then
+		OutputLabel.Text = "Error compiling code: " .. err
+		return
+	end
+
+	if activeEditingScriptName then
+		local scriptInfo = scriptData[activeEditingScriptName] or { contents = "N/A", path = "Unknown" }
+		local oldCode = scriptInfo.contents
+		local path = scriptInfo.path
+
+		-- Print old and new code to the output console for verification.
+		print("=== Replacing Script at:", path, "===")
+		print("OLD CODE:\n" .. oldCode)
+		print("NEW CODE:\n" .. code)
+
+		-- Simulate script replacement by stopping the old thread reference.
+		if activeThreads[activeEditingScriptName] then
+			activeThreads[activeEditingScriptName] = nil
+		end
+
+		-- Run the new code in a new coroutine.
+		local co = coroutine.create(func)
+		activeThreads[activeEditingScriptName] = co
+		local success, execErr = coroutine.resume(co)
+		if success then
+			OutputLabel.Text = ("[Script Path]: %s\n\nOLD CODE:\n%s\n\nNEW CODE:\n%s\n\nCode executed successfully for %s")
+				:format(path, oldCode, code, activeEditingScriptName)
+			-- Replace the stored decompiled code with the new version.
+			scriptData[activeEditingScriptName].contents = code
+		else
+			OutputLabel.Text = ("[Script Path]: %s\n\nOLD CODE:\n%s\n\nNEW CODE:\n%s\n\nRuntime error for %s: %s")
+				:format(path, oldCode, code, activeEditingScriptName, execErr)
+		end
 	else
-		MainFrame.Size = UDim2.new(0, 800, 0, 500)
+		-- If no specific script is selected, simply run the code normally.
+		local success, execErr = pcall(func)
+		if success then
+			OutputLabel.Text = "Code executed successfully."
+		else
+			OutputLabel.Text = "Runtime error: " .. execErr
+		end
+	end
+end
+
+-- Auto-execute when CodeTextBox loses focus and Enter was pressed.
+CodeTextBox.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		executeCode()
 	end
 end)
 
+RunButton.MouseButton1Click:Connect(function()
+	executeCode()
+end)
+
 -------------------------------------------------------------------
--- Helper to parse the special lines from code
+-- Helper to parse special decompiler output lines from the code text
 local function parseDecompileOutput(fullText: string)
-	-- We look for consecutive lines starting with `-- Decompiler ...`, up to some pattern,
-	-- or just lines that mention Konstant, etc. You can tailor as needed.
 	local outputLines = {}
 	local restLines = {}
-	local foundSpecialBlock = false
-
 	for line in fullText:gmatch("[^\n]*\n?") do
 		if line:match("^%-%-%s*Decompiler will be improved soon!") or
-			line:match("^%-%- Decompiled with") or
-			line:match("^%-%- Decompiled on") or
-			line:match("^%-%- Luau version") or
-			line:match("^%-%- Time taken:") then
-
-			foundSpecialBlock = true
+		   line:match("^%-%- Decompiled with") or
+		   line:match("^%-%- Decompiled on") or
+		   line:match("^%-%- Luau version") or
+		   line:match("^%-%- Time taken:") then
 			table.insert(outputLines, line)
 		else
-			-- If it's not the recognized "output lines," just assume it's code
 			table.insert(restLines, line)
 		end
 	end
-
 	return table.concat(outputLines), table.concat(restLines)
 end
 
 -------------------------------------------------------------------
 -- Populate Scripts and Handle Button Clicks
-local scriptData: { [string]: string } = {}
 
-local function decompileScripts()
-	local scripts = game.StarterPlayer.StarterPlayerScripts:GetChildren()
-	local yPos = 5
-	for _, scr in ipairs(scripts) do
-		if scr:IsA("LocalScript") then
+-- Recursively collect all LocalScripts from a given parent (excluding this GUI script).
+local function collectLocalScripts(parent)
+	for _, child in ipairs(parent:GetChildren()) do
+		if child:IsA("LocalScript") and child ~= script then
 			local success, scriptContents = pcall(function()
-				return decompile(scr)
+				return decompile(child)
 			end)
 			if success and scriptContents then
-				scriptData[scr.Name] = scriptContents
+				scriptData[child.Name] = {contents = scriptContents, path = child:GetFullName()}
 			else
-				scriptData[scr.Name] = "-- Failed to decompile script: " .. scr.Name
+				scriptData[child.Name] = {contents = "-- Failed to decompile script: " .. child.Name, path = child:GetFullName()}
 			end
 
+			-- Create a button for this script.
 			local button = Instance.new("TextButton")
-			button.Name = scr.Name .. "Button"
-			button.Text = scr.Name
+			button.Name = child.Name .. "Button"
+			button.Text = child.Name
 			button.TextColor3 = Color3.new(1, 1, 1)
 			button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 			button.BorderSizePixel = 0
-			button.Position = UDim2.new(0, 5, 0, yPos)
 			button.Size = UDim2.new(1, -10, 0, 30)
 			button.Font = Enum.Font.SourceSans
 			button.TextSize = 16
 			button.Parent = ScriptListFrame
 
-			button.MouseButton1Click:Connect(function()
-				local fullText = scriptData[scr.Name] or "No content available."
-				local outputSection, codeSection = parseDecompileOutput(fullText)
+			-- Position the button below previous ones.
+			local currentCanvas = ScriptListFrame.CanvasSize.Y.Offset
+			if currentCanvas < 5 then currentCanvas = 5 end
+			button.Position = UDim2.new(0, 5, 0, currentCanvas)
+			ScriptListFrame.CanvasSize = UDim2.new(0, 0, 0, currentCanvas + 35)
 
-				OutputLabel.Text = outputSection ~= "" and outputSection or ""
+			-- On button click, display the decompiled code for editing along with script path info.
+			button.MouseButton1Click:Connect(function()
+				activeEditingScriptName = child.Name
+				local scriptInfo = scriptData[child.Name] or {contents = "No content available.", path = "Unknown"}
+				local fullText = scriptInfo.contents
+				local outputSection, codeSection = parseDecompileOutput(fullText)
+				local displayInfo = ("[Script Path]: %s\n"):format(scriptInfo.path)
+				OutputLabel.Text = displayInfo .. (outputSection ~= "" and outputSection or "")
 				CodeTextBox.Text = codeSection ~= "" and codeSection or "-- No code."
-				
-				-- Reset size & scroll positions
+
+				-- Reset CodeTextBox size & scrolling positions.
 				local tb = CodeTextBox.TextBounds
 				CodeTextBox.Size = UDim2.new(0, math.max(tb.X + 10, CodeViewFrame.AbsoluteSize.X - 10), 0, tb.Y + 10)
 				CodeViewFrame.CanvasSize = UDim2.new(0, CodeTextBox.AbsoluteSize.X, 0, CodeTextBox.AbsoluteSize.Y + 10)
 				CodeViewFrame.CanvasPosition = Vector2.new()
 				HScrollBar.Position = UDim2.new(0, 0, 0, 0)
 			end)
-
-			yPos = yPos + 35
 		end
+		collectLocalScripts(child)
 	end
-
-	ScriptListFrame.CanvasSize = UDim2.new(0, 0, 0, yPos)
 end
 
-decompileScripts()
+-- Gather all LocalScripts from StarterGui and StarterPlayerScripts.
+collectLocalScripts(game.StarterGui)
+collectLocalScripts(game.StarterPlayer.StarterPlayerScripts)
