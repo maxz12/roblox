@@ -1,5 +1,5 @@
 --// REVAMPED BY LUNA SCRIPTS
---// Enhanced with scrolling, resend functionality, and argument editing plus improved UI scaling and logging
+--// Enhanced with scrolling, resend functionality, argument editing, improved UI scaling and detailed console responses
 
 --[[
  This script creates a draggable GUI for viewing, copying, blacklisting, whitelisting, and resending remote calls.
@@ -11,9 +11,10 @@
 
  New/Improved Features:
    - Proper serialization of arguments when printing "sending request".
-   - Better scaling for UI buttons in the requests list (View, Resend, Blacklist) so they don’t overlap.
+   - Better scaling for UI buttons in the requests list (View, Resend, Block) so they don’t overlap.
    - Scrollable details view for large bodies of data.
-   - "Resend Request" allows you to adjust arguments, view them, and then resend. The response for RemoteFunction is printed.
+   - "Resend Request" allows you to adjust arguments, view them, and then resend.
+   - Detailed console responses: prints if a request was sent, what arguments were sent, and if applicable, prints the response from RemoteFunction.
 ]]
 
 -- Utility: Serialize a Lua table with indentation
@@ -374,15 +375,17 @@ local function createResendUI(remoteObj, remoteType, oldArgs)
         if remoteType == "RemoteEvent" then
             print("[RemoteEvent Resend] Sending arguments: " .. serializeArgs(newArgs))
             remoteObj:FireServer(unpack(newArgs))
+            print("[RemoteEvent Resend] Request sent successfully.")
         elseif remoteType == "RemoteFunction" then
+            print("[RemoteFunction Resend] Sending arguments: " .. serializeArgs(newArgs))
             local response = remoteObj:InvokeServer(unpack(newArgs))
-            print("[RemoteFunction Resend] Sent arguments: " .. serializeArgs(newArgs))
+            print("[RemoteFunction Resend] Request sent successfully.")
             print("[RemoteFunction Response] " .. serializeTable(response))
         end
     end)
 end
 
--- Adjusted layout: Each request row with columns for name, view, resend, blacklist
+-- Adjusted layout: Each request row with columns for name, view, resend, block
 local function AddRequestToList(remoteObj, remotePath, remoteType, args)
     local itemFrame = Instance.new("Frame")
     itemFrame.Size = UDim2.new(1, 0, 0, 30)
@@ -423,7 +426,7 @@ local function AddRequestToList(remoteObj, remotePath, remoteType, args)
     resendButton.Font = Enum.Font.SourceSans
     resendButton.Parent = itemFrame
 
-    -- Blacklist button (11% width)
+    -- Block button (11% width)
     local blacklistButton = Instance.new("TextButton")
     blacklistButton.Size = UDim2.new(0.11, 0, 1, 0)
     blacklistButton.Position = UDim2.new(0.86, 0, 0, 0)
