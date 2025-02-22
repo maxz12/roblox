@@ -29,6 +29,7 @@ local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 hrp.CanCollide = false
 
+
 -- Create the AutoTakeBlock GUI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AutoTakeBlockGui"
@@ -89,7 +90,7 @@ local function processBlock(block)
 			break
 		end
 		-- Teleport the player near the block (3 studs behind the block)
-		hrp.CFrame = block.CFrame * CFrame.new(0, 0, -3)
+		hrp.CFrame = block.CFrame * CFrame.new(0, 2, -3)
 		-- Wait for a heartbeat instead of long pauses for smoother operation
 		RunService.Heartbeat:Wait()
 		-- Orient the player to face the block's position
@@ -133,10 +134,10 @@ end
 toggleButton.MouseButton1Click:Connect(function()
 	autoActive = not autoActive
 	if autoActive then
-		toggleButton.Text = "Auto TakeBlock: ON"
+		toggleButton.Text = "Auto Merge: ON"
 		task.spawn(processBlocks)
 	else
-		toggleButton.Text = "Auto TakeBlock: OFF"
+		toggleButton.Text = "Auto Merge: OFF"
 	end
 end)
 
