@@ -1,59 +1,73 @@
+--[[
+    TakeBlocksScript.lua
+    This LocalScript goes through each block in:
+    workspace.Plots.[user].Blocks
 
-
-for i = 1,20 do
-	--[[
-  TeleportBlocks_LocalScript.lua
-  This LocalScript does the following:
-  1. Dynamically obtains the local player's username.
-  2. Fetches the folder at Workspace.Plots.[PlayerName].Blocks.
-  3. Iterates through each part in the folder and teleports it to a target position.
-  
-  Note:
-  - Ensure this script is placed in a location where LocalScripts run (e.g. StarterPlayerScripts).
-  - Change the 'destinationPosition' variable if you want a different teleport destination.
+    It first groups blocks based on the Text property of the TextLabel inside each block’s "Back" SurfaceGui.
+    If a block’s group has only one block (i.e. no duplicate/matching value), it is skipped.
+    For groups with duplicates, the player is teleported near each block, with the HumanoidRootPart
+    rotated to face the block.
+    
+    Place this LocalScript in a location where it can run (e.g. StarterPlayerScripts).
 --]]
 
-	local player = game.Players.LocalPlayer
-	local destinationPosition = Vector3.new(0, 10, 0)  -- target teleport location; adjust as needed
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-	-- Wait until the player's character is loaded if needed
-	if not player then
-		warn("Local player not found!")
-		return
-	end
+local player = Players.LocalPlayer
+if not player then
+	warn("LocalPlayer not found!")
+	return
+end
+local user = player.Name
 
-	-- Build the path: workspace > Plots > [username] > Blocks
-	local plotsFolder = workspace:FindFirstChild("Plots")
-	if not plotsFolder then
-		warn("Couldn't find 'Plots' in workspace")
-		return
-	end
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+hrp.CanCollide = false
 
-	local userFolder = plotsFolder:FindFirstChild(player.Name)
-	if not userFolder then
-		warn("Couldn't find folder for player '" .. player.Name .. "' in Plots")
-		return
-	end
+-- Path to the Blocks folder
+local blocksFolder = workspace:WaitForChild("Plots"):WaitForChild(user):WaitForChild("Blocks")
+local TakeBlockEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("TakeBlock")
 
-	local blocksFolder = userFolder:FindFirstChild("Blocks")
-	if not blocksFolder then
-		warn("Couldn't find 'Blocks' folder inside the player's folder")
-		return
-	end
-
-	-- Iterate over each child in the Blocks folder and teleport BaseParts found there
-	for _, item in ipairs(blocksFolder:GetChildren()) do
-		if item:IsA("BasePart") then
-			-- Option 1: Instantly set its position by updating its CFrame
-			item.CFrame = CFrame.new(destinationPosition)
-
-			-- Option 2 (Alternative): Use MoveTo to smoothly teleport the part
-			-- Uncomment the next line if you prefer using MoveTo.
-			-- item:MoveTo(destinationPosition)
+-- Group blocks by the Text property of the TextLabel in the "Back" SurfaceGui.
+local groups = {}
+for _, block in ipairs(blocksFolder:GetChildren()) do
+	if block:IsA("BasePart") then
+		local back = block:FindFirstChild("Back")
+		if back then
+			local textLabel = back:FindFirstChildWhichIsA("TextLabel")
+			if textLabel then
+				local textValue = textLabel.Text
+				groups[textValue] = groups[textValue] or {}
+				table.insert(groups[textValue], block)
+			else
+				warn("Block " .. block.Name .. " is missing a TextLabel in 'Back'")
+			end
+		else
+			warn("Block " .. block.Name .. " is missing the 'Back' SurfaceGui")
 		end
 	end
-
-	print("Teleported all parts in Blocks for player " .. player.Name)
-	task.wait(1)
-
 end
+
+-- Process only groups with matching values (i.e. at least 2 blocks)
+for textValue, blockList in pairs(groups) do
+	if #blockList < 2 then
+		print("Skipping group with Text value: " .. textValue .. " because it has no duplicate.")
+	else
+		print("Processing group with Text value: " .. textValue .. " (" .. #blockList .. " block(s))")
+		for _, block in ipairs(blockList) do
+			-- Teleport the player close to the block (offset 3 studs behind the block)
+			hrp.CFrame = block.CFrame * CFrame.new(0, 0, -3)
+			task.wait(0.2)
+			-- Orient the player to face the block's position (so that they collide)
+			hrp.CFrame = CFrame.lookAt(hrp.Position, block.Position)
+			task.wait(0.2)
+
+			-- Fire the TakeBlock event for the current block
+			TakeBlockEvent:FireServer(block)
+			task.wait(0.1)  -- Wait before moving to the next block
+		end
+	end
+end
+
+print("Processed all matching blocks.")
