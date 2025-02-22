@@ -1,0 +1,59 @@
+
+
+for i = 1,20 do
+	--[[
+  TeleportBlocks_LocalScript.lua
+  This LocalScript does the following:
+  1. Dynamically obtains the local player's username.
+  2. Fetches the folder at Workspace.Plots.[PlayerName].Blocks.
+  3. Iterates through each part in the folder and teleports it to a target position.
+  
+  Note:
+  - Ensure this script is placed in a location where LocalScripts run (e.g. StarterPlayerScripts).
+  - Change the 'destinationPosition' variable if you want a different teleport destination.
+--]]
+
+	local player = game.Players.LocalPlayer
+	local destinationPosition = Vector3.new(0, 10, 0)  -- target teleport location; adjust as needed
+
+	-- Wait until the player's character is loaded if needed
+	if not player then
+		warn("Local player not found!")
+		return
+	end
+
+	-- Build the path: workspace > Plots > [username] > Blocks
+	local plotsFolder = workspace:FindFirstChild("Plots")
+	if not plotsFolder then
+		warn("Couldn't find 'Plots' in workspace")
+		return
+	end
+
+	local userFolder = plotsFolder:FindFirstChild(player.Name)
+	if not userFolder then
+		warn("Couldn't find folder for player '" .. player.Name .. "' in Plots")
+		return
+	end
+
+	local blocksFolder = userFolder:FindFirstChild("Blocks")
+	if not blocksFolder then
+		warn("Couldn't find 'Blocks' folder inside the player's folder")
+		return
+	end
+
+	-- Iterate over each child in the Blocks folder and teleport BaseParts found there
+	for _, item in ipairs(blocksFolder:GetChildren()) do
+		if item:IsA("BasePart") then
+			-- Option 1: Instantly set its position by updating its CFrame
+			item.CFrame = CFrame.new(destinationPosition)
+
+			-- Option 2 (Alternative): Use MoveTo to smoothly teleport the part
+			-- Uncomment the next line if you prefer using MoveTo.
+			-- item:MoveTo(destinationPosition)
+		end
+	end
+
+	print("Teleported all parts in Blocks for player " .. player.Name)
+	task.wait(1)
+
+end
