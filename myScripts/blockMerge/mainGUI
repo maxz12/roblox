@@ -1,0 +1,240 @@
+--[[
+    CombinedAutoActions.lua
+
+    This LocalScript creates a draggable GUI with two independent toggle buttons:
+      1. Auto Click (Tap): Continuously finds the block with the HIGHEST "Number" value (read from the
+         Text property of the TextLabel inside each block’s "Back" SurfaceGui) and constantly fires the
+         "Tap" event on it. It prints a notification when a new best block is identified.
+      2. Auto Merge (TakeBlock): Groups blocks by the Text property from their "Back" SurfaceGui's TextLabel.
+         For groups that have duplicates (>=2 blocks), it teleports the player near each block, orients the 
+         player toward the block, and reliably fires the "TakeBlock" event.
+    
+    Both actions continue running until toggled off.
+    
+    Place this LocalScript in StarterPlayerScripts.
+--]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local localPlayer = Players.LocalPlayer
+local plrName = localPlayer.Name
+
+-- Wait for the character and HumanoidRootPart (for teleportation)
+local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+hrp.CanCollide = false
+
+-- Create main ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CombinedAutoActionsGui"
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+-- Create draggable main frame to hold both toggles
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 250, 0, 130)
+mainFrame.Position = UDim2.new(0.5, -125, 0.5, -65)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+---------------------------------------------------------------------
+-- AUTO TAP (CLICK) SECTION
+
+local autoTapActive = false
+local currentBestBlock = nil
+
+local tapToggle = Instance.new("TextButton")
+tapToggle.Size = UDim2.new(0, 230, 0, 40)
+tapToggle.Position = UDim2.new(0, 10, 0, 10)
+tapToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+tapToggle.TextColor3 = Color3.new(1, 1, 1)
+tapToggle.Text = "Auto Click: OFF"
+tapToggle.Parent = mainFrame
+
+---------------------------------------------------------------------
+-- AUTO MERGE (TAKE BLOCK) SECTION
+
+local autoMergeActive = false
+
+local mergeToggle = Instance.new("TextButton")
+mergeToggle.Size = UDim2.new(0, 230, 0, 40)
+mergeToggle.Position = UDim2.new(0, 10, 0, 60)
+mergeToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+mergeToggle.TextColor3 = Color3.new(1, 1, 1)
+mergeToggle.Text = "Auto Merge: OFF"
+mergeToggle.Parent = mainFrame
+
+---------------------------------------------------------------------
+-- Remote Events and Blocks Folder
+
+local blocksFolder = workspace:WaitForChild("Plots"):WaitForChild(plrName):WaitForChild("Blocks")
+local TapEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("Tap")
+local TakeBlockEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("TakeBlock")
+
+---------------------------------------------------------------------
+-- Helper: Parse values like "10" or "10k" into a number.
+local function parseValue(txt)
+    txt = txt or ""
+    if txt:lower():find("k") then
+        local numPart = txt:lower():gsub("k", "")
+        local numeric = tonumber(numPart) or 0
+        return numeric * 1000
+    else
+        return tonumber(txt) or 0
+    end
+end
+
+---------------------------------------------------------------------
+-- AUTO TAP (CLICK) FUNCTIONS
+
+-- Finds the block with the highest "Number" value.
+-- Returns bestBlock and its numeric value.
+local function getBlockWithMaxValue()
+    local highestValue = -math.huge
+    local bestBlock = nil
+
+    for _, block in ipairs(blocksFolder:GetChildren()) do
+        local backGui = block:FindFirstChild("Back")
+        if backGui then
+            local numberLabel = backGui:FindFirstChild("Number")
+            if numberLabel and numberLabel:IsA("TextLabel") then
+                local value = parseValue(numberLabel.Text)
+                if value > highestValue then
+                    highestValue = value
+                    bestBlock = block
+                end
+            end
+        end
+    end
+
+    return bestBlock, highestValue
+end
+
+-- Fires the "Tap" event on the given block once and prints info when a new block is found.
+local function tapBlock(block, value)
+    if block then
+        if block ~= currentBestBlock then
+            print("AutoClick: New best block found - " .. block.Name .. " with value: " .. tostring(value))
+            currentBestBlock = block
+        end
+        local args = { block }
+        local success, err = pcall(function()
+            TapEvent:FireServer(unpack(args))
+        end)
+        if not success then
+            warn("Failed to fire Tap event for block " .. block.Name .. ": " .. tostring(err))
+        end
+    end
+end
+
+-- Constantly fires the tap event for the highest block.
+local function autoTapLoop()
+    while autoTapActive do
+        local bestBlock, bestValue = getBlockWithMaxValue()
+        if bestBlock then
+            tapBlock(bestBlock, bestValue)
+        end
+        -- Very short delay to ensure constant firing. Adjust if needed.
+        task.wait(0.05)
+    end
+    currentBestBlock = nil
+end
+
+---------------------------------------------------------------------
+-- AUTO MERGE (TAKE BLOCK) FUNCTIONS
+
+-- Groups blocks based on the Text property from each block's Back TextLabel.
+local function buildGroups()
+    local groups = {}
+    for _, block in ipairs(blocksFolder:GetChildren()) do
+        if block:IsA("BasePart") then
+            local back = block:FindFirstChild("Back")
+            if back then
+                local textLabel = back:FindFirstChildWhichIsA("TextLabel")
+                if textLabel then
+                    local textValue = textLabel.Text
+                    groups[textValue] = groups[textValue] or {}
+                    table.insert(groups[textValue], block)
+                else
+                    warn("Block " .. block.Name .. " is missing a TextLabel in 'Back'")
+                end
+            else
+                warn("Block " .. block.Name .. " is missing the 'Back' SurfaceGui")
+            end
+        end
+    end
+    return groups
+end
+
+-- Processes an individual block by firing the "TakeBlock" event repeatedly.
+local function processBlock(block)
+    local maxAttempts = 5
+    local attempt = 0
+    while autoMergeActive and block and block.Parent and attempt < maxAttempts do
+        hrp.CFrame = block.CFrame * CFrame.new(0, 2, -3)
+        RunService.Heartbeat:Wait()
+        hrp.CFrame = CFrame.lookAt(hrp.Position, block.Position)
+        RunService.Heartbeat:Wait()
+        local success, err = pcall(function()
+            TakeBlockEvent:FireServer(block)
+        end)
+        if not success then
+            warn("Failed to fire TakeBlock event for block " .. block.Name .. ": " .. tostring(err))
+        end
+        attempt = attempt + 1
+        task.wait(0.05)
+    end
+end
+
+-- Processes groups with duplicate blocks.
+local function autoMergeLoop()
+    while autoMergeActive do
+        local groups = buildGroups()
+        for textValue, blockList in pairs(groups) do
+            if #blockList >= 2 then
+                for _, block in ipairs(blockList) do
+                    if autoMergeActive and block and block.Parent then
+                        print("AutoMerge: Processing block " .. block.Name .. " (Group: " .. textValue .. ")")
+                        processBlock(block)
+                    end
+                    task.wait(0.01)
+                end
+            end
+        end
+        task.wait(0.01)
+    end
+end
+
+---------------------------------------------------------------------
+-- TOGGLE BUTTON LOGIC
+
+local tapThread, mergeThread
+
+tapToggle.MouseButton1Click:Connect(function()
+    autoTapActive = not autoTapActive
+    if autoTapActive then
+        tapToggle.Text = "Auto Click: ON"
+        print("Auto Click enabled.")
+        tapThread = task.spawn(autoTapLoop)
+    else
+        tapToggle.Text = "Auto Click: OFF"
+        print("Auto Click disabled.")
+    end
+end)
+
+mergeToggle.MouseButton1Click:Connect(function()
+    autoMergeActive = not autoMergeActive
+    if autoMergeActive then
+        mergeToggle.Text = "Auto Merge: ON"
+        print("Auto Merge enabled.")
+        mergeThread = task.spawn(autoMergeLoop)
+    else
+        mergeToggle.Text = "Auto Merge: OFF"
+        print("Auto Merge disabled.")
+    end
+end)
+
+print("Initialized CombinedAutoActions script with constant Auto Click on highest block.")
