@@ -10,8 +10,9 @@
     
     A draggable GUI with two toggle buttons is added. When "Auto Merge" is toggled ON, it will continuously loop 
     through the block groups with duplicates and process them to reliably pick up the blocks. 
-    When "Auto Tap" is toggled ON, it will continuously loop through the blocks to fire the Tap event. 
-    Toggling either button OFF immediately halts that loop.
+    When "Auto Tap" is toggled ON, it will continuously scan the blocks and fire the Tap event 
+    on the one with the highest value (the Text number in its TextLabel). Each time a block is clicked or when a new 
+    block with a higher value is detected and switched to, the script prints the block's name and its value in two separate prints.
     
     Place this LocalScript in a location where it can run (e.g. StarterPlayerScripts).
 --]]
@@ -37,8 +38,8 @@ ScreenGui.Name = "AutoTakeBlockGui"
 ScreenGui.Parent = player:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 200, 0, 80)  -- Increased height to accommodate two buttons
-mainFrame.Position = UDim2.new(0.5, -100, 0.5, -40)  -- Centering the GUI (half width = 100, half height = 40)
+mainFrame.Size = UDim2.new(0, 200, 0, 80)  -- increased height to accommodate two buttons
+mainFrame.Position = UDim2.new(0.5, -100, 0.5, -40)  -- starts centered on the screen
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.Active = true
 mainFrame.Draggable = true
@@ -63,7 +64,7 @@ autoTapButton.Parent = mainFrame
 local autoMergeActive = false
 local autoTapActive = false
 
--- Paths for Blocks and functions
+-- Paths for Blocks and replicated functions
 local blocksFolder = workspace:WaitForChild("Plots"):WaitForChild(user):WaitForChild("Blocks")
 local TakeBlockEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("TakeBlock")
 local TapEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("Tap")
@@ -136,22 +137,47 @@ local function processBlocks()
 	end
 end
 
-local function processTapLoop()
+-- New function to continuously scan and tap the block with the highest value.
+local function processHighestTapLoop()
+	local currentTappedBlock = nil
 	while autoTapActive do
-		-- Loop through each block in the player's Blocks folder and fire the Tap event
+		local highestBlock = nil
+		local highestValue = -math.huge
 		for _, block in ipairs(blocksFolder:GetChildren()) do
-			if not autoTapActive then break end
-			if block and block.Parent then
-				local success, err = pcall(function()
-					TapEvent:FireServer(block)
-				end)
-				if not success then
-					warn("Failed to fire Tap event for block " .. block.Name .. ": " .. tostring(err))
+			if block:IsA("BasePart") then
+				local back = block:FindFirstChild("Back")
+				if back then
+					local textLabel = back:FindFirstChildWhichIsA("TextLabel")
+					if textLabel then
+						local value = tonumber(textLabel.Text)
+						if value and value > highestValue then
+							highestValue = value
+							highestBlock = block
+						end
+					end
 				end
-				task.wait(0.05)
 			end
 		end
-		task.wait(0.01)
+		
+		-- If a highest block is found, fire the tap event and print its details
+		if highestBlock then
+			-- Check if we have switched blocks or tapping the same one again.
+			if currentTappedBlock ~= highestBlock then
+				currentTappedBlock = highestBlock
+			end
+			
+			local success, err = pcall(function()
+				TapEvent:FireServer(highestBlock)
+			end)
+			if not success then
+				warn("Failed to fire Tap event for block " .. highestBlock.Name .. ": " .. tostring(err))
+			else
+				-- Print block's name and value in two separate prints
+				print("Tapped block: " .. highestBlock.Name)
+				print("Block value: " .. tostring(highestValue))
+			end
+		end
+		task.wait(0.05)
 	end
 end
 
@@ -169,10 +195,10 @@ autoTapButton.MouseButton1Click:Connect(function()
 	autoTapActive = not autoTapActive
 	if autoTapActive then
 		autoTapButton.Text = "Auto Tap: ON"
-		task.spawn(processTapLoop)
+		task.spawn(processHighestTapLoop)
 	else
 		autoTapButton.Text = "Auto Tap: OFF"
 	end
 end)
 
-print("Initialized improved TakeBlocksScript with centered GUI, auto merge and auto tap functionality.")
+print("Initialized improved TakeBlocksScript with centered GUI, auto merge, and highest-value auto tap functionality with printing.")
