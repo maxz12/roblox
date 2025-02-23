@@ -10,9 +10,12 @@
     
     A draggable GUI with two toggle buttons is added. When "Auto Merge" is toggled ON, it will continuously loop 
     through the block groups with duplicates and process them to reliably pick up the blocks. 
-    When "Auto Tap" is toggled ON, it will continuously scan the blocks and fire the Tap event 
-    on the one with the highest value (the Text number in its TextLabel). Each time a block is clicked or when a new 
-    block with a higher value is detected and switched to, the script prints the block's name and its value in two separate prints.
+    
+    When "Auto Tap" is toggled ON, it will rapidly fire the Tap event on EVERY block concurrently as fast as possible.
+    Simultaneously, it scans the blocks in the background to identify the one with the highest value based on
+    the Text property (converted to a number). It continuously taps every block while printing the name and value 
+    (in two separate prints) of the most valuable block. If a new block with a higher value appears, it immediately
+    switches its focus to that block in the printed output.
     
     Place this LocalScript in a location where it can run (e.g. StarterPlayerScripts).
 --]]
@@ -39,7 +42,7 @@ ScreenGui.Parent = player:WaitForChild("PlayerGui")
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 200, 0, 80)  -- increased height to accommodate two buttons
-mainFrame.Position = UDim2.new(0.5, -100, 0.5, -40)  -- starts centered on the screen
+mainFrame.Position = UDim2.new(0.5, -100, 0.5, -40)  -- centered on the screen
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.Active = true
 mainFrame.Draggable = true
@@ -137,14 +140,29 @@ local function processBlocks()
 	end
 end
 
--- New function to continuously scan and tap the block with the highest value.
-local function processHighestTapLoop()
-	local currentTappedBlock = nil
+-- New function to rapidly fire the Tap event on every block concurrently,
+-- while scanning in the background for the block with the highest value.
+local function processFastTapLoop()
+	local currentHighestBlock = nil
 	while autoTapActive do
 		local highestBlock = nil
 		local highestValue = -math.huge
-		for _, block in ipairs(blocksFolder:GetChildren()) do
+		local allBlocks = blocksFolder:GetChildren()
+		
+		-- Scan for the block with the highest value and concurrently tap every block.
+		for _, block in ipairs(allBlocks) do
 			if block:IsA("BasePart") then
+				-- Concurrently tap each block
+				task.spawn(function()
+					local success, err = pcall(function()
+						TapEvent:FireServer(block)
+					end)
+					if not success then
+						warn("Failed to fire Tap event for block " .. block.Name .. ": " .. tostring(err))
+					end
+				end)
+				
+				-- Check if this block has a higher numeric value.
 				local back = block:FindFirstChild("Back")
 				if back then
 					local textLabel = back:FindFirstChildWhichIsA("TextLabel")
@@ -159,25 +177,17 @@ local function processHighestTapLoop()
 			end
 		end
 		
-		-- If a highest block is found, fire the tap event and print its details
+		-- If a highest valued block is found, print its details if changed or on every iteration.
 		if highestBlock then
-			-- Check if we have switched blocks or tapping the same one again.
-			if currentTappedBlock ~= highestBlock then
-				currentTappedBlock = highestBlock
+			if currentHighestBlock ~= highestBlock then
+				currentHighestBlock = highestBlock
 			end
-			
-			local success, err = pcall(function()
-				TapEvent:FireServer(highestBlock)
-			end)
-			if not success then
-				warn("Failed to fire Tap event for block " .. highestBlock.Name .. ": " .. tostring(err))
-			else
-				-- Print block's name and value in two separate prints
-				print("Tapped block: " .. highestBlock.Name)
-				print("Block value: " .. tostring(highestValue))
-			end
+			print("Tapped block: " .. highestBlock.Name)
+			print("Block value: " .. tostring(highestValue))
 		end
-		task.wait(0.05)
+		
+		-- Minimal wait for rapid looping.
+		task.wait(0.001)
 	end
 end
 
@@ -195,10 +205,10 @@ autoTapButton.MouseButton1Click:Connect(function()
 	autoTapActive = not autoTapActive
 	if autoTapActive then
 		autoTapButton.Text = "Auto Tap: ON"
-		task.spawn(processHighestTapLoop)
+		task.spawn(processFastTapLoop)
 	else
 		autoTapButton.Text = "Auto Tap: OFF"
 	end
 end)
 
-print("Initialized improved TakeBlocksScript with centered GUI, auto merge, and highest-value auto tap functionality with printing.")
+print("Initialized improved TakeBlocksScript with centered GUI, auto merge, and fast auto tap functionality that taps every block concurrently while scanning for the highest value.")
