@@ -1,0 +1,144 @@
+--[[
+    TakeBlocksScript.lua
+    This LocalScript goes through each block in:
+    workspace.Plots.[user].Blocks
+
+    It groups blocks based on the Text property of the TextLabel inside each block’s "Back" SurfaceGui.
+    If a block’s group has only one block (i.e. no duplicate/matching value), it is skipped.
+    For groups with duplicates, the player is teleported near each block, oriented to face the block,
+    and the TakeBlock event is fired reliably.
+    
+    A draggable GUI with a toggle button is added. When toggled ON, it will continuously loop through the blocks
+    instantly with minimal pauses. When toggled OFF, the looping will instantly halt.
+    
+    Place this LocalScript in a location where it can run (e.g. StarterPlayerScripts).
+--]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+if not player then
+	warn("LocalPlayer not found!")
+	return
+end
+local user = player.Name
+
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+hrp.CanCollide = false
+
+
+-- Create the AutoTakeBlock GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoTakeBlockGui"
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 200, 0, 50)
+mainFrame.Position = UDim2.new(0, 100, 0, 100)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = ScreenGui
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 150, 0, 30)
+toggleButton.Position = UDim2.new(0, 25, 0, 10)
+toggleButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+toggleButton.Text = "Auto TakeBlock: OFF"
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Parent = mainFrame
+
+local autoActive = false
+
+-- Path to the Blocks folder
+local blocksFolder = workspace:WaitForChild("Plots"):WaitForChild(user):WaitForChild("Blocks")
+local TakeBlockEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("TakeBlock")
+
+-- Function to build block groups based on the Text property in the "Back" SurfaceGui.
+local function buildGroups()
+	local groups = {}
+	for _, block in ipairs(blocksFolder:GetChildren()) do
+		if block:IsA("BasePart") then
+			local back = block:FindFirstChild("Back")
+			if back then
+				local textLabel = back:FindFirstChildWhichIsA("TextLabel")
+				if textLabel then
+					local textValue = textLabel.Text
+					groups[textValue] = groups[textValue] or {}
+					table.insert(groups[textValue], block)
+				else
+					warn("Block " .. block.Name .. " is missing a TextLabel in 'Back'")
+				end
+			else
+				warn("Block " .. block.Name .. " is missing the 'Back' SurfaceGui")
+			end
+		end
+	end
+	return groups
+end
+
+-- Function to process individual block pickup reliably.
+local function processBlock(block)
+	-- Attempt to fire the TakeBlock event until the block is picked up (removed from the workspace)
+	local maxAttempts = 5
+	local attempt = 0
+	repeat
+		if not block or not block.Parent then
+			break
+		end
+		-- Teleport the player near the block (3 studs behind the block)
+		hrp.CFrame = block.CFrame * CFrame.new(0, 2, -3)
+		-- Wait for a heartbeat instead of long pauses for smoother operation
+		RunService.Heartbeat:Wait()
+		-- Orient the player to face the block's position
+		hrp.CFrame = CFrame.lookAt(hrp.Position, block.Position)
+		RunService.Heartbeat:Wait()
+
+		-- Fire the TakeBlock event, ensuring the server receives it
+		local success = pcall(function()
+			TakeBlockEvent:FireServer(block)
+		end)
+		if not success then
+			warn("Failed to fire TakeBlock event for block " .. block.Name)
+		end
+		attempt = attempt + 1
+		-- Minimal wait to allow the server to process the event
+		task.wait(0.05)
+	until not block or not block.Parent or attempt >= maxAttempts
+end
+
+local function processBlocks()
+	-- Loop continuously with near-instant transitions
+	while autoActive do
+		local groups = buildGroups()
+		for textValue, blockList in pairs(groups) do
+			-- Only process groups with duplicates
+			if #blockList >= 2 then
+				for _, block in ipairs(blockList) do
+					-- If autoActive was disabled mid-loop, exit immediately
+					if not autoActive then return end
+					if block and block.Parent then
+						processBlock(block)
+					end
+					task.wait(0.01) -- minimal delay for smooth operation
+				end
+			end
+		end
+		task.wait(0.01) -- minimal pause before the next iteration
+	end
+end
+
+toggleButton.MouseButton1Click:Connect(function()
+	autoActive = not autoActive
+	if autoActive then
+		toggleButton.Text = "Auto Merge: ON"
+		task.spawn(processBlocks)
+	else
+		toggleButton.Text = "Auto Merge: OFF"
+	end
+end)
+
+print("Initialized improved TakeBlocksScript with fluid looping and reliable pickup.")
