@@ -1,16 +1,27 @@
 --[[
     CombinedAutoActions.lua
 
-    This LocalScript creates a draggable GUI with two independent toggle buttons:
-      1. Auto Click (Tap): Continuously finds the block with the HIGHEST "Number" value (read from the
-         Text property of the TextLabel inside each block’s "Back" SurfaceGui) and constantly fires the
-         "Tap" event on it. It prints a notification when a new best block is identified.
-      2. Auto Merge (TakeBlock): Groups blocks by the Text property from their "Back" SurfaceGui's TextLabel.
-         For groups that have duplicates (>=2 blocks), it teleports the player near each block, orients the 
-         player toward the block, and reliably fires the "TakeBlock" event.
-    
-    Both actions continue running until toggled off.
-    
+    This LocalScript creates a draggable GUI with three independent sections:
+
+      1. Auto Click (Tap):
+         - Continuously finds the block with the HIGHEST "Number" value (read from the Text property of the
+           TextLabel inside each block’s "Back" SurfaceGui) and constantly fires the "Tap" event on it.
+         - It prints a notification when a new best block is identified.
+      
+      2. Auto Merge (TakeBlock):
+         - Groups blocks by the Text property from their "Back" SurfaceGui's TextLabel.
+         - For groups with duplicates (>=2 blocks), it teleports the player near each block, orients the 
+           player toward the block, and reliably fires the "TakeBlock" event.
+
+      3. Auto Buy Upgrades:
+         - Provides three independent toggle checkboxes:
+             • "Spawnrate" — When enabled, sends the "Cooldown" upgrade request every second.
+             • "Max Blocks" — When enabled, sends the "MaxBlocks" upgrade request every second.
+             • "Spawn Tier" — When enabled, sends the "SpawnTier" upgrade request every second.
+         - Each upgrade is purchased individually as soon as its toggle is enabled.
+
+    All actions run concurrently until toggled off.
+
     Place this LocalScript in StarterPlayerScripts.
 --]]
 
@@ -31,17 +42,17 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "CombinedAutoActionsGui"
 screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
 
--- Create draggable main frame to hold both toggles
+-- Create draggable main frame to hold all toggles (increased height for new section)
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 250, 0, 130)
-mainFrame.Position = UDim2.new(0.5, -125, 0.5, -65)
+mainFrame.Size = UDim2.new(0, 250, 0, 300)
+mainFrame.Position = UDim2.new(0.5, -125, 0.5, -150)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.Active = true
 mainFrame.Draggable = true
 mainFrame.Parent = screenGui
 
 ---------------------------------------------------------------------
--- AUTO TAP (CLICK) SECTION
+-- SECTION 1: AUTO TAP (CLICK)
 
 local autoTapActive = false
 local currentBestBlock = nil
@@ -55,7 +66,7 @@ tapToggle.Text = "Auto Click: OFF"
 tapToggle.Parent = mainFrame
 
 ---------------------------------------------------------------------
--- AUTO MERGE (TAKE BLOCK) SECTION
+-- SECTION 2: AUTO MERGE (TAKE BLOCK)
 
 local autoMergeActive = false
 
@@ -68,11 +79,54 @@ mergeToggle.Text = "Auto Merge: OFF"
 mergeToggle.Parent = mainFrame
 
 ---------------------------------------------------------------------
+-- SECTION 3: AUTO BUY UPGRADES
+
+-- Create a label for the upgrades section
+local upgradesLabel = Instance.new("TextLabel")
+upgradesLabel.Size = UDim2.new(0, 230, 0, 20)
+upgradesLabel.Position = UDim2.new(0, 10, 0, 110)
+upgradesLabel.BackgroundTransparency = 1
+upgradesLabel.TextColor3 = Color3.new(1,1,1)
+upgradesLabel.Text = "Auto Buy Upgrades:"
+upgradesLabel.TextScaled = true
+upgradesLabel.Parent = mainFrame
+
+-- Create three independent toggle checkboxes (as buttons) for upgrades
+local autoBuySpawnrateActive = false
+local autoBuyMaxBlocksActive = false
+local autoBuySpawnTierActive = false
+
+local spawnrateToggle = Instance.new("TextButton")
+spawnrateToggle.Size = UDim2.new(0, 230, 0, 30)
+spawnrateToggle.Position = UDim2.new(0, 10, 0, 140)
+spawnrateToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+spawnrateToggle.TextColor3 = Color3.new(1,1,1)
+spawnrateToggle.Text = "Spawnrate: OFF"
+spawnrateToggle.Parent = mainFrame
+
+local maxBlocksToggle = Instance.new("TextButton")
+maxBlocksToggle.Size = UDim2.new(0, 230, 0, 30)
+maxBlocksToggle.Position = UDim2.new(0, 10, 0, 180)
+maxBlocksToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+maxBlocksToggle.TextColor3 = Color3.new(1,1,1)
+maxBlocksToggle.Text = "Max Blocks: OFF"
+maxBlocksToggle.Parent = mainFrame
+
+local spawnTierToggle = Instance.new("TextButton")
+spawnTierToggle.Size = UDim2.new(0, 230, 0, 30)
+spawnTierToggle.Position = UDim2.new(0, 10, 0, 220)
+spawnTierToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+spawnTierToggle.TextColor3 = Color3.new(1,1,1)
+spawnTierToggle.Text = "Spawn Tier: OFF"
+spawnTierToggle.Parent = mainFrame
+
+---------------------------------------------------------------------
 -- Remote Events and Blocks Folder
 
 local blocksFolder = workspace:WaitForChild("Plots"):WaitForChild(plrName):WaitForChild("Blocks")
 local TapEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("Tap")
 local TakeBlockEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("TakeBlock")
+local BuyUpgradeEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("BuyUpgrade")
 
 ---------------------------------------------------------------------
 -- Helper: Parse values like "10" or "10k" into a number.
@@ -90,8 +144,6 @@ end
 ---------------------------------------------------------------------
 -- AUTO TAP (CLICK) FUNCTIONS
 
--- Finds the block with the highest "Number" value.
--- Returns bestBlock and its numeric value.
 local function getBlockWithMaxValue()
     local highestValue = -math.huge
     local bestBlock = nil
@@ -113,7 +165,6 @@ local function getBlockWithMaxValue()
     return bestBlock, highestValue
 end
 
--- Fires the "Tap" event on the given block once and prints info when a new block is found.
 local function tapBlock(block, value)
     if block then
         if block ~= currentBestBlock then
@@ -130,14 +181,12 @@ local function tapBlock(block, value)
     end
 end
 
--- Constantly fires the tap event for the highest block.
 local function autoTapLoop()
     while autoTapActive do
         local bestBlock, bestValue = getBlockWithMaxValue()
         if bestBlock then
             tapBlock(bestBlock, bestValue)
         end
-        -- Very short delay to ensure constant firing. Adjust if needed.
         task.wait(0.05)
     end
     currentBestBlock = nil
@@ -146,7 +195,6 @@ end
 ---------------------------------------------------------------------
 -- AUTO MERGE (TAKE BLOCK) FUNCTIONS
 
--- Groups blocks based on the Text property from each block's Back TextLabel.
 local function buildGroups()
     local groups = {}
     for _, block in ipairs(blocksFolder:GetChildren()) do
@@ -169,7 +217,6 @@ local function buildGroups()
     return groups
 end
 
--- Processes an individual block by firing the "TakeBlock" event repeatedly.
 local function processBlock(block)
     local maxAttempts = 5
     local attempt = 0
@@ -189,7 +236,6 @@ local function processBlock(block)
     end
 end
 
--- Processes groups with duplicate blocks.
 local function autoMergeLoop()
     while autoMergeActive do
         local groups = buildGroups()
@@ -207,6 +253,62 @@ local function autoMergeLoop()
         task.wait(0.01)
     end
 end
+
+---------------------------------------------------------------------
+-- AUTO BUY UPGRADES FUNCTIONS
+
+local function autoBuySpawnrateLoop()
+    while true do
+        if autoBuySpawnrateActive then
+            print("AutoBuy: Sending upgrade request (Cooldown)")
+            local args = { "Cooldown" }
+            local success, err = pcall(function()
+                BuyUpgradeEvent:FireServer(unpack(args))
+            end)
+            if not success then
+                warn("Failed to fire BuyUpgrade (Cooldown): " .. tostring(err))
+            end
+        end
+        task.wait(1)
+    end
+end
+
+local function autoBuyMaxBlocksLoop()
+    while true do
+        if autoBuyMaxBlocksActive then
+            print("AutoBuy: Sending upgrade request (MaxBlocks)")
+            local args = { "MaxBlocks" }
+            local success, err = pcall(function()
+                BuyUpgradeEvent:FireServer(unpack(args))
+            end)
+            if not success then
+                warn("Failed to fire BuyUpgrade (MaxBlocks): " .. tostring(err))
+            end
+        end
+        task.wait(1)
+    end
+end
+
+local function autoBuySpawnTierLoop()
+    while true do
+        if autoBuySpawnTierActive then
+            print("AutoBuy: Sending upgrade request (SpawnTier)")
+            local args = { "SpawnTier" }
+            local success, err = pcall(function()
+                BuyUpgradeEvent:FireServer(unpack(args))
+            end)
+            if not success then
+                warn("Failed to fire BuyUpgrade (SpawnTier): " .. tostring(err))
+            end
+        end
+        task.wait(1)
+    end
+end
+
+-- Spawn independent loops for each upgrade purchase.
+task.spawn(autoBuySpawnrateLoop)
+task.spawn(autoBuyMaxBlocksLoop)
+task.spawn(autoBuySpawnTierLoop)
 
 ---------------------------------------------------------------------
 -- TOGGLE BUTTON LOGIC
@@ -237,4 +339,37 @@ mergeToggle.MouseButton1Click:Connect(function()
     end
 end)
 
-print("Initialized CombinedAutoActions script with constant Auto Click on highest block.")
+spawnrateToggle.MouseButton1Click:Connect(function()
+    autoBuySpawnrateActive = not autoBuySpawnrateActive
+    if autoBuySpawnrateActive then
+        spawnrateToggle.Text = "Spawnrate: ON"
+        print("Auto Buy Upgrade (Spawnrate) enabled.")
+    else
+        spawnrateToggle.Text = "Spawnrate: OFF"
+        print("Auto Buy Upgrade (Spawnrate) disabled.")
+    end
+end)
+
+maxBlocksToggle.MouseButton1Click:Connect(function()
+    autoBuyMaxBlocksActive = not autoBuyMaxBlocksActive
+    if autoBuyMaxBlocksActive then
+        maxBlocksToggle.Text = "Max Blocks: ON"
+        print("Auto Buy Upgrade (Max Blocks) enabled.")
+    else
+        maxBlocksToggle.Text = "Max Blocks: OFF"
+        print("Auto Buy Upgrade (Max Blocks) disabled.")
+    end
+end)
+
+spawnTierToggle.MouseButton1Click:Connect(function()
+    autoBuySpawnTierActive = not autoBuySpawnTierActive
+    if autoBuySpawnTierActive then
+        spawnTierToggle.Text = "Spawn Tier: ON"
+        print("Auto Buy Upgrade (Spawn Tier) enabled.")
+    else
+        spawnTierToggle.Text = "Spawn Tier: OFF"
+        print("Auto Buy Upgrade (Spawn Tier) disabled.")
+    end
+end)
+
+print("Initialized CombinedAutoActions script with Auto Click, Auto Merge, and Auto Buy Upgrades sections.")
