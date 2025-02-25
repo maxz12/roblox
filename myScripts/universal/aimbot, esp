@@ -1,11 +1,15 @@
--- AimbotScript.lua
+-- ModularAimbotGUI.lua
+-- This script creates a draggable GUI with two buttons to toggle Aim Assist and ESP.
+-- Aim Assist: When activated, holding the "Z" key will lock the camera onto the target (non-localplayer humanoid model)
+--              closest to the mouse cursor. The target's highlight turns green while locked.
+-- ESP: When activated, highlights (with red outlines) are drawn around enemy humanoid models on screen.
 --
--- This script highlights targets (non-localplayer humanoid models) with a UI frame.
--- When "Z" is held down, it locks onto the target whose screen position (based on its
--- primary part) is closest to the mouse cursor position and rotates the camera to aim at that target.
+-- How to Use:
+-- 1. Place this LocalScript (ModularAimbotGUI.lua) into StarterPlayerScripts or StarterGui.
+-- 2. Use the GUI buttons to toggle Aim Assist and ESP.
+-- 3. For Aim Assist, hold down the "Z" key to lock onto a target.
 --
--- The locked target's highlight outline turns green while locked, and reverts to red when unlocked.
--- This implementation is designed for third-person view.
+-- Enjoy!
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -15,51 +19,101 @@ local UserInputService = game:GetService("UserInputService")
 local localPlayer = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
+-- Toggle variables
+local aimAssistActive = false
+local espActive = false
+
+-- Create the main ScreenGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
 
--- Table to store a highlight UI frame for each target model
+-- Create a draggable control frame for our buttons.
+local controlFrame = Instance.new("Frame")
+controlFrame.Size = UDim2.new(0, 200, 0, 110)
+controlFrame.Position = UDim2.new(0, 10, 0, 10)
+controlFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 48)
+controlFrame.BorderSizePixel = 0
+controlFrame.Active = true
+controlFrame.Draggable = true
+controlFrame.Parent = screenGui
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 10)
+frameCorner.Parent = controlFrame
+
+-- Create Aim Assist Button
+local aimAssistButton = Instance.new("TextButton")
+aimAssistButton.Size = UDim2.new(0, 180, 0, 40)
+aimAssistButton.Position = UDim2.new(0, 10, 0, 10)
+aimAssistButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+aimAssistButton.Text = "Aim Assist: OFF"
+aimAssistButton.TextColor3 = Color3.new(1, 1, 1)
+aimAssistButton.Font = Enum.Font.SourceSans
+aimAssistButton.TextSize = 18
+aimAssistButton.Parent = controlFrame
+
+local buttonCorner1 = Instance.new("UICorner")
+buttonCorner1.CornerRadius = UDim.new(0, 5)
+buttonCorner1.Parent = aimAssistButton
+
+-- Create ESP Button
+local espButton = Instance.new("TextButton")
+espButton.Size = UDim2.new(0, 180, 0, 40)
+espButton.Position = UDim2.new(0, 10, 0, 60)
+espButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+espButton.Text = "ESP: OFF"
+espButton.TextColor3 = Color3.new(1, 1, 1)
+espButton.Font = Enum.Font.SourceSans
+espButton.TextSize = 18
+espButton.Parent = controlFrame
+
+local buttonCorner2 = Instance.new("UICorner")
+buttonCorner2.CornerRadius = UDim.new(0, 5)
+buttonCorner2.Parent = espButton
+
+-- Table to store highlight UI frames for enemy models (used for ESP)
 local humanoidFrames = {}
 
 local function createHighlightFrame()
 	local frame = Instance.new("Frame")
-	frame.Size = UDim2.new(0, 100, 0, 100) -- initial default size
+	frame.Size = UDim2.new(0, 100, 0, 100)  -- default size; will be scaled
 	frame.BackgroundTransparency = 1
 	frame.Parent = screenGui
 
 	local uiStroke = Instance.new("UIStroke")
 	uiStroke.Thickness = 2
-	uiStroke.Color = Color3.new(1, 0, 0) -- red by default
+	uiStroke.Color = Color3.new(1, 0, 0)  -- red by default
 	uiStroke.Parent = frame
 
 	return frame
 end
 
--- Variables for locking onto a target
+-- Variables for the Aim Assist lock-on mechanism
 local isAiming = false
 local lockedModel = nil
 local lockedFrame = nil
 
--- Function to find the target whose screen position is closest to the mouse cursor location.
+-- Finds the target model (non-local humanoid) whose screen position is closest to the mouse cursor.
 local function findTargetForLock()
 	local bestModel = nil
 	local bestFrame = nil
 	local bestDistance = math.huge
-	local mousePos = UserInputService:GetMouseLocation()  -- mouse position in pixels
+	local mousePos = UserInputService:GetMouseLocation()  -- in pixels
 
 	for _, descendant in ipairs(Workspace:GetDescendants()) do
-		if descendant:IsA("Humanoid") and descendant.Parent:IsA("Model") and Players:GetPlayerFromCharacter(descendant.Parent) ~= localPlayer then
+		if descendant:IsA("Humanoid") and descendant.Parent:IsA("Model") 
+		   and Players:GetPlayerFromCharacter(descendant.Parent) ~= localPlayer then
 			local model = descendant.Parent
 			local primaryPart = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
 			if primaryPart then
 				local screenPoint, onScreen = camera:WorldToScreenPoint(primaryPart.Position)
 				if onScreen then
-					local frameCenter = Vector2.new(screenPoint.X, screenPoint.Y)  -- center of target on screen
+					local frameCenter = Vector2.new(screenPoint.X, screenPoint.Y)
 					local dist = (frameCenter - mousePos).Magnitude
 					if dist < bestDistance then
 						bestDistance = dist
 						bestModel = model
-						-- Get or create a highlight frame for the model
+						-- Try to get an existing highlight frame; if not, create one.
 						if humanoidFrames[model] then
 							bestFrame = humanoidFrames[model]
 						else
@@ -75,16 +129,48 @@ local function findTargetForLock()
 	return bestModel, bestFrame
 end
 
--- Input events to toggle aiming (lock-on) via the "Z" key.
+-- Toggle the Aim Assist functionality when the Aim Assist button is clicked.
+aimAssistButton.MouseButton1Click:Connect(function()
+	aimAssistActive = not aimAssistActive
+	if aimAssistActive then
+		aimAssistButton.Text = "Aim Assist: ON"
+		aimAssistButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	else
+		aimAssistButton.Text = "Aim Assist: OFF"
+		aimAssistButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+		isAiming = false
+		lockedModel = nil
+		lockedFrame = nil
+	end
+end)
+
+-- Toggle the ESP functionality when the ESP button is clicked.
+espButton.MouseButton1Click:Connect(function()
+	espActive = not espActive
+	if espActive then
+		espButton.Text = "ESP: ON"
+		espButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	else
+		espButton.Text = "ESP: OFF"
+		espButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+		-- Hide all ESP highlight frames when ESP is disabled.
+		for _, frame in pairs(humanoidFrames) do
+			frame.Visible = false
+		end
+	end
+end)
+
+-- Input handling for Aim Assist activation:
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
-	if input.KeyCode == Enum.KeyCode.Z and not isAiming then
+	-- Only process if Aim Assist is active.
+	if aimAssistActive and input.KeyCode == Enum.KeyCode.Z and not isAiming then
 		isAiming = true
 		lockedModel, lockedFrame = findTargetForLock()
 		if lockedFrame then
 			local stroke = lockedFrame:FindFirstChildOfClass("UIStroke")
 			if stroke then
-				stroke.Color = Color3.new(0, 1, 0)  -- change outline to green for locked target
+				stroke.Color = Color3.new(0, 1, 0)  -- Highlight locked target in green.
 			end
 		end
 	end
@@ -92,12 +178,13 @@ end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
-	if input.KeyCode == Enum.KeyCode.Z then
+	-- Only process if Aim Assist is active.
+	if aimAssistActive and input.KeyCode == Enum.KeyCode.Z then
 		isAiming = false
 		if lockedFrame then
 			local stroke = lockedFrame:FindFirstChildOfClass("UIStroke")
 			if stroke then
-				stroke.Color = Color3.new(1, 0, 0)  -- revert outline color back to red
+				stroke.Color = Color3.new(1, 0, 0)  -- Revert highlight color back to red.
 			end
 		end
 		lockedModel = nil
@@ -105,35 +192,44 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
 	end
 end)
 
--- Update highlight frames for targets and, if locked, update camera to aim at the locked target.
+-- Main loop: update ESP and Aim Assist functionality.
 RunService.RenderStepped:Connect(function(dt)
-	-- Update each target's highlight frame.
-	for _, descendant in ipairs(Workspace:GetDescendants()) do
-		if descendant:IsA("Humanoid") and descendant.Parent:IsA("Model") and Players:GetPlayerFromCharacter(descendant.Parent) ~= localPlayer then
-			local model = descendant.Parent
-			local primaryPart = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
-			if primaryPart then
-				local screenPoint, onScreen = camera:WorldToScreenPoint(primaryPart.Position)
-				local frame = humanoidFrames[model]
-				if not frame then
-					frame = createHighlightFrame()
-					humanoidFrames[model] = frame
-				end
-				if onScreen then
-					local distance = (camera.CFrame.Position - primaryPart.Position).Magnitude
-					local scale = math.clamp(1000 / distance, 10, 50)  -- scale based on distance
-					frame.Size = UDim2.new(0, scale, 0, scale)
-					frame.Position = UDim2.new(0, screenPoint.X - scale / 2, 0, screenPoint.Y - scale / 2)
-					frame.Visible = true
-				else
-					frame.Visible = false
+	-- ESP update: Only update if ESP is activated.
+	if espActive then
+		for _, descendant in ipairs(Workspace:GetDescendants()) do
+			if descendant:IsA("Humanoid") and descendant.Parent:IsA("Model")
+			   and Players:GetPlayerFromCharacter(descendant.Parent) ~= localPlayer then
+				local model = descendant.Parent
+				local primaryPart = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
+				if primaryPart then
+					local screenPoint, onScreen = camera:WorldToScreenPoint(primaryPart.Position)
+					local frame = humanoidFrames[model]
+					if not frame then
+						frame = createHighlightFrame()
+						humanoidFrames[model] = frame
+					end
+					if onScreen then
+						local distance = (camera.CFrame.Position - primaryPart.Position).Magnitude
+						-- Scale highlight frame based on distance from the camera.
+						local scale = math.clamp(1000 / distance, 10, 50)
+						frame.Size = UDim2.new(0, scale, 0, scale)
+						frame.Position = UDim2.new(0, screenPoint.X - scale / 2, 0, screenPoint.Y - scale / 2)
+						frame.Visible = true
+					else
+						frame.Visible = false
+					end
 				end
 			end
 		end
+	else
+		-- Hide ESP highlights if ESP is turned off.
+		for _, frame in pairs(humanoidFrames) do
+			frame.Visible = false
+		end
 	end
 
-	-- If we are aiming and a target is locked, update the camera to continuously aim at the target.
-	if isAiming and lockedModel then
+	-- Aim Assist update: if active and currently aiming, update camera to lock onto target.
+	if aimAssistActive and isAiming and lockedModel then
 		local primaryPart = lockedModel.PrimaryPart or lockedModel:FindFirstChild("HumanoidRootPart") or lockedModel:FindFirstChild("Torso")
 		if primaryPart then
 			local currentCamPos = camera.CFrame.Position
