@@ -1,0 +1,144 @@
+-- AimbotScript.lua
+--
+-- This script highlights targets (non-localplayer humanoid models) with a UI frame.
+-- When "Z" is held down, it locks onto the target whose screen position (based on its
+-- primary part) is closest to the mouse cursor position and rotates the camera to aim at that target.
+--
+-- The locked target's highlight outline turns green while locked, and reverts to red when unlocked.
+-- This implementation is designed for third-person view.
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local localPlayer = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+-- Table to store a highlight UI frame for each target model
+local humanoidFrames = {}
+
+local function createHighlightFrame()
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(0, 100, 0, 100) -- initial default size
+	frame.BackgroundTransparency = 1
+	frame.Parent = screenGui
+
+	local uiStroke = Instance.new("UIStroke")
+	uiStroke.Thickness = 2
+	uiStroke.Color = Color3.new(1, 0, 0) -- red by default
+	uiStroke.Parent = frame
+
+	return frame
+end
+
+-- Variables for locking onto a target
+local isAiming = false
+local lockedModel = nil
+local lockedFrame = nil
+
+-- Function to find the target whose screen position is closest to the mouse cursor location.
+local function findTargetForLock()
+	local bestModel = nil
+	local bestFrame = nil
+	local bestDistance = math.huge
+	local mousePos = UserInputService:GetMouseLocation()  -- mouse position in pixels
+
+	for _, descendant in ipairs(Workspace:GetDescendants()) do
+		if descendant:IsA("Humanoid") and descendant.Parent:IsA("Model") and Players:GetPlayerFromCharacter(descendant.Parent) ~= localPlayer then
+			local model = descendant.Parent
+			local primaryPart = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
+			if primaryPart then
+				local screenPoint, onScreen = camera:WorldToScreenPoint(primaryPart.Position)
+				if onScreen then
+					local frameCenter = Vector2.new(screenPoint.X, screenPoint.Y)  -- center of target on screen
+					local dist = (frameCenter - mousePos).Magnitude
+					if dist < bestDistance then
+						bestDistance = dist
+						bestModel = model
+						-- Get or create a highlight frame for the model
+						if humanoidFrames[model] then
+							bestFrame = humanoidFrames[model]
+						else
+							bestFrame = createHighlightFrame()
+							humanoidFrames[model] = bestFrame
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return bestModel, bestFrame
+end
+
+-- Input events to toggle aiming (lock-on) via the "Z" key.
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Z and not isAiming then
+		isAiming = true
+		lockedModel, lockedFrame = findTargetForLock()
+		if lockedFrame then
+			local stroke = lockedFrame:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = Color3.new(0, 1, 0)  -- change outline to green for locked target
+			end
+		end
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Z then
+		isAiming = false
+		if lockedFrame then
+			local stroke = lockedFrame:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = Color3.new(1, 0, 0)  -- revert outline color back to red
+			end
+		end
+		lockedModel = nil
+		lockedFrame = nil
+	end
+end)
+
+-- Update highlight frames for targets and, if locked, update camera to aim at the locked target.
+RunService.RenderStepped:Connect(function(dt)
+	-- Update each target's highlight frame.
+	for _, descendant in ipairs(Workspace:GetDescendants()) do
+		if descendant:IsA("Humanoid") and descendant.Parent:IsA("Model") and Players:GetPlayerFromCharacter(descendant.Parent) ~= localPlayer then
+			local model = descendant.Parent
+			local primaryPart = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
+			if primaryPart then
+				local screenPoint, onScreen = camera:WorldToScreenPoint(primaryPart.Position)
+				local frame = humanoidFrames[model]
+				if not frame then
+					frame = createHighlightFrame()
+					humanoidFrames[model] = frame
+				end
+				if onScreen then
+					local distance = (camera.CFrame.Position - primaryPart.Position).Magnitude
+					local scale = math.clamp(1000 / distance, 10, 50)  -- scale based on distance
+					frame.Size = UDim2.new(0, scale, 0, scale)
+					frame.Position = UDim2.new(0, screenPoint.X - scale / 2, 0, screenPoint.Y - scale / 2)
+					frame.Visible = true
+				else
+					frame.Visible = false
+				end
+			end
+		end
+	end
+
+	-- If we are aiming and a target is locked, update the camera to continuously aim at the target.
+	if isAiming and lockedModel then
+		local primaryPart = lockedModel.PrimaryPart or lockedModel:FindFirstChild("HumanoidRootPart") or lockedModel:FindFirstChild("Torso")
+		if primaryPart then
+			local currentCamPos = camera.CFrame.Position
+			local targetPos = primaryPart.Position
+			camera.CFrame = CFrame.new(currentCamPos, targetPos)
+		end
+	end
+end)
