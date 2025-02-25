@@ -1,0 +1,117 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Create a ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = playerGui
+
+-- Create a Frame
+local function createFrame()
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(0, 250, 0, 80)
+	frame.Position = UDim2.new(0.5, -125, 0.5, -75)
+	frame.BackgroundColor3 = Color3.fromRGB(45, 45, 48)
+	frame.BorderSizePixel = 0
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Parent = screenGui
+
+	-- Create a UICorner for rounded corners
+	local frameCorner = Instance.new("UICorner")
+	frameCorner.CornerRadius = UDim.new(0, 10)
+	frameCorner.Parent = frame
+
+	-- Make the Frame draggable
+	frame.Active = true
+	frame.Draggable = true
+
+	return frame
+end
+
+-- Create a Checkbox
+local function createCheckbox(parent, position)
+	local checkbox = Instance.new("TextButton")
+	checkbox.Size = UDim2.new(0, 20, 0, 20)
+	checkbox.Position = position
+	checkbox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	checkbox.BorderSizePixel = 0
+	checkbox.Text = ""
+	checkbox.Parent = parent
+
+	-- Create a UICorner for rounded corners
+	local checkboxCorner = Instance.new("UICorner")
+	checkboxCorner.CornerRadius = UDim.new(0, 5)
+	checkboxCorner.Parent = checkbox
+
+	return checkbox
+end
+
+-- Create a Label
+local function createLabel(parent, position, text, textSize, textColor)
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(0, 180, 0, 20)
+	label.Position = position
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = textColor
+	label.Font = Enum.Font.SourceSans
+	label.TextSize = textSize
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = parent
+
+	return label
+end
+
+-- Function to toggle the checkbox
+local function toggleCheckbox(checkbox, label, onToggle)
+	checkbox.MouseButton1Click:Connect(function()
+		if checkbox.Text == "" then
+			checkbox.Text = "X"
+			label.Text = "On"
+			checkbox.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+			if onToggle and onToggle.On then
+				onToggle.On()
+			end
+		else
+			checkbox.Text = ""
+			label.Text = "Off"
+			checkbox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			if onToggle and onToggle.Off then
+				onToggle.Off()
+			end
+		end
+
+		-- Tween for smooth color transition
+		local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local goal = {BackgroundColor3 = checkbox.BackgroundColor3}
+		local tween = TweenService:Create(checkbox, tweenInfo, goal)
+		tween:Play()
+	end)
+end
+
+-- Main function to create the GUI
+local function createGUI()
+	local frame = createFrame()
+
+	-- List of items to create
+	local items = {
+		{name = "Option 1", onToggle = {On = function() print("Option 1 On") end, Off = function() print("Option 1 Off") end}},
+		{name = "Option 2", onToggle = {On = function() print("Option 2 On") end, Off = function() print("Option 2 Off") end}},
+		-- Add more items here
+	}
+
+	for i, item in ipairs(items) do
+		local yOffset = (i - 1) * 30
+
+		local checkbox = createCheckbox(frame, UDim2.new(0.1, 0, 0, yOffset + 10))
+		local labelOnOff = createLabel(frame, UDim2.new(0.2, 0, 0, yOffset + 10), "Off", 18, Color3.fromRGB(255, 255, 255))
+		local labelOption = createLabel(frame, UDim2.new(0.6, 0, 0, yOffset + 10), item.name, 14, Color3.fromRGB(255, 200, 0))
+
+		toggleCheckbox(checkbox, labelOnOff, item.onToggle)
+	end
+end
+
+-- Create the GUI
+createGUI()
