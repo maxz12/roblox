@@ -1,0 +1,199 @@
+-- Fixed Exploit Detector for Roblox
+-- Place in ServerScriptService
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- Configuration - Adjusted for reliable detection
+local SPEED_THRESHOLD = 20        -- Flag speeds above this (studs/sec)
+local MAX_AIR_TIME = 1          -- Flag if airborne longer than this (seconds)
+local GROUND_DISTANCE = 3         -- How far to check for ground (studs)
+local MIN_WARN_INTERVAL = 0.1       -- Minimum seconds between warnings
+
+-- Player data storage
+local playerData = {}
+
+-- Function to check if player is near ground (more reliable version)
+local function isNearGround(character)
+	if not character then return true end
+
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then return true end
+
+	-- Cast 5 rays in different directions (down + diagonals)
+	local directions = {
+		Vector3.new(0, -1, 0),       -- Directly down
+		Vector3.new(0.3, -0.7, 0),   -- Diagonal down-right
+		Vector3.new(-0.3, -0.7, 0),  -- Diagonal down-left
+		Vector3.new(0, -0.7, 0.3),   -- Diagonal down-forward
+		Vector3.new(0, -0.7, -0.3)   -- Diagonal down-backward
+	}
+
+	for _, direction in ipairs(directions) do
+		local ray = Ray.new(rootPart.Position, direction.Unit * GROUND_DISTANCE)
+		local hit = workspace:FindPartOnRayWithIgnoreList(ray, {character})
+		if hit then
+			return true -- Found ground in at least one direction
+		end
+	end
+
+	return false -- No ground found in any direction
+end
+
+-- Function to initialize player tracking
+local function trackPlayer(player)
+	print("[MONITOR] Now tracking: " .. player.Name)
+
+	playerData[player.UserId] = {
+		lastPos = Vector3.new(0, 0, 0),
+		lastTime = tick(),
+		airTime = 0,
+		initialized = false,
+		consecutiveHighSpeeds = 0,
+		lastWarningTime = 0
+	}
+
+	player.CharacterAdded:Connect(function(character)
+		local data = playerData[player.UserId]
+		if not data then return end
+
+		-- Wait for HumanoidRootPart to be ready
+		local rootPart = character:WaitForChild("HumanoidRootPart", 5)
+		if not rootPart then 
+			print("[ERROR] Couldn't find HumanoidRootPart for " .. player.Name)
+			return 
+		end
+
+		data.lastPos = rootPart.Position
+		data.lastTime = tick()
+		data.airTime = 0
+		data.initialized = false
+		data.consecutiveHighSpeeds = 0
+
+		print("[MONITOR] Character loaded for " .. player.Name)
+	end)
+end
+
+-- Clean up player data when they leave
+Players.PlayerRemoving:Connect(function(player)
+	playerData[player.UserId] = nil
+	print("[MONITOR] Stopped tracking: " .. player.Name)
+end)
+
+-- Set up existing players
+for _, player in ipairs(Players:GetPlayers()) do
+	trackPlayer(player)
+end
+
+-- Set up new players
+Players.PlayerAdded:Connect(trackPlayer)
+
+-- Add debug function
+local function debugOutput(message)
+	print("[DEBUG] " .. message)
+end
+
+-- Main detection loop
+RunService.Heartbeat:Connect(function()
+	for _, player in ipairs(Players:GetPlayers()) do
+		local data = playerData[player.UserId]
+		if not data then continue end
+
+		local character = player.Character
+		if not character then continue end
+
+		local rootPart = character:FindFirstChild("HumanoidRootPart")
+		if not rootPart then continue end
+
+		local currentPos = rootPart.Position
+		local currentTime = tick()
+
+		-- Skip first check to establish baseline
+		if not data.initialized then
+			data.lastPos = currentPos
+			data.lastTime = currentTime
+			data.initialized = true
+			continue
+		end
+
+		-- Calculate deltas
+		local deltaTime = currentTime - data.lastTime
+		if deltaTime <= 0 then
+			data.lastTime = currentTime
+			continue
+		end
+
+		local deltaPos = currentPos - data.lastPos
+		local distance = deltaPos.Magnitude
+		local speed = distance / deltaTime
+
+		-- Separate horizontal movement
+		local horizontalDelta = Vector3.new(deltaPos.X, 0, deltaPos.Z)
+		local horizontalSpeed = horizontalDelta.Magnitude / deltaTime
+
+		-- Check if player is near ground
+		local grounded = isNearGround(character)
+
+		-- Handle flight detection
+		if not grounded then
+			data.airTime = data.airTime + deltaTime
+
+			-- Check for flight hacks
+			if data.airTime > MAX_AIR_TIME then
+				if currentTime - data.lastWarningTime > MIN_WARN_INTERVAL then
+					print(string.format("⚠️ [FLIGHT HACK] %s has been airborne for %.2f seconds!", 
+						player.Name, data.airTime))
+					data.lastWarningTime = currentTime
+				end
+			end
+		else
+			-- Reset air time when grounded
+			data.airTime = 0
+		end
+
+		-- Handle speed detection - more aggressive version
+		if horizontalSpeed > SPEED_THRESHOLD then
+			data.consecutiveHighSpeeds = data.consecutiveHighSpeeds + 1
+
+			-- After 3 consecutive frames of high speed, flag as suspicious
+			if data.consecutiveHighSpeeds >= 3 then
+				if currentTime - data.lastWarningTime > MIN_WARN_INTERVAL then
+					print(string.format("⚠️ [SPEED HACK] %s moving at %.2f studs/sec horizontally!", 
+						player.Name, horizontalSpeed))
+					data.lastWarningTime = currentTime
+					data.consecutiveHighSpeeds = 0
+				end
+			end
+		else
+			-- Reset consecutive high speeds if speed drops
+			data.consecutiveHighSpeeds = 0
+		end
+
+		-- Overall speed check for teleportation hacks
+		if speed > SPEED_THRESHOLD * 1.5 and deltaTime > 0.1 then
+			if currentTime - data.lastWarningTime > MIN_WARN_INTERVAL then
+				print(string.format("⚠️ [TELEPORT/SPEED HACK] %s moved %.2f studs in %.2f seconds (%.2f studs/sec)!", 
+					player.Name, distance, deltaTime, speed))
+				data.lastWarningTime = currentTime
+			end
+		end
+
+		-- Update for next iteration
+		data.lastPos = currentPos
+		data.lastTime = currentTime
+	end
+end)
+
+-- Add a periodic check to ensure all players are being tracked
+spawn(function()
+	while wait(10) do
+		for _, player in ipairs(Players:GetPlayers()) do
+			if not playerData[player.UserId] then
+				print("[RECOVERY] Re-adding tracking for " .. player.Name)
+				trackPlayer(player)
+			end
+		end
+	end
+end)
+
+print("==== HACK DETECTOR INITIALIZED ====")
+print("Detecting: Speed hacks, Flight hacks, Teleportation")
