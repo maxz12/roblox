@@ -3,7 +3,7 @@
     --------------------
     This module provides secure, server-only functions for:
       • Encrypting and decrypting text.
-      • Creating and verifying tokens (fingerprints) from data.
+      • Creating, verifying, and updating tokens (fingerprints) from data.
       • Generating a fingerprint for a script’s source.
       • Generating and checking a fingerprint for a Roblox object’s state.
       
@@ -74,7 +74,7 @@ end
 -- Command Functions
 ------------------------------------------------------------
 
---[[
+--[[ 
     Command: Encrypt
     ----------------
     Input parameter: { plainText }
@@ -92,7 +92,7 @@ function SecureCore.commands.Encrypt(player, params)
 	return { success = true, message = "Text encrypted.", data = encrypted }
 end
 
---[[
+--[[ 
     Command: Decrypt
     ----------------
     Input parameter: { encryptedText }
@@ -107,7 +107,7 @@ function SecureCore.commands.Decrypt(player, params)
 	return { success = true, message = "Text decrypted.", data = decrypted }
 end
 
---[[
+--[[ 
     Command: TokenCreate
     ---------------------
     Input parameter: { data }
@@ -129,7 +129,7 @@ function SecureCore.commands.TokenCreate(player, params)
 	return { success = true, message = "Token created.", data = { token = tokenJson, signature = signature } }
 end
 
---[[
+--[[ 
     Command: TokenVerify
     ---------------------
     Input parameters: { token, signature }
@@ -153,7 +153,40 @@ function SecureCore.commands.TokenVerify(player, params)
 	end
 end
 
---[[
+--[[ 
+    Command: UpdateToken
+    ---------------------
+    Input parameters: { oldToken, oldSignature, newData }
+    Verifies the existing token's signature. If valid, creates a new token with the updated data.
+    Returns the new token and its signature.
+--]]
+function SecureCore.commands.UpdateToken(player, params)
+	local oldToken = params[1]
+	local oldSignature = params[2]
+	local newData = params[3]
+
+	if type(oldToken) ~= "string" or type(oldSignature) ~= "string" or type(newData) ~= "string" or newData == "" then
+		return { success = false, message = "UpdateToken: Invalid or missing parameters." }
+	end
+
+	-- Verify the existing token first.
+	local expectedSignature = xorEncrypt(oldToken, PRIVATE_KEY)
+	if expectedSignature ~= oldSignature then
+		return { success = false, message = "UpdateToken: Token signature invalid." }
+	end
+
+	-- Create a new token with the updated data.
+	local tokenTable = { timestamp = os.time(), data = newData }
+	local newTokenJson = HttpService:JSONEncode(tokenTable)
+	local newSignature = xorEncrypt(newTokenJson, PRIVATE_KEY)
+
+	if DEBUG then
+		print("[Server][UpdateToken] New Token FP =", getFingerprint(newTokenJson))
+	end
+	return { success = true, message = "Token updated successfully.", data = { token = newTokenJson, signature = newSignature } }
+end
+
+--[[ 
     Command: ScriptFingerprint
     ---------------------------
     Input parameter: { scriptName }
@@ -183,7 +216,7 @@ function SecureCore.commands.ScriptFingerprint(player, params)
 	return { success = true, message = "Script fingerprint computed.", data = fingerprint }
 end
 
---[[
+--[[ 
     Command: ScriptCheck
     ---------------------
     Input parameters: { scriptName, expectedFingerprint }
@@ -221,7 +254,7 @@ end
 -- NEW: Object (Userdata) Token Commands
 ------------------------------------------------------------
 
---[[
+--[[ 
     Command: ObjectTokenCreate
     ----------------------------
     Input parameters: { location, objectName }
@@ -265,7 +298,7 @@ function SecureCore.commands.ObjectTokenCreate(player, params)
 	return { success = true, message = "Object token created.", data = fingerprint }
 end
 
---[[
+--[[ 
     Command: ObjectTokenCheck
     --------------------------
     Input parameters: { location, objectName, expectedFingerprint }
