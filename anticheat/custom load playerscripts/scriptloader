@@ -1,0 +1,44 @@
+-- This LocalScript should be placed in StarterPlayerScripts.
+-- It listens for the RemoteEvent from the server and clones the ConditionalLocalScript into PlayerScripts.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local encryptionRF = ReplicatedStorage:WaitForChild("EncryptionRF")
+
+
+-- Assume we have a RemoteEvent in ReplicatedStorage named "LoadLocalScriptEvent"
+local loadEvent = ReplicatedStorage:WaitForChild("loadLocalScript")
+local player = Players.LocalPlayer
+
+-- Function to clone and run the ConditionalLocalScript
+loadEvent.OnClientEvent:Connect(function()
+	-- Assume your ConditionalLocalScript is stored in a folder called "LocalScriptsFolder"
+	local folder = ReplicatedStorage:WaitForChild("localscripts")
+	local condScript = folder:FindFirstChild("test")
+	if condScript then
+		local clonedScript = condScript:Clone()
+		-- Parent the cloned script into PlayerScripts (or PlayerGui if that is preferred)
+		clonedScript.Parent = player:WaitForChild("PlayerScripts")
+
+		local ScriptToken = script.Name .. script.Name
+		print("scripttoken:".. ScriptToken)
+		local encryptedMessage = encryptionRF:InvokeServer("encrypt", ScriptToken)
+		print("Encrypted:", encryptedMessage)
+		clonedScript:SetAttribute("token", encryptedMessage)
+	
+--[[
+
+		local playerScripts = player:WaitForChild("PlayerScripts")
+		print(playerScripts)
+		for _, script in ipairs(playerScripts:GetChildren()) do
+			print(script.Name)
+		end
+
+]]
+		script:Destroy()
+	else
+		warn("ConditionalLocalScript not found in ReplicatedStorage!")
+	end
+
+end)
+
