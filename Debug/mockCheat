@@ -1,0 +1,310 @@
+-- LocalScript for a draggable GUI with multiple toggleable options:
+-- Options include:
+-- 1. Toggle Speed (normal: default, toggled: 50)
+-- 2. Toggle Jump Power (normal: default, toggled: high)
+-- 3. Toggle NoClip (disables collisions)
+-- 4. Toggle Flight using WASD relative to the camera
+-- 5. Create a part near the character
+-- 6. Teleport using Control + Click in the 3D world
+-- 7. Destroy the part in workspace "bruh"
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local localPlayer = Players.LocalPlayer
+
+-- Wait for player's character and humanoid to load
+local function waitForCharacter()
+	while not localPlayer.Character or not localPlayer.Character:FindFirstChild("Humanoid") do
+		localPlayer.CharacterAdded:Wait()
+	end
+	return localPlayer.Character
+end
+
+local character = waitForCharacter()
+local humanoid = character:FindFirstChild("Humanoid")
+
+-- Store default values for resetting
+local DEFAULT_WALKSPEED = humanoid.WalkSpeed
+local DEFAULT_JUMPPOWER = humanoid.JumpPower
+
+-- Toggle state variables
+local speedToggled = false
+local jumpToggled = false
+local noclipToggled = false
+local flightToggled = false
+
+-- Flight variables
+local flightBG, flightBV
+local flightSpeed = 50
+local flightControl = {Forward = 0, Backward = 0, Left = 0, Right = 0}
+local flightUpdateConnection
+
+-- Teleport flag (holds state when left/right control is pressed)
+local controlDown = false
+
+--------------------------------------------------------------------------------
+-- GUI Setup (Draggable and improved appearance)
+--------------------------------------------------------------------------------
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ToggleOptionsGUI"
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 300, 0, 500)
+frame.Position = UDim2.new(0, 20, 0, 20)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+-- Make the frame draggable
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+	local delta = input.Position - dragStart
+	frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+frame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+frame.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		update(input)
+	end
+end)
+
+-- Layout for the buttons
+local UIListLayout = Instance.new("UIListLayout", frame)
+UIListLayout.Padding = UDim.new(0, 8)
+UIListLayout.FillDirection = Enum.FillDirection.Vertical
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local function createButton(buttonText)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, -20, 0, 40)
+	button.AnchorPoint = Vector2.new(0.5, 0)
+	button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+	button.BorderSizePixel = 0
+	button.Text = buttonText
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.Font = Enum.Font.SourceSansBold
+	button.TextSize = 18
+	button.Parent = frame
+	return button
+end
+
+-- Create buttons for each option
+local speedButton = createButton("Toggle Speed (50)")
+local jumpButton = createButton("Toggle Jump Power (High)")
+local noclipButton = createButton("Toggle NoClip")
+local flightButton = createButton("Toggle Flight")
+local createPartButton = createButton("Create Part")
+local teleportLabel = createButton("Teleport: Hold CTRL + Click")
+teleportLabel.AutoButtonColor = false
+teleportLabel.Active = false
+local destroyBruhButton = createButton("Destroy 'bruh'")  -- New button to destroy "bruh" part
+
+--------------------------------------------------------------------------------
+-- Toggle Option Functions
+--------------------------------------------------------------------------------
+
+-- Speed Toggle
+speedButton.MouseButton1Click:Connect(function()
+	character = waitForCharacter()
+	humanoid = character:FindFirstChild("Humanoid")
+	speedToggled = not speedToggled
+	if speedToggled then
+		humanoid.WalkSpeed = 50
+		speedButton.Text = "Speed: 50 (ON)"
+	else
+		humanoid.WalkSpeed = DEFAULT_WALKSPEED
+		speedButton.Text = "Toggle Speed (50)"
+	end
+end)
+
+-- Jump Power Toggle
+jumpButton.MouseButton1Click:Connect(function()
+	character = waitForCharacter()
+	humanoid = character:FindFirstChild("Humanoid")
+	jumpToggled = not jumpToggled
+	if jumpToggled then
+		humanoid.JumpHeight = 30
+		jumpButton.Text = "Jump: High (ON)"
+	else
+		humanoid.JumpHeight = DEFAULT_JUMPPOWER
+		jumpButton.Text = "Toggle Jump Power (High)"
+	end
+end)
+
+-- NoClip Toggle
+local noclipConnection
+noclipButton.MouseButton1Click:Connect(function()
+	noclipToggled = not noclipToggled
+	if noclipToggled then
+		noclipButton.Text = "NoClip (ON)"
+		noclipConnection = RunService.Stepped:Connect(function()
+			if localPlayer.Character then
+				for _, part in pairs(localPlayer.Character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+					end
+				end
+			end
+		end)
+	else
+		noclipButton.Text = "Toggle NoClip"
+		if noclipConnection then
+			noclipConnection:Disconnect()
+		end
+		-- Restore collisions
+		if localPlayer.Character then
+			for _, part in pairs(localPlayer.Character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = true
+				end
+			end
+		end
+	end
+end)
+
+-- Flight Toggle functions
+
+-- Handle flight input (WASD) for directional control
+local function onFlightInputBegan(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.W then flightControl.Forward = 1 end
+	if input.KeyCode == Enum.KeyCode.S then flightControl.Backward = 1 end
+	if input.KeyCode == Enum.KeyCode.A then flightControl.Left = 1 end
+	if input.KeyCode == Enum.KeyCode.D then flightControl.Right = 1 end
+end
+
+local function onFlightInputEnded(input, gameProcessed)
+	if input.KeyCode == Enum.KeyCode.W then flightControl.Forward = 0 end
+	if input.KeyCode == Enum.KeyCode.S then flightControl.Backward = 0 end
+	if input.KeyCode == Enum.KeyCode.A then flightControl.Left = 0 end
+	if input.KeyCode == Enum.KeyCode.D then flightControl.Right = 0 end
+end
+
+local function startFlight()
+	local hrp = character:WaitForChild("HumanoidRootPart")
+	flightBG = Instance.new("BodyGyro", hrp)
+	flightBG.MaxTorque = Vector3.new(9e4, 9e4, 9e4)
+	flightBG.P = 1e4
+
+	flightBV = Instance.new("BodyVelocity", hrp)
+	flightBV.Velocity = Vector3.new(0, 0, 0)
+	flightBV.MaxForce = Vector3.new(9e4, 9e4, 9e4)
+
+	-- Reset flight directional control
+	flightControl = {Forward = 0, Backward = 0, Left = 0, Right = 0}
+
+	-- Connect flight control inputs
+	UserInputService.InputBegan:Connect(onFlightInputBegan)
+	UserInputService.InputEnded:Connect(onFlightInputEnded)
+
+	flightUpdateConnection = RunService.RenderStepped:Connect(function()
+		if not flightToggled or not hrp then return end
+		local cam = workspace.CurrentCamera
+		local moveVec = (cam.CFrame.LookVector * (flightControl.Forward - flightControl.Backward)) +
+			(cam.CFrame.RightVector * (flightControl.Right - flightControl.Left))
+		if moveVec.Magnitude > 0 then
+			moveVec = moveVec.Unit * flightSpeed
+		end
+		flightBV.Velocity = Vector3.new(moveVec.X, moveVec.Y, moveVec.Z)
+		flightBG.CFrame = cam.CFrame
+	end)
+end
+
+local function stopFlight()
+	if flightBG then flightBG:Destroy() end
+	if flightBV then flightBV:Destroy() end
+	if flightUpdateConnection then flightUpdateConnection:Disconnect() end
+end
+
+flightButton.MouseButton1Click:Connect(function()
+	flightToggled = not flightToggled
+	if flightToggled then
+		flightButton.Text = "Flight (ON)"
+		character = waitForCharacter()
+		startFlight()
+	else
+		flightButton.Text = "Toggle Flight"
+		stopFlight()
+	end
+end)
+
+-- Create Part button (spawns a part above the character)
+local counter = 1
+createPartButton.MouseButton1Click:Connect(function()
+	character = waitForCharacter()
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		local newPart = Instance.new("Part")
+		newPart.Name = "part" .. counter
+		counter = counter + 1
+		newPart.Size = Vector3.new(4, 1, 2)
+		newPart.Position = hrp.Position + Vector3.new(0, 5, 0)
+		newPart.Anchored = true
+		newPart.BrickColor = BrickColor.Random()
+		newPart.Parent = workspace
+	end
+end)
+
+-- Destroy "bruh" part button (destroys a part in workspace named "bruh")
+destroyBruhButton.MouseButton1Click:Connect(function()
+	local bruhPart = workspace:FindFirstChild("bruh")
+	if bruhPart then
+		bruhPart:Destroy()
+		destroyBruhButton.Text = "Destroyed 'bruh'"
+	else
+		destroyBruhButton.Text = "'bruh' Not Found"
+	end
+end)
+
+-- Teleport on Control+Click
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then
+		controlDown = true
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+	if input.KeyCode == Enum.KeyCode.LeftControl or input.KeyCode == Enum.KeyCode.RightControl then
+		controlDown = false
+	end
+end)
+
+local mouse = localPlayer:GetMouse()
+mouse.Button1Down:Connect(function()
+	if controlDown then
+		local hit = mouse.Hit
+		if hit then
+			character = waitForCharacter()
+			local hrp = character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				hrp.CFrame = CFrame.new(hit.p + Vector3.new(0, 3, 0))
+			end
+		end
+	end
+end)
