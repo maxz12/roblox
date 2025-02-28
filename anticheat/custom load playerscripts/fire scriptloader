@@ -4,6 +4,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+
 -- Create the RemoteEvent if it doesn't exist already
 local loadEvent = ReplicatedStorage:FindFirstChild("loadLocalScript")
 if not loadEvent then
@@ -18,5 +19,13 @@ Players.PlayerAdded:Connect(function(player)
 	wait(1)  -- For demonstration purposes: wait 10 seconds
 	loadEvent:FireClient(player)
 	print("Fired load event to " .. player.Name)
+
+	wait(3)
+	loadEvent:Destroy()
+	print("[CLEANUP] removed localscirptloader remote function")
+	ReplicatedStorage.localscripts:Destroy()
+	print("[CLEANUP]removed loaderscirpts folder in replicated storage")
 	
+	
+	print("Removed load event from ReplicatedStorage")
 end)
