@@ -1,0 +1,140 @@
+-- Enhanced Global Game Change Monitor with Camera/Movement Filtering and Debounce
+-- Place this script in your executor or in a LocalScript (requires elevated context)
+
+local debounceCooldown = 1
+local lastChangeTime = {}
+
+-- List of instance classes to ignore
+local ignoredClasses = {
+    TextLabel = true,
+    TextButton = true,
+    TextBox = true,
+    ImageLabel = true,
+    ImageButton = true,
+    Mouse = true,
+}
+
+-- List of substrings to ignore in FullName
+local ignoredNameSubstrings = {
+    "DeveloperConsole",
+    "Console",
+    "CustomTerminalViewer",  -- our terminal viewer, etc.
+}
+
+-- Utility: Check if the instance’s name is purely numeric (common for transient Frames)
+local function isNumericName(instance)
+    return tonumber(instance.Name) ~= nil
+end
+
+-- Utility: Check whether an instance is in default GUI containers
+local function isInIgnoredContainer(instance)
+    local CoreGui = game:GetService("CoreGui")
+    local StarterGui = game:GetService("StarterGui")
+    return instance:IsDescendantOf(CoreGui) or instance:IsDescendantOf(StarterGui)
+end
+
+-- Utility: Check if the instance should be ignored based on its name
+local function isIgnoredByName(instance)
+    local fullname = instance:GetFullName()
+    for _, substr in ipairs(ignoredNameSubstrings) do
+        if fullname:find(substr) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Additional spam filter: Check if the property name is related to camera/movement
+local function isMovementOrCameraProperty(property)
+    local lowerProp = property:lower()
+    if lowerProp:find("cframe") or lowerProp:find("coordinateframe") or lowerProp:find("focus") then
+        return true
+    end
+    return false
+end
+
+-- Debounce utility for property changes
+local function canLog(key)
+    local now = tick()
+    if lastChangeTime[key] and (now - lastChangeTime[key] < debounceCooldown) then
+        return false
+    end
+    lastChangeTime[key] = now
+    return true
+end
+
+-- Determine whether to ignore an instance entirely
+local function shouldIgnoreInstance(instance)
+    if isInIgnoredContainer(instance) then return true end
+    if ignoredClasses[instance.ClassName] then return true end
+    if isIgnoredByName(instance) then return true end
+    if instance.ClassName == "Frame" and isNumericName(instance) then return true end
+    return false
+end
+
+-- Log property changes with filtering and debounce.
+local function onPropertyChanged(instance, property)
+    -- Skip if the property is related to camera/movement.
+    if isMovementOrCameraProperty(property) then return end
+    
+    if shouldIgnoreInstance(instance) then return end
+    
+    -- For other properties, apply debounce if they're in the spammy list.
+    local spammyProps = {
+        AbsoluteSize = true,
+        AbsolutePosition = true,
+        Position = true,
+        Size = true,
+        Rotation = true,
+        AnchorPoint = true,
+    }
+    
+    if spammyProps[property] then
+        local key = tostring(instance) .. property
+        if not canLog(key) then return end
+    end
+
+    pcall(function()
+        print("[Property Changed] " .. instance:GetFullName() .. " | " .. property .. " -> " .. tostring(instance[property]))
+    end)
+end
+
+-- Called when an instance is added
+local function onInstanceAdded(instance)
+    if shouldIgnoreInstance(instance) then return end
+    pcall(function()
+        print("[Added] " .. instance:GetFullName() .. " | Class: " .. instance.ClassName)
+        instance.Changed:Connect(function(property)
+            onPropertyChanged(instance, property)
+        end)
+    end)
+end
+
+-- Called when an instance is removed
+local function onInstanceRemoving(instance)
+    if shouldIgnoreInstance(instance) then return end
+    pcall(function()
+        print("[Removed] " .. instance:GetFullName() .. " | Class: " .. instance.ClassName)
+    end)
+end
+
+print("[Monitor] Enhanced Monitor Active – Filtering out camera/movement events and high-frequency spam.")
+
+game.DescendantAdded:Connect(onInstanceAdded)
+game.DescendantRemoving:Connect(onInstanceRemoving)
+
+local function attachToExisting(instance)
+    if not shouldIgnoreInstance(instance) then
+        pcall(function()
+            instance.Changed:Connect(function(property)
+                onPropertyChanged(instance, property)
+            end)
+        end)
+    end
+    for _, child in ipairs(instance:GetChildren()) do
+        attachToExisting(child)
+    end
+end
+
+attachToExisting(game)
+print("[Monitor] Existing instances now monitored.")
