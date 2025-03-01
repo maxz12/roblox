@@ -1,5 +1,5 @@
--- Enhanced Global Game Change Monitor with Camera/Movement Filtering and Debounce
--- Place this script in your executor or in a LocalScript (requires elevated context)
+-- Enhanced Global Game Change Monitor for In-Game Anti-Cheat
+-- Place this LocalScript inside StarterPlayer → StarterPlayerScripts
 
 local debounceCooldown = 1
 local lastChangeTime = {}
@@ -14,19 +14,19 @@ local ignoredClasses = {
     Mouse = true,
 }
 
--- List of substrings to ignore in FullName
+-- List of substrings to ignore in FullName (e.g. default system GUIs)
 local ignoredNameSubstrings = {
     "DeveloperConsole",
     "Console",
-    "CustomTerminalViewer",  -- our terminal viewer, etc.
+    "CustomTerminalViewer",  -- if you use a custom terminal from recon
 }
 
--- Utility: Check if the instance’s name is purely numeric (common for transient Frames)
+-- Utility: Check if the instance's name is purely numeric (common for transient Frames)
 local function isNumericName(instance)
     return tonumber(instance.Name) ~= nil
 end
 
--- Utility: Check whether an instance is in default GUI containers
+-- Utility: Check if an instance is in default GUI containers
 local function isInIgnoredContainer(instance)
     local CoreGui = game:GetService("CoreGui")
     local StarterGui = game:GetService("StarterGui")
@@ -44,7 +44,7 @@ local function isIgnoredByName(instance)
     return false
 end
 
--- Additional spam filter: Check if the property name is related to camera/movement
+-- Additional spam filter: ignore properties related to camera or movement
 local function isMovementOrCameraProperty(property)
     local lowerProp = property:lower()
     if lowerProp:find("cframe") or lowerProp:find("coordinateframe") or lowerProp:find("focus") then
@@ -53,7 +53,7 @@ local function isMovementOrCameraProperty(property)
     return false
 end
 
--- Debounce utility for property changes
+-- Debounce function to avoid spamming logs for the same event
 local function canLog(key)
     local now = tick()
     if lastChangeTime[key] and (now - lastChangeTime[key] < debounceCooldown) then
@@ -72,14 +72,12 @@ local function shouldIgnoreInstance(instance)
     return false
 end
 
--- Log property changes with filtering and debounce.
+-- Handler for property changes
 local function onPropertyChanged(instance, property)
-    -- Skip if the property is related to camera/movement.
     if isMovementOrCameraProperty(property) then return end
-    
     if shouldIgnoreInstance(instance) then return end
-    
-    -- For other properties, apply debounce if they're in the spammy list.
+
+    -- Debounce for frequently changing properties
     local spammyProps = {
         AbsoluteSize = true,
         AbsolutePosition = true,
@@ -88,7 +86,6 @@ local function onPropertyChanged(instance, property)
         Rotation = true,
         AnchorPoint = true,
     }
-    
     if spammyProps[property] then
         local key = tostring(instance) .. property
         if not canLog(key) then return end
@@ -99,7 +96,7 @@ local function onPropertyChanged(instance, property)
     end)
 end
 
--- Called when an instance is added
+-- Handler for new instance addition
 local function onInstanceAdded(instance)
     if shouldIgnoreInstance(instance) then return end
     pcall(function()
@@ -110,7 +107,7 @@ local function onInstanceAdded(instance)
     end)
 end
 
--- Called when an instance is removed
+-- Handler for instance removal
 local function onInstanceRemoving(instance)
     if shouldIgnoreInstance(instance) then return end
     pcall(function()
@@ -118,11 +115,12 @@ local function onInstanceRemoving(instance)
     end)
 end
 
-print("[Monitor] Enhanced Monitor Active – Filtering out camera/movement events and high-frequency spam.")
+print("[Monitor] Enhanced Monitor Active – Filtering out default camera/movement events and spam.")
 
 game.DescendantAdded:Connect(onInstanceAdded)
 game.DescendantRemoving:Connect(onInstanceRemoving)
 
+-- Recursively attach to existing instances
 local function attachToExisting(instance)
     if not shouldIgnoreInstance(instance) then
         pcall(function()
