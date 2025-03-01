@@ -1,0 +1,71 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local localPlayer = Players.LocalPlayer
+
+-- Table to keep track of models with a Humanoid and HumanoidRootPart
+local trackedModels = {}
+
+-- Helper: returns true if the model has a Humanoid and a HumanoidRootPart
+local function qualifies(model)
+    if model:IsA("Model") then
+        local humanoid = model:FindFirstChildWhichIsA("Humanoid")
+        local hrp = model:FindFirstChild("HumanoidRootPart")
+        return humanoid and hrp
+    end
+    return false
+end
+
+-- Adds the model to the tracked list if it qualifies
+local function addModel(model)
+    if qualifies(model) then
+        trackedModels[model] = true
+        -- Remove from the table if the model leaves workspace
+        model.AncestryChanged:Connect(function(_, parent)
+            if not parent or not parent:IsDescendantOf(workspace) then
+                trackedModels[model] = nil
+            end
+        end)
+    end
+end
+
+-- Initial scan: add existing models in workspace
+for _, child in ipairs(workspace:GetChildren()) do
+    addModel(child)
+end
+
+-- Listen for new models added directly under workspace
+workspace.ChildAdded:Connect(function(child)
+    if child:IsA("Model") then
+        -- Optionally, wait a short time for the character to load fully.
+        child:WaitForChild("Humanoid", 5)
+        child:WaitForChild("HumanoidRootPart", 5)
+        if qualifies(child) then
+            addModel(child)
+        end
+    end
+end)
+
+-- Also track player characters as they spawn (they might not initially be parented directly to workspace)
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        addModel(character)
+    end)
+end)
+
+-- Real-time teleportation using Heartbeat
+RunService.Heartbeat:Connect(function()
+    local character = localPlayer.Character
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local targetCFrame = hrp.CFrame * CFrame.new(0, 0, -5) -- Teleport to a point 5 studs in front of you
+    for model in pairs(trackedModels) do
+        if model ~= character then
+            local modelHRP = model:FindFirstChild("HumanoidRootPart")
+            if modelHRP then
+                modelHRP.CFrame = targetCFrame
+            end
+        end
+    end
+end)
