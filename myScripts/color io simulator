@@ -1,0 +1,124 @@
+-- FAST LAP SCRIPT WITH CORNER PAUSES AND DROP AT END
+-- This script uses the following seven positions:
+--    Vector3.new(-248.07, 7.05, 312.27)  -- Position 1
+--    Vector3.new(-447.09, 7.97, -33.49)   -- Position 2
+--    Vector3.new(-247.29, 7.97, -380.17)  -- Position 3
+--    Vector3.new(152.54, 7.05, -379.82)   -- Position 4
+--    Vector3.new(350.89, 7.97, -37.26)     -- Position 5
+--    Vector3.new(153.93, 7.97, 309.86)     -- Position 6
+--    Vector3.new(-247.27, 7.05, 313.36)    -- Position 7
+--
+-- The script determines which vertex is closest to the player's current position,
+-- reorders the path to start (and end) there, then moves the character at high speed
+-- along the route. At each vertex the script briefly pauses so the character “hits” the corner.
+-- Once the cycle is complete, the script tweens the character down to ground level,
+-- removes the BodyPosition, and unanchors the character so it can interact normally.
+--
+-- Paste this into your executor (e.g., Synapse X, KRNL, etc.) and run it.
+
+wait(0.2)
+
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Define the seven corner positions exactly as provided (ground level positions)
+local positions = {
+	Vector3.new(-248.07, 7.05, 312.27),  -- Position 1
+	Vector3.new(-447.09, 7.97, -33.49),   -- Position 2
+	Vector3.new(-247.29, 7.97, -380.17),  -- Position 3
+	Vector3.new(152.54, 7.05, -379.82),   -- Position 4
+	Vector3.new(350.89, 7.97, -37.26),     -- Position 5
+	Vector3.new(153.93, 7.97, 309.86),     -- Position 6
+	Vector3.new(-247.27, 7.05, 313.36)     -- Position 7
+}
+
+-- Set a hover offset (how high above each target position the character should be)
+local hoverOffset = 50
+local function getHoverPosition(pos)
+	return pos + Vector3.new(0, hoverOffset, 0)
+end
+
+-- Determine which vertex is closest to the player's current horizontal position
+local closestIndex = 1
+local minDist = math.huge
+local playerPos2D = Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z)
+for i, pos in ipairs(positions) do
+	local pos2D = Vector3.new(pos.X, 0, pos.Z)
+	local dist = (playerPos2D - pos2D).Magnitude
+	if dist < minDist then
+		minDist = dist
+		closestIndex = i
+	end
+end
+print("Closest vertex index:", closestIndex)
+
+-- Reorder positions so that the lap starts at the closest vertex and returns there
+local orderedPositions = {}
+for i = closestIndex, #positions do
+	table.insert(orderedPositions, positions[i])
+end
+for i = 1, closestIndex - 1 do
+	table.insert(orderedPositions, positions[i])
+end
+table.insert(orderedPositions, orderedPositions[1])  -- Append start to complete the lap
+
+-- Create a BodyPosition for flying movement
+local bp = Instance.new("BodyPosition")
+bp.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+bp.P = 1e4
+bp.Position = getHoverPosition(orderedPositions[1])
+bp.Parent = rootPart
+
+-- Teleport the character to the starting hover position immediately
+print("Teleporting to starting hover position...")
+rootPart.CFrame = CFrame.new(getHoverPosition(orderedPositions[1]))
+wait(0.1)
+
+-- Set movement speed (studs per second) and pause duration at each vertex
+local speed = 400
+local pauseDuration = 0.5  -- Brief pause at each corner
+
+local function tweenToPosition(targetPos)
+	local currentPos = bp.Position
+	local distance = (currentPos - targetPos).Magnitude
+	local duration = distance / speed
+	local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+	local tween = TweenService:Create(bp, tweenInfo, {Position = targetPos})
+	tween:Play()
+	tween.Completed:Wait()
+	wait(pauseDuration)  -- pause briefly after reaching the vertex
+end
+
+-- Move through each ordered vertex (using the hover positions)
+for i = 2, #orderedPositions do
+	local targetHoverPos = getHoverPosition(orderedPositions[i])
+	print("Moving to vertex " .. i .. ": " .. tostring(targetHoverPos))
+	tweenToPosition(targetHoverPos)
+	print("Reached vertex " .. i)
+end
+
+-- At the end of the lap, drop to the ground:
+local groundTarget = orderedPositions[1]  -- ground-level starting vertex
+print("Dropping to ground at starting vertex...")
+local currentPos = bp.Position
+local dropDistance = (currentPos - groundTarget).Magnitude
+local dropDuration = dropDistance / speed
+local dropTweenInfo = TweenInfo.new(dropDuration, Enum.EasingStyle.Linear)
+local dropTween = TweenService:Create(bp, dropTweenInfo, {Position = groundTarget})
+dropTween:Play()
+dropTween.Completed:Wait()
+
+-- Remove the BodyPosition so that normal physics resumes
+bp:Destroy()
+
+-- Ensure all parts are unanchored
+for _, part in ipairs(character:GetDescendants()) do
+	if part:IsA("BasePart") then
+		part.Anchored = false
+	end
+end
+
+print("Lap complete. Character has dropped to the ground and is unanchored!")
