@@ -1,0 +1,158 @@
+-- ProximityEventScript.lua
+-- This LocalScript automatically looks for your weapon in workspace,
+-- then checks for any players coming within a customizable distance.
+-- When a player meets the condition, it fires the weapon's Hit event with the target's Humanoid.
+-- Place this LocalScript in StarterPlayer → StarterPlayerScripts.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Wait for your weapon model in workspace, which should be named after your username.
+local weaponModel = workspace:WaitForChild(LocalPlayer.Name)
+local weaponTool = nil
+
+-- Find the Tool inside your personal model.
+for _, child in ipairs(weaponModel:GetChildren()) do
+    if child:IsA("Tool") then
+        weaponTool = child
+        break
+    end
+end
+
+if not weaponTool then
+    warn("No weapon tool found in your model!")
+    return
+end
+
+-- Wait for the Events folder and Hit RemoteEvent inside your weapon tool.
+local eventsFolder = weaponTool:WaitForChild("Events", 10)
+if not eventsFolder then
+    warn("No 'Events' folder found inside your weapon tool!")
+    return
+end
+local hitEvent = eventsFolder:WaitForChild("Hit", 10)
+if not hitEvent then
+    warn("No 'Hit' RemoteEvent found inside the Events folder!")
+    return
+end
+
+-- Default customizable distance (in studs)
+local DEFAULT_DISTANCE = 20
+
+-- GUI Setup (Draggable Panel to toggle the trigger and set distance)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ProximityGUI"
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 250, 0, 100)
+mainFrame.Position = UDim2.new(0, 50, 0, 50)
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+mainFrame.Parent = screenGui
+
+-- Toggle Button to activate/deactivate the proximity trigger.
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 200, 0, 30)
+toggleButton.Position = UDim2.new(0, 25, 0, 10)
+toggleButton.Text = "Activate Trigger"
+toggleButton.Parent = mainFrame
+
+-- Label for Distance input.
+local distanceLabel = Instance.new("TextLabel")
+distanceLabel.Size = UDim2.new(0, 90, 0, 30)
+distanceLabel.Position = UDim2.new(0, 25, 0, 50)
+distanceLabel.Text = "Distance:"
+distanceLabel.TextColor3 = Color3.new(1, 1, 1)
+distanceLabel.BackgroundTransparency = 1
+distanceLabel.Parent = mainFrame
+
+-- TextBox to input the desired trigger distance.
+local distanceBox = Instance.new("TextBox")
+distanceBox.Size = UDim2.new(0, 60, 0, 30)
+distanceBox.Position = UDim2.new(0, 120, 0, 50)
+distanceBox.Text = tostring(DEFAULT_DISTANCE)
+distanceBox.ClearTextOnFocus = false
+distanceBox.Parent = mainFrame
+
+-- Make the GUI draggable.
+local dragging = false
+local dragInput, dragStart, startPos
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Variable to toggle the proximity trigger.
+local triggerActive = false
+
+toggleButton.MouseButton1Click:Connect(function()
+    triggerActive = not triggerActive
+    toggleButton.Text = triggerActive and "Deactivate Trigger" or "Activate Trigger"
+end)
+
+-- Function that continuously checks for nearby players.
+local function proximityCheckLoop()
+    while triggerActive do
+        local currentDistance = tonumber(distanceBox.Text) or DEFAULT_DISTANCE
+        
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local localHRP = LocalPlayer.Character.HumanoidRootPart
+            -- Loop through all players (skip yourself).
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local otherHRP = player.Character.HumanoidRootPart
+                    -- Check if the distance is within the set threshold.
+                    if (otherHRP.Position - localHRP.Position).Magnitude <= currentDistance then
+                        local targetHumanoid = player.Character:FindFirstChild("Humanoid")
+                        if targetHumanoid then
+                            local args = { [1] = targetHumanoid }
+                            -- Fire the Hit event several times rapidly.
+                            for i = 1, 3 do
+                                hitEvent:FireServer(unpack(args))
+                                wait(0.08)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        RunService.RenderStepped:Wait()
+    end
+end
+
+-- Start the proximity check in a separate thread.
+spawn(function()
+    while true do
+        if triggerActive then
+            proximityCheckLoop()
+        else
+            wait(0.1)
+        end
+    end
+end)
