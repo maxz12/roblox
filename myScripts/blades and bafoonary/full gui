@@ -1,0 +1,433 @@
+-- ProximityEventScript.lua - Place in StarterPlayerScripts
+-- Combat assistance script with auto-targeting, auto-hits, and movement
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
+-- Core variables
+local triggerActive = false
+local isAlive = true
+local currentTween = nil
+local dodgeInProgress = false
+local lastSafePosition = nil
+local userMovementOverride = false
+local hitCooldownTimer = 0
+local currentTarget = nil
+
+-- Settings
+local TARGET_DISTANCE = 20
+local HIT_COOLDOWN = 0.08
+local DODGE_RADIUS = 15
+local DODGE_DOT_THRESHOLD = 0.8
+local DODGE_OFFSET = 10
+
+-- Feature toggles
+local featureToggles = {
+    hitsEnabled = true,
+    moveEnabled = true,
+    fallProtectionEnabled = true
+}
+
+-- Create highlight for target
+local targetHighlight = Instance.new("Highlight")
+targetHighlight.FillColor = Color3.fromRGB(255, 0, 0)
+targetHighlight.OutlineColor = Color3.fromRGB(255, 165, 0)
+targetHighlight.FillTransparency = 0.7
+targetHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+
+-- Setup death handler for current and future characters
+local function setupCharacter(char)
+    if not char then return end
+    local hum = char:WaitForChild("Humanoid")
+    
+    -- Handle character death
+    hum.Died:Connect(function()
+        isAlive = false
+        triggerActive = false
+        if targetHighlight.Parent then
+            targetHighlight.Parent = nil
+        end
+        if currentTween then
+            currentTween:Cancel()
+        end
+        -- Disable all GUI buttons
+        toggleButton.Text = "ACTIVATE TRIGGER"
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        hitToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        moveToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        fallToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        hitToggle.Active = false
+        moveToggle.Active = false
+        fallToggle.Active = false
+        toggleButton.Active = false
+    end)
+    
+    isAlive = true
+    -- Re-enable GUI when alive
+    if toggleButton then
+        toggleButton.Active = true
+        hitToggle.Active = true
+        moveToggle.Active = true
+        fallToggle.Active = true
+    end
+    
+    -- Set initial safe position
+    task.wait(1)
+    if char:FindFirstChild("HumanoidRootPart") then
+        lastSafePosition = char.HumanoidRootPart.CFrame
+    end
+end
+
+setupCharacter(character)
+LocalPlayer.CharacterAdded:Connect(setupCharacter)
+
+-- Find weapon and hit event
+local weaponModel = workspace:WaitForChild(LocalPlayer.Name, 10)
+local hitEvent = nil
+
+if weaponModel then
+    local weaponTool = nil
+    for _, child in ipairs(weaponModel:GetChildren()) do
+        if child:IsA("Tool") then
+            weaponTool = child
+            break
+        end
+    end
+    
+    if weaponTool then
+        local events = weaponTool:FindFirstChild("Events")
+        if events then
+            hitEvent = events:FindFirstChild("Hit")
+        end
+    end
+end
+
+-- Simple GUI setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CombatGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 200, 0, 160)
+mainFrame.Position = UDim2.new(0, 50, 0, 50)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 25)
+titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(0.8, 0, 1, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "Combat Assist"
+titleText.Font = Enum.Font.SourceSansBold
+titleText.TextSize = 14
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.Parent = titleBar
+
+local statusIndicator = Instance.new("Frame")
+statusIndicator.Size = UDim2.new(0, 10, 0, 10)
+statusIndicator.Position = UDim2.new(0.9, 0, 0.5, -5)
+statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+statusIndicator.BorderSizePixel = 0
+statusIndicator.Parent = titleBar
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0.9, 0, 0, 25)
+toggleButton.Position = UDim2.new(0.05, 0, 0, 30)
+toggleButton.Text = "ACTIVATE TRIGGER"
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 14
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.BackgroundColor3 = Color3.fromRGB(41, 128, 185)
+toggleButton.BorderSizePixel = 0
+toggleButton.Parent = mainFrame
+
+local distanceLabel = Instance.new("TextLabel")
+distanceLabel.Size = UDim2.new(0.5, 0, 0, 20)
+distanceLabel.Position = UDim2.new(0.05, 0, 0, 60)
+distanceLabel.Text = "Distance:"
+distanceLabel.TextColor3 = Color3.new(1, 1, 1)
+distanceLabel.BackgroundTransparency = 1
+distanceLabel.TextXAlignment = Enum.TextXAlignment.Left
+distanceLabel.Parent = mainFrame
+
+local distanceBox = Instance.new("TextBox")
+distanceBox.Size = UDim2.new(0.3, 0, 0, 20)
+distanceBox.Position = UDim2.new(0.65, 0, 0, 60)
+distanceBox.Text = tostring(TARGET_DISTANCE)
+distanceBox.TextColor3 = Color3.new(1, 1, 1)
+distanceBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+distanceBox.BorderSizePixel = 0
+distanceBox.Parent = mainFrame
+
+local targetLabel = Instance.new("TextLabel")
+targetLabel.Size = UDim2.new(0.9, 0, 0, 20)
+targetLabel.Position = UDim2.new(0.05, 0, 0, 85)
+targetLabel.Text = "No Target"
+targetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+targetLabel.BackgroundTransparency = 1
+targetLabel.Parent = mainFrame
+
+-- Feature toggle buttons
+local hitToggle = Instance.new("TextButton")
+hitToggle.Size = UDim2.new(0.42, 0, 0, 20)
+hitToggle.Position = UDim2.new(0.05, 0, 0, 110)
+hitToggle.Text = "Auto Hit"
+hitToggle.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+hitToggle.Parent = mainFrame
+
+local moveToggle = Instance.new("TextButton")
+moveToggle.Size = UDim2.new(0.42, 0, 0, 20)
+moveToggle.Position = UDim2.new(0.53, 0, 0, 110)
+moveToggle.Text = "Auto Move"
+moveToggle.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+moveToggle.Parent = mainFrame
+
+local fallToggle = Instance.new("TextButton")
+fallToggle.Size = UDim2.new(0.9, 0, 0, 20)
+fallToggle.Position = UDim2.new(0.05, 0, 0, 135)
+fallToggle.Text = "Fall Protection"
+fallToggle.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+fallToggle.Parent = mainFrame
+
+-- Make GUI draggable
+local dragging, dragStart, startPos
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+titleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Button functionality
+hitToggle.MouseButton1Click:Connect(function()
+    if not isAlive then return end
+    featureToggles.hitsEnabled = not featureToggles.hitsEnabled
+    hitToggle.BackgroundColor3 = featureToggles.hitsEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(192, 57, 43)
+end)
+
+moveToggle.MouseButton1Click:Connect(function()
+    if not isAlive then return end
+    featureToggles.moveEnabled = not featureToggles.moveEnabled
+    moveToggle.BackgroundColor3 = featureToggles.moveEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(192, 57, 43)
+end)
+
+fallToggle.MouseButton1Click:Connect(function()
+    if not isAlive then return end
+    featureToggles.fallProtectionEnabled = not featureToggles.fallProtectionEnabled
+    fallToggle.BackgroundColor3 = featureToggles.fallProtectionEnabled and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(192, 57, 43)
+end)
+
+toggleButton.MouseButton1Click:Connect(function()
+    if not isAlive then return end
+    triggerActive = not triggerActive
+    toggleButton.Text = triggerActive and "DEACTIVATE TRIGGER" or "ACTIVATE TRIGGER"
+    toggleButton.BackgroundColor3 = triggerActive and Color3.fromRGB(192, 57, 43) or Color3.fromRGB(41, 128, 185)
+    statusIndicator.BackgroundColor3 = triggerActive and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(255, 0, 0)
+    
+    if not triggerActive and targetHighlight.Parent then
+        targetHighlight.Parent = nil
+        currentTarget = nil
+        targetLabel.Text = "No Target"
+    end
+end)
+
+-- Track user movement
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W or 
+       input.KeyCode == Enum.KeyCode.A or 
+       input.KeyCode == Enum.KeyCode.S or 
+       input.KeyCode == Enum.KeyCode.D or
+       input.KeyCode == Enum.KeyCode.Space then
+        userMovementOverride = true
+        task.delay(0.5, function() userMovementOverride = false end)
+    end
+end)
+
+-- Helper functions
+local function checkGround(position)
+    local rayOrigin = Vector3.new(position.X, position.Y + 50, position.Z)
+    local rayDir = Vector3.new(0, -100, 0)
+    
+    local rayParams = RaycastParams.new()
+    if LocalPlayer.Character then
+        rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    end
+    
+    local rayResult = workspace:Raycast(rayOrigin, rayDir, rayParams)
+    return rayResult ~= nil, rayResult and rayResult.Position.Y or position.Y
+end
+
+local function isSafeTerrain(position)
+    local hasGround, groundY = checkGround(position)
+    if not hasGround then return false, nil end
+    
+    -- Check surrounding edges
+    for _, offset in ipairs({Vector3.new(3,0,0), Vector3.new(-3,0,0), Vector3.new(0,0,3), Vector3.new(0,0,-3)}) do
+        if not checkGround(position + offset) then
+            return false, nil
+        end
+    end
+    
+    return true, groundY
+end
+
+local function findClosestTarget()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return nil, nil, math.huge
+    end
+    
+    local localHRP = LocalPlayer.Character.HumanoidRootPart
+    local distance = tonumber(distanceBox.Text) or TARGET_DISTANCE
+    local closest, closestHRP, minDist = nil, nil, math.huge
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and 
+           player.Character:FindFirstChild("HumanoidRootPart") and 
+           player.Character:FindFirstChild("Humanoid") and
+           player.Character.Humanoid.Health > 0 then
+            
+            local otherHRP = player.Character.HumanoidRootPart
+            local dist = (otherHRP.Position - localHRP.Position).Magnitude
+            
+            if dist <= distance and dist < minDist then
+                minDist = dist
+                closest = player
+                closestHRP = otherHRP
+            end
+        end
+    end
+    
+    return closest, closestHRP, minDist
+end
+
+-- Main loop
+RunService.Heartbeat:Connect(function(deltaTime)
+    if not triggerActive or not isAlive then return end
+    
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local localHRP = LocalPlayer.Character.HumanoidRootPart
+        
+        -- Update safe position
+        local isSafe, groundY = isSafeTerrain(localHRP.Position)
+        if isSafe then
+            lastSafePosition = CFrame.new(localHRP.Position.X, groundY + 3, localHRP.Position.Z)
+        end
+        
+        -- Find target
+        local target, targetHRP, distance = findClosestTarget()
+        
+        -- Update highlight and label
+        if target ~= currentTarget then
+            if targetHighlight.Parent then targetHighlight.Parent = nil end
+            currentTarget = target
+            
+            if target then
+                targetHighlight.Parent = target.Character
+                targetLabel.Text = "Target: " .. target.Name
+            else
+                targetLabel.Text = "No Target"
+            end
+        end
+        
+        -- Handle target
+        if target and target.Character then
+            local targetHumanoid = target.Character:FindFirstChild("Humanoid")
+            
+            -- Fire hit events
+            if featureToggles.hitsEnabled and hitEvent and targetHumanoid and targetHumanoid.Health > 0 then
+                hitCooldownTimer = hitCooldownTimer - deltaTime
+                if hitCooldownTimer <= 0 then
+                    hitEvent:FireServer(targetHumanoid)
+                    hitCooldownTimer = HIT_COOLDOWN
+                end
+            end
+            
+            -- Handle movement
+            if featureToggles.moveEnabled and not userMovementOverride then
+                local targetPos = targetHRP.Position
+                
+                -- Check if target is facing us
+                local facingUs = targetHRP.CFrame.LookVector:Dot((localHRP.Position - targetPos).Unit) >= DODGE_DOT_THRESHOLD
+                
+                if distance <= DODGE_RADIUS and facingUs and not dodgeInProgress then
+                    -- Dodge sideways
+                    dodgeInProgress = true
+                    if currentTween then currentTween:Cancel() end
+                    
+                    local dodgePos = localHRP.Position + targetHRP.CFrame.RightVector * DODGE_OFFSET
+                    if isSafeTerrain(dodgePos) then
+                        local tweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Linear)
+                        currentTween = TweenService:Create(localHRP, tweenInfo, {
+                            CFrame = CFrame.new(dodgePos, targetPos)
+                        })
+                        currentTween:Play()
+                    end
+                    
+                    task.delay(0.3, function() dodgeInProgress = false end)
+                elseif not dodgeInProgress then
+                    -- Position behind target
+                    local behindPos = targetPos - (targetHRP.CFrame.LookVector * (distance * 0.8))
+                    local isSafe, groundY = isSafeTerrain(behindPos)
+                    
+                    if isSafe and (localHRP.Position - behindPos).Magnitude > 3 then
+                        local finalPos = Vector3.new(behindPos.X, groundY + 3, behindPos.Z)
+                        if currentTween then currentTween:Cancel() end
+                        
+                        local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Linear)
+                        currentTween = TweenService:Create(localHRP, tweenInfo, {
+                            CFrame = CFrame.new(finalPos, targetPos)
+                        })
+                        currentTween:Play()
+                    end
+                end
+            end
+        end
+        
+        -- Fall protection
+        if featureToggles.fallProtectionEnabled and lastSafePosition then
+            local velocity = localHRP.AssemblyLinearVelocity
+            
+            -- Reset horizontal velocity if being flung
+            if velocity.Magnitude > 50 then
+                localHRP.AssemblyLinearVelocity = Vector3.new(0, velocity.Y, 0)
+                localHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            end
+            
+            -- Teleport back if falling
+            if velocity.Y < -20 and not userMovementOverride then
+                localHRP.CFrame = lastSafePosition
+                localHRP.AssemblyLinearVelocity = Vector3.zero
+            end
+        end
+    end
+end)
