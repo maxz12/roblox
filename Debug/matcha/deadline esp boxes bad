@@ -1,7 +1,3 @@
--- Character ESP Squares Script
--- EXPLOIT SCRIPT: Paste into your exploit executor (NOT in Roblox Studio)
-
--- Target the characters folder (lowercase c)
 local charactersFolder = workspace:FindFirstChild("characters")
 if not charactersFolder then
     printl("characters folder not found")
@@ -33,11 +29,11 @@ while true do
             end
 
             if reference then
-                -- Create a square - EXACTLY like your working script
+                -- Create a square
                 local square = Drawing.new("Square")
-                square.Color = Color3(1, 0, 0)    -- Yellow
+                square.Color = Color3(1, 0, 0)    
                 square.Thickness = 2
-                square.Size = Vector2(8, 5)       -- THIS IS KEY: Using Vector2() not Vector2.new()
+                square.Size = Vector2(8, 5)    
                 square.Filled = true
                 square.Visible = true
 
@@ -49,7 +45,7 @@ while true do
         end
     end
 
-    -- Update position - EXACTLY like your working script
+    -- Update Position
     for _, entry in pairs(newItemsTable) do
         local character, reference, square = entry[1], entry[2], entry[3]
         local pos, onScreen = WorldToScreen(reference.Position + Vector3(0, 0.2, 0))
