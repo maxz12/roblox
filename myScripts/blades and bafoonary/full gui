@@ -9,6 +9,9 @@
 --   1. Ensure your weapon model is in workspace and is named after your username.
 --   2. That model must contain a Tool with an "Events" folder containing a "Hit" RemoteEvent.
 
+--loadstring thing: loadstring(game:HttpGet("https://pastebin.com/raw/wcQXa5tt"))()
+
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
