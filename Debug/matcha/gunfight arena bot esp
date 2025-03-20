@@ -1,17 +1,17 @@
 printl("ESP STARTING")
-local esps = {}
+local espList = {}
 local count = 0
 
-for _, m in pairs(workspace:GetDescendants()) do
-    if m:IsA("Model") then
-        local hrp = m:FindFirstChild("HumanoidRootPart")
-        if hrp then
+for _, model in pairs(workspace:GetDescendants()) do
+    if model:IsA("Model") then
+        local root = model:FindFirstChild("HumanoidRootPart")
+        if root then
             count = count + 1
-            local txt = Drawing.new("Text")
-            txt.Text = m.Name
-            txt.Color = Color3(1, 1, 0)
-            txt.Visible = true
-            table.insert(esps, {m=m, r=hrp, t=txt})
+            local text = Drawing.new("Text")
+            text.Text = model.Name
+            text.Color = Color3(1, 1, 0)
+            text.Visible = true
+            table.insert(espList, {model=model, root=root, text=text})
         end
     end
 end
@@ -19,19 +19,19 @@ end
 printl("Found " .. count .. " models")
 
 while true do
-    for _, e in pairs(esps) do
-        if e.m and e.r then
+    for _, esp in pairs(espList) do
+        if esp.model and esp.root then
             pcall(function()
-                local p, o = WorldToScreen(e.r.Position + Vector3(0, 3, 0))
-                if p and o then
-                    e.t.Position = p
-                    e.t.Visible = true
+                local pos, onScreen = WorldToScreen(esp.root.Position + Vector3(0, 3, 0))
+                if pos and onScreen then
+                    esp.text.Position = pos
+                    esp.text.Visible = true
                 else
-                    e.t.Visible = false
+                    esp.text.Visible = false
                 end
             end)
         else
-            e.t.Visible = false
+            esp.text.Visible = false
         end
     end
     wait(0.01)
