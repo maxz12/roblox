@@ -1,0 +1,55 @@
+local esp_objects = {}
+
+printl("Searching for models with HumanoidRootPart...")
+local found_count = 0
+
+for _, model in pairs(workspace:GetDescendants()) do
+   
+    if model:IsA("Model") then
+        local hrp = model:FindFirstChild("HumanoidRootPart")
+        
+        if hrp then
+            found_count = found_count + 1
+            printl("Found model: " .. model.Name)
+            
+           
+            local text = Drawing.new("Text")
+            text.Text = model.Name
+            text.Color = Color3(1, 1, 0) -- Yellow color
+            text.Visible = true
+            
+            table.insert(esp_objects, {
+                model = model,
+                root = hrp,
+                text = text
+            })
+        end
+    end
+end
+
+printl("Found " .. found_count .. " models with HumanoidRootPart")
+
+printl("Starting ESP loop...")
+
+while true do
+    for _, esp in pairs(esp_objects) do
+        if esp.model and esp.root then
+     
+            pcall(function()
+                local pos, on_screen = WorldToScreen(esp.root.Position + Vector3(0, 3, 0))
+                
+                if pos and on_screen then
+                    esp.text.Position = pos
+                    esp.text.Visible = true
+                else
+                    esp.text.Visible = false
+                end
+            end)
+        else
+            esp.text.Visible = false
+        end
+    end
+    
+    
+    wait(0.0001)
+end
