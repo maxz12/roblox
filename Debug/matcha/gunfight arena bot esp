@@ -1,55 +1,38 @@
-local esp_objects = {}
+printl("ESP STARTING")
+local esps = {}
+local count = 0
 
-printl("Searching for models with HumanoidRootPart...")
-local found_count = 0
-
-for _, model in pairs(workspace:GetDescendants()) do
-   
-    if model:IsA("Model") then
-        local hrp = model:FindFirstChild("HumanoidRootPart")
-        
+for _, m in pairs(workspace:GetDescendants()) do
+    if m:IsA("Model") then
+        local hrp = m:FindFirstChild("HumanoidRootPart")
         if hrp then
-            found_count = found_count + 1
-            printl("Found model: " .. model.Name)
-            
-           
-            local text = Drawing.new("Text")
-            text.Text = model.Name
-            text.Color = Color3(1, 1, 0) -- Yellow color
-            text.Visible = true
-            
-            table.insert(esp_objects, {
-                model = model,
-                root = hrp,
-                text = text
-            })
+            count = count + 1
+            local txt = Drawing.new("Text")
+            txt.Text = m.Name
+            txt.Color = Color3(1, 1, 0)
+            txt.Visible = true
+            table.insert(esps, {m=m, r=hrp, t=txt})
         end
     end
 end
 
-printl("Found " .. found_count .. " models with HumanoidRootPart")
-
-printl("Starting ESP loop...")
+printl("Found " .. count .. " models")
 
 while true do
-    for _, esp in pairs(esp_objects) do
-        if esp.model and esp.root then
-     
+    for _, e in pairs(esps) do
+        if e.m and e.r then
             pcall(function()
-                local pos, on_screen = WorldToScreen(esp.root.Position + Vector3(0, 3, 0))
-                
-                if pos and on_screen then
-                    esp.text.Position = pos
-                    esp.text.Visible = true
+                local p, o = WorldToScreen(e.r.Position + Vector3(0, 3, 0))
+                if p and o then
+                    e.t.Position = p
+                    e.t.Visible = true
                 else
-                    esp.text.Visible = false
+                    e.t.Visible = false
                 end
             end)
         else
-            esp.text.Visible = false
+            e.t.Visible = false
         end
     end
-    
-    
-    wait(0.0001)
+    wait(0.01)
 end
