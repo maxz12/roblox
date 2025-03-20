@@ -18,6 +18,8 @@ end
 
 printl("Found " .. count .. " models")
 
+local cleanupCounter = 0
+
 while true do
     for _, esp in pairs(espList) do
         if esp.model and esp.root then
@@ -34,5 +36,47 @@ while true do
             esp.text.Visible = false
         end
     end
-    wait(0.01)
+    
+--cleanup every 5 seconds
+    cleanupCounter = cleanupCounter + 1
+    if cleanupCounter >= 500 then
+        cleanupCounter = 0
+        
+        for i = #espList, 1, -1 do
+            local esp = espList[i]
+            if not esp.model or not esp.model.Parent then
+                -- Player left - remove ESP
+                if esp.text then
+                    esp.text:Remove()
+                end
+                table.remove(espList, i)
+            end
+        end
+        
+        for _, model in pairs(workspace:GetDescendants()) do
+            if model:IsA("Model") then
+                local root = model:FindFirstChild("HumanoidRootPart")
+                if root thent
+                    local found = false
+                    for _, esp in pairs(espList) do
+                        if esp.model == model then
+                            found = true
+                            break
+                        end
+                    end
+                    
+                    if not found then
+                        local text = Drawing.new("Text")
+                        text.Text = model.Name
+                        text.Color = Color3(1, 1, 0)
+                        text.Visible = true
+                        table.insert(espList, {model=model, root=root, text=text})
+                        printl("Added ESP for new player: " .. model.Name)
+                    end
+                end
+            end
+        end
+    end
+    
+    wait(0.00001)
 end
