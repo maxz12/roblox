@@ -1,0 +1,1257 @@
+-- Advanced Function Explorer with Code Editing & Custom Hooks
+-- Created for maxz12 on 2025-04-05 05:30:19
+-- Enhanced to show function code and allow custom hooks
+
+-- Wrap everything in error handling
+local success, errorMsg = pcall(function()
+    -- Check if required functions are available
+    local canAccessGC = getgc ~= nil
+    local canHookFunction = hookfunction ~= nil
+    local canDecompile = decompile ~= nil or (syn and syn.decompile ~= nil)
+    
+    if not canAccessGC then
+        error("getgc function not available in this exploit")
+    end
+    
+    -- Services
+    local Players = game:GetService("Players")
+    local localPlayer = Players.LocalPlayer
+    
+    -- Configuration
+    local SEARCH_CHUNK_SIZE = 50   -- How many functions to process at once
+    local SEARCH_DELAY = 0.03      -- Delay between processing chunks
+    local MAX_RESULTS = 100        -- Maximum number of results to show
+    local UPVALUE_FETCH_LIMIT = 20 -- Maximum upvalues to try fetching
+    
+    -- Create main GUI with error handling
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "AdvancedFunctionExplorer"
+    
+    -- Find proper parent for GUI
+    local guiParent 
+    pcall(function() 
+        if syn and syn.protect_gui then
+            syn.protect_gui(ScreenGui)
+            guiParent = game:GetService("CoreGui")
+        else
+            guiParent = game:GetService("CoreGui")
+        end
+    end)
+    
+    if not guiParent then
+        guiParent = localPlayer:WaitForChild("PlayerGui")
+    end
+    
+    ScreenGui.Parent = guiParent
+    
+    -- Status variables
+    local isSearching = false
+    local shouldCancelSearch = false
+    
+    -- Main Frame
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Size = UDim2.new(0, 800, 0, 500)
+    MainFrame.Position = UDim2.new(0.5, -400, 0.5, -250)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Parent = ScreenGui
+    
+    -- Make draggable the simple way
+    local dragging = false
+    local dragInput, dragStart, startPos
+    
+    MainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+        end
+    end)
+    
+    MainFrame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    
+    -- Title Bar
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Size = UDim2.new(1, 0, 0, 30)
+    TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    TitleBar.BorderSizePixel = 0
+    TitleBar.Parent = MainFrame
+    
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, -100, 1, 0)
+    Title.Position = UDim2.new(0, 35, 0, 0)
+    Title.BackgroundTransparency = 1
+    Title.TextColor3 = Color3.fromRGB(230, 230, 230)
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.Font = Enum.Font.SourceSansBold
+    Title.TextSize = 16
+    Title.Text = "Advanced Function Explorer & Editor"
+    Title.Parent = TitleBar
+    
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Size = UDim2.new(0, 30, 0, 30)
+    CloseButton.Position = UDim2.new(1, -30, 0, 0)
+    CloseButton.BackgroundTransparency = 1
+    CloseButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+    CloseButton.Font = Enum.Font.SourceSansBold
+    CloseButton.TextSize = 18
+    CloseButton.Text = "X"
+    CloseButton.Parent = TitleBar
+    
+    CloseButton.MouseButton1Click:Connect(function()
+        -- Cancel any ongoing search before closing
+        shouldCancelSearch = true
+        ScreenGui:Destroy()
+    end)
+    
+    -- Search Section
+    local SearchBar = Instance.new("Frame")
+    SearchBar.Size = UDim2.new(1, 0, 0, 40)
+    SearchBar.Position = UDim2.new(0, 0, 0, 30)
+    SearchBar.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    SearchBar.BorderSizePixel = 0
+    SearchBar.Parent = MainFrame
+    
+    local SearchBox = Instance.new("TextBox")
+    SearchBox.Size = UDim2.new(1, -110, 0, 30)
+    SearchBox.Position = UDim2.new(0, 10, 0, 5)
+    SearchBox.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    SearchBox.TextColor3 = Color3.fromRGB(230, 230, 230)
+    SearchBox.PlaceholderText = "Search (e.g. 'speed', 'damage', 'health')"
+    SearchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    SearchBox.Font = Enum.Font.SourceSans
+    SearchBox.TextSize = 14
+    SearchBox.Text = ""
+    SearchBox.ClearTextOnFocus = false
+    SearchBox.Parent = SearchBar
+    
+    local SearchButton = Instance.new("TextButton")
+    SearchButton.Size = UDim2.new(0, 80, 0, 30)
+    SearchButton.Position = UDim2.new(1, -90, 0, 5)
+    SearchButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
+    SearchButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SearchButton.Font = Enum.Font.SourceSansBold
+    SearchButton.TextSize = 14
+    SearchButton.Text = "Search"
+    SearchButton.Parent = SearchBar
+    
+    -- Content Section
+    local SplitFrame = Instance.new("Frame")
+    SplitFrame.Size = UDim2.new(1, 0, 1, -100)
+    SplitFrame.Position = UDim2.new(0, 0, 0, 70)
+    SplitFrame.BackgroundTransparency = 1
+    SplitFrame.Parent = MainFrame
+    
+    -- Results Panel
+    local ResultsFrame = Instance.new("Frame")
+    ResultsFrame.Size = UDim2.new(0.3, 0, 1, 0)
+    ResultsFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    ResultsFrame.BorderSizePixel = 0
+    ResultsFrame.Parent = SplitFrame
+    
+    local ResultsLabel = Instance.new("TextLabel")
+    ResultsLabel.Size = UDim2.new(1, 0, 0, 25)
+    ResultsLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    ResultsLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+    ResultsLabel.Font = Enum.Font.SourceSansSemibold
+    ResultsLabel.TextSize = 14
+    ResultsLabel.Text = "Results"
+    ResultsLabel.Parent = ResultsFrame
+    
+    local ResultsList = Instance.new("ScrollingFrame")
+    ResultsList.Size = UDim2.new(1, 0, 1, -25)
+    ResultsList.Position = UDim2.new(0, 0, 0, 25)
+    ResultsList.BackgroundTransparency = 1
+    ResultsList.BorderSizePixel = 0
+    ResultsList.ScrollBarThickness = 4
+    ResultsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+    ResultsList.Parent = ResultsFrame
+    
+    local UIListLayout = Instance.new("UIListLayout")
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Padding = UDim.new(0, 2)
+    UIListLayout.Parent = ResultsList
+    
+    -- Details Panel with Tabs
+    local DetailsFrame = Instance.new("Frame")
+    DetailsFrame.Size = UDim2.new(0.7, 0, 1, 0)
+    DetailsFrame.Position = UDim2.new(0.3, 0, 0, 0)
+    DetailsFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    DetailsFrame.BorderSizePixel = 0
+    DetailsFrame.Parent = SplitFrame
+    
+    local TabsFrame = Instance.new("Frame")
+    TabsFrame.Size = UDim2.new(1, 0, 0, 30)
+    TabsFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    TabsFrame.BorderSizePixel = 0
+    TabsFrame.Parent = DetailsFrame
+    
+    -- Create tabs
+    local tabs = {
+        {name = "Code", value = "codeTab"},
+        {name = "Upvalues", value = "upvaluesTab"},
+        {name = "Hook", value = "hookTab"},
+        {name = "Info", value = "infoTab"}
+    }
+    
+    local tabButtons = {}
+    local tabContents = {}
+    local activeTab = "codeTab"
+    
+    for i, tab in ipairs(tabs) do
+        local tabButton = Instance.new("TextButton")
+        tabButton.Size = UDim2.new(1/#tabs, 0, 1, 0)
+        tabButton.Position = UDim2.new((i-1)/#tabs, 0, 0, 0)
+        tabButton.BackgroundColor3 = i == 1 and Color3.fromRGB(60, 120, 200) or Color3.fromRGB(40, 40, 45)
+        tabButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+        tabButton.Font = Enum.Font.SourceSansBold
+        tabButton.TextSize = 14
+        tabButton.Text = tab.name
+        tabButton.Parent = TabsFrame
+        
+        local tabContent = Instance.new("ScrollingFrame")
+        tabContent.Name = tab.value
+        tabContent.Size = UDim2.new(1, 0, 1, -30)
+        tabContent.Position = UDim2.new(0, 0, 0, 30)
+        tabContent.BackgroundTransparency = 1
+        tabContent.BorderSizePixel = 0
+        tabContent.ScrollBarThickness = 4
+        tabContent.CanvasSize = UDim2.new(0, 0, 0, 0)
+        tabContent.Visible = i == 1
+        tabContent.Parent = DetailsFrame
+        
+        tabButtons[tab.value] = tabButton
+        tabContents[tab.value] = tabContent
+        
+        tabButton.MouseButton1Click:Connect(function()
+            -- Update active tab
+            activeTab = tab.value
+            
+            -- Update tab button appearance
+            for _, btn in pairs(tabButtons) do
+                btn.BackgroundColor3 = btn == tabButton and Color3.fromRGB(60, 120, 200) or Color3.fromRGB(40, 40, 45)
+            end
+            
+            -- Show the selected tab
+            for _, frame in pairs(tabContents) do
+                frame.Visible = frame.Name == activeTab
+            end
+        end)
+    end
+    
+    -- Create special code tab with edit area
+    local codeTab = tabContents["codeTab"]
+    
+    local codeEditor = Instance.new("Frame")
+    codeEditor.Size = UDim2.new(1, -20, 1, -80)
+    codeEditor.Position = UDim2.new(0, 10, 0, 10)
+    codeEditor.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    codeEditor.BorderColor3 = Color3.fromRGB(60, 60, 65)
+    codeEditor.BorderSizePixel = 1
+    codeEditor.Parent = codeTab
+    
+    local codeBox = Instance.new("TextBox")
+    codeBox.Size = UDim2.new(1, -10, 1, -10)
+    codeBox.Position = UDim2.new(0, 5, 0, 5)
+    codeBox.BackgroundTransparency = 1
+    codeBox.TextColor3 = Color3.fromRGB(230, 230, 230)
+    codeBox.TextXAlignment = Enum.TextXAlignment.Left
+    codeBox.TextYAlignment = Enum.TextYAlignment.Top
+    codeBox.Font = Enum.Font.Code
+    codeBox.TextSize = 14
+    codeBox.ClearTextOnFocus = false
+    codeBox.MultiLine = true
+    codeBox.Text = "-- Select a function to view its code"
+    codeBox.Parent = codeEditor
+    
+    local applyCodeButton = Instance.new("TextButton")
+    applyCodeButton.Size = UDim2.new(0, 160, 0, 30)
+    applyCodeButton.Position = UDim2.new(0.5, -80, 1, -60)
+    applyCodeButton.BackgroundColor3 = Color3.fromRGB(60, 120, 60)
+    applyCodeButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+    applyCodeButton.Font = Enum.Font.SourceSansBold
+    applyCodeButton.TextSize = 14
+    applyCodeButton.Text = "Apply Code as Hook"
+    applyCodeButton.Parent = codeTab
+    
+    -- Status Bar
+    local StatusBar = Instance.new("Frame")
+    StatusBar.Size = UDim2.new(1, 0, 0, 30)
+    StatusBar.Position = UDim2.new(0, 0, 1, -30)
+    StatusBar.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    StatusBar.BorderSizePixel = 0
+    StatusBar.Parent = MainFrame
+    
+    local StatusText = Instance.new("TextLabel")
+    StatusText.Size = UDim2.new(1, -10, 1, 0)
+    StatusText.Position = UDim2.new(0, 10, 0, 0)
+    StatusText.BackgroundTransparency = 1
+    StatusText.TextColor3 = Color3.fromRGB(180, 180, 180)
+    StatusText.TextXAlignment = Enum.TextXAlignment.Left
+    StatusText.Font = Enum.Font.SourceSans
+    StatusText.TextSize = 14
+    StatusText.Text = "Ready - Enter search term and click Search"
+    StatusText.Parent = StatusBar
+    
+    -- Function tracking variables
+    local selectedFunction = nil
+    local selectedFunctionInfo = nil
+    local hookedFunctions = {}
+    
+    -- Helper function to update status
+    local function updateStatus(text)
+        if StatusText then
+            StatusText.Text = text
+        end
+    end
+    
+    -- Clear tab content
+    local function clearTabContent(tab)
+        for _, child in pairs(tab:GetChildren()) do
+            if not (child:IsA("UIListLayout") or child:IsA("UIPadding")) and 
+               not (tab == codeTab and (child == codeEditor or child == applyCodeButton)) then
+                child:Destroy()
+            end
+        end
+    end
+    
+    -- Create a result item
+    local function createResultItem(func, info, index)
+        local item = Instance.new("Frame")
+        item.Size = UDim2.new(1, -4, 0, 40)
+        item.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+        item.BorderSizePixel = 0
+        item.LayoutOrder = index
+        item.Parent = ResultsList
+        
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, -30, 0, 20)
+        nameLabel.Position = UDim2.new(0, 10, 0, 4)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.Font = Enum.Font.SourceSansSemibold
+        nameLabel.TextSize = 14
+        nameLabel.Text = info.name or "anonymous"
+        nameLabel.Parent = item
+        
+        local sourceLabel = Instance.new("TextLabel")
+        sourceLabel.Size = UDim2.new(1, -30, 0, 16)
+        sourceLabel.Position = UDim2.new(0, 10, 0, 22)
+        sourceLabel.BackgroundTransparency = 1
+        sourceLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+        sourceLabel.TextXAlignment = Enum.TextXAlignment.Left
+        sourceLabel.Font = Enum.Font.SourceSans
+        sourceLabel.TextSize = 12
+        
+        -- Truncate long source paths
+        local srcText = info.short_src
+        if #srcText > 25 then
+            srcText = "..." .. string.sub(srcText, -22)
+        end
+        sourceLabel.Text = srcText
+        sourceLabel.Parent = item
+        
+        -- Hook indicator
+        local hookIndicator = Instance.new("Frame")
+        hookIndicator.Size = UDim2.new(0, 4, 1, -8)
+        hookIndicator.Position = UDim2.new(1, -10, 0, 4)
+        hookIndicator.BackgroundColor3 = hookedFunctions[func] and Color3.fromRGB(60, 200, 60) or Color3.fromRGB(80, 80, 85)
+        hookIndicator.BorderSizePixel = 0
+        hookIndicator.Name = "HookIndicator"
+        hookIndicator.Parent = item
+        
+        -- Make clickable
+        item.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                -- Highlight selected
+                for _, child in pairs(ResultsList:GetChildren()) do
+                    if child:IsA("Frame") then
+                        child.BackgroundColor3 = child == item and Color3.fromRGB(60, 120, 200) or Color3.fromRGB(45, 45, 50)
+                        child.BackgroundTransparency = child == item and 0.7 or 0
+                    end
+                end
+                
+                -- Store and display selected function
+                selectedFunction = func
+                selectedFunctionInfo = info
+                displayFunctionDetails(func, info)
+            end
+        end)
+        
+        return item
+    end
+    
+    -- Try to decompile a function safely
+    local function safeDecompile(func)
+        if not canDecompile then
+            return "-- Decompilation not available in this exploit\n-- Function: " .. (selectedFunctionInfo.name or "anonymous")
+        end
+        
+        local success, result = pcall(function()
+            if decompile then
+                return decompile(func)
+            elseif syn and syn.decompile then
+                return syn.decompile(func)
+            end
+        end)
+        
+        if success and result then
+            return result
+        else
+            return "-- Failed to decompile function\n-- Error: " .. tostring(result or "Unknown error")
+        end
+    end
+    
+    -- Display function code
+    local function displayFunctionCode(func, info)
+        -- Update the code box
+        codeBox.Text = "-- Loading function code..."
+        
+        -- Decompile in a separate thread to prevent freezing
+        spawn(function()
+            local source = safeDecompile(func)
+            
+            -- Limit length if too long
+            if #source > 50000 then
+                source = string.sub(source, 1, 50000) .. "\n\n-- Code truncated (too long to display fully)"
+            end
+            
+            codeBox.Text = source
+        end)
+        
+        -- Set up the apply button
+        applyCodeButton.MouseButton1Click:Connect(function()
+            local customCode = codeBox.Text
+            
+            -- Only proceed if hookfunction is available
+            if canHookFunction then
+                local success, result = pcall(function()
+                    -- Try to create the replacement function
+                    local newFunc = loadstring("return function(...)\n" .. customCode .. "\nend")()
+                    
+                    -- Apply the hook
+                    local original = hookfunction(func, newFunc)
+                    hookedFunctions[func] = original
+                    
+                    -- Update indicators
+                    for _, child in pairs(ResultsList:GetChildren()) do
+                        if child:IsA("Frame") then
+                            local indicator = child:FindFirstChild("HookIndicator")
+                            if indicator then
+                                indicator.BackgroundColor3 = child.BackgroundTransparency < 0.5 and 
+                                                            Color3.fromRGB(60, 200, 60) or
+                                                            Color3.fromRGB(80, 80, 85)
+                            end
+                        end
+                    end
+                    
+                    return "Successfully applied custom code hook"
+                end)
+                
+                if success then
+                    updateStatus(result)
+                else
+                    updateStatus("Error hooking function: " .. tostring(result))
+                end
+            else
+                updateStatus("hookfunction not available in this exploit")
+            end
+        end)
+    end
+    
+    -- Display upvalues
+    local function displayUpvalues(func)
+        local upvaluesTab = tabContents["upvaluesTab"]
+        clearTabContent(upvaluesTab)
+        
+        -- Header
+        local header = Instance.new("TextLabel")
+        header.Size = UDim2.new(1, -20, 0, 30)
+        header.Position = UDim2.new(0, 10, 0, 10)
+        header.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        header.TextColor3 = Color3.fromRGB(230, 230, 230)
+        header.Font = Enum.Font.SourceSansBold
+        header.TextSize = 14
+        header.Text = "Function Upvalues (Click to Edit)"
+        header.Parent = upvaluesTab
+        
+        -- Try getting upvalues with delay to prevent timeout
+        local upvaluesList = {}
+        local yPos = 50
+        
+        spawn(function()
+            pcall(function()
+                for i = 1, UPVALUE_FETCH_LIMIT do
+                    local name, value = debug.getupvalue(func, i)
+                    if not name then break end
+                    
+                    -- Create upvalue item
+                    local upvalueFrame = Instance.new("Frame")
+                    upvalueFrame.Size = UDim2.new(1, -20, 0, 30)
+                    upvalueFrame.Position = UDim2.new(0, 10, 0, yPos)
+                    upvalueFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+                    upvalueFrame.BorderColor3 = Color3.fromRGB(50, 50, 55)
+                    upvalueFrame.BorderSizePixel = 1
+                    upvalueFrame.Parent = upvaluesTab
+                    
+                    local nameLabel = Instance.new("TextLabel")
+                    nameLabel.Size = UDim2.new(0.3, -10, 1, 0)
+                    nameLabel.Position = UDim2.new(0, 5, 0, 0)
+                    nameLabel.BackgroundTransparency = 1
+                    nameLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+                    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    nameLabel.Font = Enum.Font.SourceSansSemibold
+                    nameLabel.TextSize = 14
+                    nameLabel.Text = name
+                    nameLabel.Parent = upvalueFrame
+                    
+                    local typeLabel = Instance.new("TextLabel")
+                    typeLabel.Size = UDim2.new(0.2, 0, 1, 0)
+                    typeLabel.Position = UDim2.new(0.3, 0, 0, 0)
+                    typeLabel.BackgroundTransparency = 1
+                    typeLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+                    typeLabel.Font = Enum.Font.SourceSans
+                    typeLabel.TextSize = 14
+                    typeLabel.Text = "(" .. type(value) .. ")"
+                    typeLabel.Parent = upvalueFrame
+                    
+                    -- For editable types, add an edit box
+                    if type(value) == "number" or type(value) == "string" or type(value) == "boolean" then
+                        local valueBox = Instance.new("TextBox")
+                        valueBox.Size = UDim2.new(0.5, -10, 1, -6)
+                        valueBox.Position = UDim2.new(0.5, 0, 0, 3)
+                        valueBox.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+                        valueBox.TextColor3 = Color3.fromRGB(230, 230, 230)
+                        valueBox.Font = Enum.Font.SourceSans
+                        valueBox.TextSize = 14
+                        valueBox.ClearTextOnFocus = false
+                        valueBox.Text = tostring(value)
+                        valueBox.Parent = upvalueFrame
+                        
+                        -- Add editing capability
+                        valueBox.FocusLost:Connect(function(enterPressed)
+                            if enterPressed then
+                                local newValue
+                                if type(value) == "number" then
+                                    newValue = tonumber(valueBox.Text)
+                                elseif type(value) == "boolean" then
+                                    newValue = valueBox.Text:lower() == "true"
+                                else
+                                    newValue = valueBox.Text
+                                end
+                                
+                                if newValue ~= nil then
+                                    -- Use pcall to avoid errors
+                                    local success = pcall(function()
+                                        debug.setupvalue(func, i, newValue)
+                                    end)
+                                    
+                                    if success then
+                                        updateStatus("Modified upvalue '" .. name .. "' to " .. tostring(newValue))
+                                        valueBox.TextColor3 = Color3.fromRGB(100, 230, 100)
+                                        
+                                        -- Flash green briefly
+                                        spawn(function()
+                                            wait(0.5)
+                                            valueBox.TextColor3 = Color3.fromRGB(230, 230, 230)
+                                        end)
+                                    else
+                                        updateStatus("Failed to modify upvalue")
+                                        valueBox.Text = tostring(value) -- Reset
+                                    end
+                                else
+                                    updateStatus("Invalid value for type " .. type(value))
+                                    valueBox.Text = tostring(value) -- Reset
+                                end
+                            end
+                        end)
+                    else
+                        local valueLabel = Instance.new("TextLabel")
+                        valueLabel.Size = UDim2.new(0.5, -10, 1, 0)
+                        valueLabel.Position = UDim2.new(0.5, 0, 0, 0)
+                        valueLabel.BackgroundTransparency = 1
+                        valueLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+                        valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+                        valueLabel.Font = Enum.Font.SourceSans
+                        valueLabel.TextSize = 14
+                        
+                        -- Format display for different types
+                        if type(value) == "table" then
+                            local count = 0
+                            pcall(function()
+                                for _ in pairs(value) do count = count + 1 end
+                            end)
+                            valueLabel.Text = "{" .. count .. " items}"
+                        else
+                            valueLabel.Text = tostring(value)
+                        end
+                        
+                        valueLabel.Parent = upvalueFrame
+                    end
+                    
+                    yPos = yPos + 35
+                    
+                    -- Small delay to prevent timeout
+                    if i % 5 == 0 then wait(0.01) end
+                end
+            end)
+            
+            -- Update canvas size
+            upvaluesTab.CanvasSize = UDim2.new(0, 0, 0, yPos + 20)
+            
+            -- Show message if no upvalues
+            if yPos == 50 then
+                local noUpvaluesLabel = Instance.new("TextLabel")
+                noUpvaluesLabel.Size = UDim2.new(1, -20, 0, 30)
+                noUpvaluesLabel.Position = UDim2.new(0, 10, 0, 50)
+                noUpvaluesLabel.BackgroundTransparency = 1
+                noUpvaluesLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+                noUpvaluesLabel.Font = Enum.Font.SourceSans
+                noUpvaluesLabel.TextSize = 14
+                noUpvaluesLabel.Text = "No upvalues found for this function"
+                noUpvaluesLabel.Parent = upvaluesTab
+            end
+        end)
+    end
+    
+    -- Display hook interface
+    local function displayHookInterface(func, info)
+        local hookTab = tabContents["hookTab"]
+        clearTabContent(hookTab)
+        
+        local yPos = 10
+        
+        -- Section: Quick hooks
+        local quickHookSection = Instance.new("Frame")
+        quickHookSection.Size = UDim2.new(1, -20, 0, 120)
+        quickHookSection.Position = UDim2.new(0, 10, 0, yPos)
+        quickHookSection.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        quickHookSection.BorderColor3 = Color3.fromRGB(60, 60, 65)
+        quickHookSection.BorderSizePixel = 1
+        quickHookSection.Parent = hookTab
+        
+        local quickHookTitle = Instance.new("TextLabel")
+        quickHookTitle.Size = UDim2.new(1, 0, 0, 25)
+        quickHookTitle.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+        quickHookTitle.TextColor3 = Color3.fromRGB(230, 230, 230)
+        quickHookTitle.Font = Enum.Font.SourceSansBold
+        quickHookTitle.TextSize = 14
+        quickHookTitle.Text = "Quick Hook Actions"
+        quickHookTitle.Parent = quickHookSection
+        
+        -- Add common hook buttons
+        local hookButtons = {
+            {name = "Return 0", value = 0, color = Color3.fromRGB(200, 80, 80)},
+            {name = "Return nil", value = nil, color = Color3.fromRGB(80, 80, 200)},
+            {name = "Return true", value = true, color = Color3.fromRGB(80, 200, 80)},
+            {name = "Return 999", value = 999, color = Color3.fromRGB(200, 150, 50)}
+        }
+        
+        for i, button in ipairs(hookButtons) do
+            local col = (i-1) % 2
+            local row = math.floor((i-1) / 2)
+            
+            local hookButton = Instance.new("TextButton")
+            hookButton.Size = UDim2.new(0.5, -15, 0, 30)
+            hookButton.Position = UDim2.new(col * 0.5 + 0.025, 0, 0, 35 + row * 40)
+            hookButton.BackgroundColor3 = button.color
+            hookButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+            hookButton.Font = Enum.Font.SourceSansSemibold
+            hookButton.TextSize = 14
+            hookButton.Text = button.name
+            hookButton.Parent = quickHookSection
+            
+            hookButton.MouseButton1Click:Connect(function()
+                -- Only proceed if hookfunction is available
+                if canHookFunction then
+                    local success, message = pcall(function()
+                        -- Create hook function that returns the specified value
+                        local hookFunc = function(...)
+                            return button.value
+                        end
+                        
+                        -- Remove existing hook if present
+                        if hookedFunctions[func] then
+                            pcall(function()
+                                hookfunction(func, hookedFunctions[func])
+                            end)
+                        end
+                        
+                        -- Apply the hook
+                        local original = hookfunction(func, hookFunc)
+                        hookedFunctions[func] = original
+                        
+                        -- Update indicators
+                        for _, child in pairs(ResultsList:GetChildren()) do
+                            if child:IsA("Frame") and child.BackgroundTransparency < 0.5 then
+                                local indicator = child:FindFirstChild("HookIndicator")
+                                if indicator then
+                                    indicator.BackgroundColor3 = Color3.fromRGB(60, 200, 60)
+                                end
+                            end
+                        end
+                        
+                        return "Successfully hooked function to return " .. tostring(button.value)
+                    end)
+                    
+                    if success then
+                        updateStatus(message)
+                    else
+                        updateStatus("Error hooking function: " .. tostring(message))
+                    end
+                else
+                    updateStatus("hookfunction not available in this exploit")
+                end
+            end)
+        end
+        
+        yPos = yPos + 130
+        
+        -- Section: Custom hook value
+        local customHookSection = Instance.new("Frame")
+        customHookSection.Size = UDim2.new(1, -20, 0, 110)
+        customHookSection.Position = UDim2.new(0, 10, 0, yPos)
+        customHookSection.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        customHookSection.BorderColor3 = Color3.fromRGB(60, 60, 65)
+        customHookSection.BorderSizePixel = 1
+        customHookSection.Parent = hookTab
+        
+        local customHookTitle = Instance.new("TextLabel")
+        customHookTitle.Size = UDim2.new(1, 0, 0, 25)
+        customHookTitle.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+        customHookTitle.TextColor3 = Color3.fromRGB(230, 230, 230)
+        customHookTitle.Font = Enum.Font.SourceSansBold
+        customHookTitle.TextSize = 14
+        customHookTitle.Text = "Custom Return Value"
+        customHookTitle.Parent = customHookSection
+        
+        local valueLabel = Instance.new("TextLabel")
+        valueLabel.Size = UDim2.new(1, -20, 0, 25)
+        valueLabel.Position = UDim2.new(0, 10, 0, 35)
+        valueLabel.BackgroundTransparency = 1
+        valueLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+        valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+        valueLabel.Font = Enum.Font.SourceSans
+        valueLabel.TextSize = 14
+        valueLabel.Text = "Enter return value:"
+        valueLabel.Parent = customHookSection
+        
+        local valueInput = Instance.new("TextBox")
+        valueInput.Size = UDim2.new(1, -20, 0, 30)
+        valueInput.Position = UDim2.new(0, 10, 0, 65)
+        valueInput.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        valueInput.TextColor3 = Color3.fromRGB(230, 230, 230)
+        valueInput.Font = Enum.Font.SourceSans
+        valueInput.TextSize = 14
+        valueInput.ClearTextOnFocus = false
+        valueInput.Text = ""
+        valueInput.PlaceholderText = "Enter value (number, string, boolean, nil)"
+        valueInput.Parent = customHookSection
+        
+        yPos = yPos + 120
+        
+        -- Apply custom value button
+        local applyCustomButton = Instance.new("TextButton")
+        applyCustomButton.Size = UDim2.new(0.5, 0, 0, 30)
+        applyCustomButton.Position = UDim2.new(0.25, 0, 0, yPos)
+        applyCustomButton.BackgroundColor3 = Color3.fromRGB(60, 120, 180)
+        applyCustomButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+        applyCustomButton.Font = Enum.Font.SourceSansBold
+        applyCustomButton.TextSize = 14
+        applyCustomButton.Text = "Apply Custom Hook"
+        applyCustomButton.Parent = hookTab
+        
+        applyCustomButton.MouseButton1Click:Connect(function()
+            -- Only proceed if hookfunction is available
+            if canHookFunction then
+                local valueText = valueInput.Text
+                local value
+                
+                -- Convert the input to appropriate type
+                if valueText:lower() == "nil" then
+                    value = nil
+                elseif valueText:lower() == "true" then
+                    value = true
+                elseif valueText:lower() == "false" then
+                    value = false
+                else
+                    value = tonumber(valueText) or valueText
+                end
+                
+                local success, message = pcall(function()
+                    -- Create hook function that returns the specified value
+                    local hookFunc = function(...)
+                        return value
+                    end
+                    
+                    -- Remove existing hook if present
+                    if hookedFunctions[func] then
+                        pcall(function()
+                            hookfunction(func, hookedFunctions[func])
+                        end)
+                    end
+                    
+                    -- Apply the hook
+                    local original = hookfunction(func, hookFunc)
+                    hookedFunctions[func] = original
+                    
+                    -- Update indicators
+                    for _, child in pairs(ResultsList:GetChildren()) do
+                        if child:IsA("Frame") and child.BackgroundTransparency < 0.5 then
+                            local indicator = child:FindFirstChild("HookIndicator")
+                            if indicator then
+                                indicator.BackgroundColor3 = Color3.fromRGB(60, 200, 60)
+                            end
+                        end
+                    end
+                    
+                    return "Successfully hooked function to return " .. tostring(value)
+                end)
+                
+                if success then
+                    updateStatus(message)
+                else
+                    updateStatus("Error hooking function: " .. tostring(message))
+                end
+            else
+                updateStatus("hookfunction not available in this exploit")
+            end
+        end)
+        
+        yPos = yPos + 40
+        
+        -- Unhook button
+        if hookedFunctions[func] then
+            local unhookButton = Instance.new("TextButton")
+            unhookButton.Size = UDim2.new(0.5, 0, 0, 30)
+            unhookButton.Position = UDim2.new(0.25, 0, 0, yPos)
+            unhookButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+            unhookButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+            unhookButton.Font = Enum.Font.SourceSansBold
+            unhookButton.TextSize = 14
+            unhookButton.Text = "Remove Hook"
+            unhookButton.Parent = hookTab
+            
+            unhookButton.MouseButton1Click:Connect(function()
+                local success, message = pcall(function()
+                    hookfunction(func, hookedFunctions[func])
+                    hookedFunctions[func] = nil
+                    
+                    -- Update indicators
+                    for _, child in pairs(ResultsList:GetChildren()) do
+                        if child:IsA("Frame") and child.BackgroundTransparency < 0.5 then
+                            local indicator = child:FindFirstChild("HookIndicator")
+                            if indicator then
+                                indicator.BackgroundColor3 = Color3.fromRGB(80, 80, 85)
+                            end
+                        end
+                    end
+                    
+                    return "Successfully removed hook"
+                end)
+                
+                if success then
+                    updateStatus(message)
+                    unhookButton:Destroy()
+                else
+                    updateStatus("Error removing hook: " .. tostring(message))
+                end
+            end)
+            
+            yPos = yPos + 40
+        end
+        
+        -- Update canvas size
+        hookTab.CanvasSize = UDim2.new(0, 0, 0, yPos + 20)
+    end
+    
+    -- Display function info
+    local function displayFunctionInfo(func, info)
+        local infoTab = tabContents["infoTab"]
+        clearTabContent(infoTab)
+        
+        local yPos = 10
+        
+        -- Create info section
+        local infoSection = Instance.new("Frame")
+        infoSection.Size = UDim2.new(1, -20, 0, 200)
+        infoSection.Position = UDim2.new(0, 10, 0, yPos)
+        infoSection.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        infoSection.BorderColor3 = Color3.fromRGB(60, 60, 65)
+        infoSection.BorderSizePixel = 1
+        infoSection.Parent = infoTab
+        
+        local infoTitle = Instance.new("TextLabel")
+        infoTitle.Size = UDim2.new(1, 0, 0, 25)
+        infoTitle.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+        infoTitle.TextColor3 = Color3.fromRGB(230, 230, 230)
+        infoTitle.Font = Enum.Font.SourceSansBold
+        infoTitle.TextSize = 14
+        infoTitle.Text = "Function Information"
+        infoTitle.Parent = infoSection
+        
+        -- Add properties in a nicely formatted way
+        local function addInfoRow(name, value, rowPos)
+            local rowFrame = Instance.new("Frame")
+            rowFrame.Size = UDim2.new(1, 0, 0, 25)
+            rowFrame.Position = UDim2.new(0, 0, 0, 25 + rowPos * 25)
+            rowFrame.BackgroundTransparency = rowPos % 2 == 0 and 0.9 or 0.95
+            rowFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+            rowFrame.BorderSizePixel = 0
+            rowFrame.Parent = infoSection
+            
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(0.4, -10, 1, 0)
+            nameLabel.Position = UDim2.new(0, 10, 0, 0)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+            nameLabel.Font = Enum.Font.SourceSansBold
+            nameLabel.TextSize = 14
+            nameLabel.Text = name
+            nameLabel.Parent = rowFrame
+            
+            local valueLabel = Instance.new("TextLabel")
+            valueLabel.Size = UDim2.new(0.6, -10, 1, 0)
+            valueLabel.Position = UDim2.new(0.4, 0, 0, 0)
+            valueLabel.BackgroundTransparency = 1
+            valueLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+            valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+            valueLabel.Font = Enum.Font.SourceSans
+            valueLabel.TextSize = 14
+            valueLabel.Text = value
+            valueLabel.Parent = rowFrame
+        end
+        
+        -- Add basic function info
+        addInfoRow("Name", info.name or "anonymous", 0)
+        addInfoRow("Source", info.short_src, 1)
+        addInfoRow("Line defined", tostring(info.linedefined), 2)
+        addInfoRow("Line end", tostring(info.lastlinedefined), 3)
+        addInfoRow("Parameters", tostring(info.nparams), 4)
+        addInfoRow("Is vararg", tostring(info.isvararg), 5)
+        addInfoRow("What", info.what or "", 6)
+        
+        -- Try to add more information if available
+        local moreRows = 7
+        
+        -- Check if function is currently hooked
+        addInfoRow("Hooked", hookedFunctions[func] and "Yes" or "No", moreRows)
+        moreRows = moreRows + 1
+        
+        -- Update the section size
+        infoSection.Size = UDim2.new(1, -20, 0, 25 + moreRows * 25 + 5)
+        
+        yPos = yPos + 25 + moreRows * 25 + 15
+        
+        -- Add call button
+        local callButton = Instance.new("TextButton")
+        callButton.Size = UDim2.new(0.5, 0, 0, 30)
+        callButton.Position = UDim2.new(0.25, 0, 0, yPos)
+        callButton.BackgroundColor3 = Color3.fromRGB(60, 120, 60)
+        callButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+        callButton.Font = Enum.Font.SourceSansBold
+        callButton.TextSize = 14
+        callButton.Text = "Call Function (No Arguments)"
+        callButton.Parent = infoTab
+        
+        callButton.MouseButton1Click:Connect(function()
+            local success, result = pcall(function()
+                return func()
+            end)
+            
+            if success then
+                updateStatus("Function called successfully, returned: " .. tostring(result))
+            else
+                updateStatus("Error calling function: " .. tostring(result))
+            end
+        end)
+        
+        yPos = yPos + 40
+        
+        infoTab.CanvasSize = UDim2.new(0, 0, 0, yPos + 20)
+    end
+    
+    -- Display all function details
+    local function displayFunctionDetails(func, info)
+        -- Update all tabs
+        displayFunctionCode(func, info)
+        displayUpvalues(func)
+        displayHookInterface(func, info)
+        displayFunctionInfo(func, info)
+        
+        updateStatus("Selected function: " .. (info.name or "anonymous"))
+    end
+    
+    -- Search for functions containing the search text
+    local function searchFunctions()
+        -- Cancel ongoing search if any
+        if isSearching then
+            shouldCancelSearch = true
+            wait(0.1) -- Give time for current search to cancel
+        end
+        
+        isSearching = true
+        shouldCancelSearch = false
+        
+        -- Clear results
+        for _, child in pairs(ResultsList:GetChildren()) do
+            if not child:IsA("UIListLayout") then
+                child:Destroy()
+            end
+        end
+        
+        local searchText = string.lower(SearchBox.Text)
+        
+        if searchText == "" then
+            updateStatus("Please enter a search term")
+            isSearching = false
+            return
+        end
+        
+        updateStatus("Searching for '" .. searchText .. "'...")
+        
+        -- Collect garbage collected objects
+        local gcObjects = {}
+        pcall(function()
+            gcObjects = getgc()
+        end)
+        
+        local functions = {}
+        local count = 0
+        local processedCount = 0
+        local totalObjects = #gcObjects
+        
+        -- Process objects in chunks
+        spawn(function()
+            -- Pre-filter to get only functions
+            local funcObjects = {}
+            for i, v in ipairs(gcObjects) do
+                if type(v) == "function" then
+                    table.insert(funcObjects, v)
+                end
+                
+                -- Update status occasionally
+                if i % 1000 == 0 then
+                    updateStatus("Pre-filtering functions... " .. math.floor(i/totalObjects*100) .. "%")
+                    wait(0.01)
+                    
+                    -- Check for cancellation
+                    if shouldCancelSearch then
+                        updateStatus("Search cancelled")
+                        isSearching = false
+                        return
+                    end
+                end
+            end
+            
+            updateStatus("Searching " .. #funcObjects .. " functions for '" .. searchText .. "'...")
+            
+            -- Process functions in chunks
+            for chunkStart = 1, #funcObjects, SEARCH_CHUNK_SIZE do
+                local chunkEnd = math.min(chunkStart + SEARCH_CHUNK_SIZE - 1, #funcObjects)
+                
+                for i = chunkStart, chunkEnd do
+                    local func = funcObjects[i]
+                    processedCount = processedCount + 1
+                    
+                    -- Safe info gathering
+                    local success, info = pcall(function()
+                        return debug.getinfo(func)
+                    end)
+                    
+                    if success and info then
+                        local matchFound = false
+                        
+                        -- Check function name
+                        if info.name and string.lower(info.name):find(searchText, 1, true) then
+                            matchFound = true
+                        end
+                        
+                        -- Only check upvalues if no match found in name
+                        if not matchFound then
+                            -- Check upvalues with error handling
+                            pcall(function()
+                                for j = 1, UPVALUE_FETCH_LIMIT do
+                                    local name, value = debug.getupvalue(func, j)
+                                    if not name then break end
+                                    
+                                    -- Check upvalue name
+                                    if string.lower(name):find(searchText, 1, true) then
+                                        matchFound = true
+                                        break
+                                    end
+                                    
+                                    -- Check upvalue string value
+                                    if type(value) == "string" and string.lower(value):find(searchText, 1, true) then
+                                        matchFound = true
+                                        break
+                                    end
+                                end
+                            end)
+                        end
+                        
+                        if matchFound then
+                            table.insert(functions, {
+                                func = func,
+                                info = info
+                            })
+                            
+                            count = count + 1
+                            
+                            if count % 10 == 0 then
+                                updateStatus("Found " .. count .. " matches so far... (" .. 
+                                    math.floor(processedCount/#funcObjects*100) .. "% scanned)")
+                            end
+                            
+                            if count >= MAX_RESULTS then
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                -- Update status between chunks
+                updateStatus("Processed " .. processedCount .. "/" .. #funcObjects .. 
+                    " functions, found " .. count .. " matches...")
+                
+                -- Wait between chunks to prevent timeout
+                wait(SEARCH_DELAY)
+                
+                -- Check if we should cancel the search
+                if shouldCancelSearch then
+                    updateStatus("Search cancelled")
+                    isSearching = false
+                    return
+                end
+                
+                -- Stop if we hit the max results
+                if count >= MAX_RESULTS then
+                    break
+                end
+            end
+            
+            -- Sort functions by name
+            table.sort(functions, function(a, b)
+                local nameA = a.info.name or ""
+                local nameB = b.info.name or ""
+                return nameA < nameB
+            end)
+            
+            -- Create result items with delays to prevent freezing
+            for i, data in ipairs(functions) do
+                -- Create in chunks of 10
+                createResultItem(data.func, data.info, i)
+                
+                if i % 10 == 0 then
+                    wait(0.01)
+                    
+                    -- Check if we should cancel
+                    if shouldCancelSearch then
+                        updateStatus("Search cancelled while creating results")
+                        isSearching = false
+                        return
+                    end
+                end
+            end
+            
+            -- Update results canvas size
+            ResultsList.CanvasSize = UDim2.new(0, 0, 0, #functions * 42)
+            
+            -- Final status update
+            if #functions == 0 then
+                updateStatus("No functions found containing '" .. searchText .. "'")
+            else
+                updateStatus("Found " .. #functions .. " functions containing '" .. searchText .. "'")
+            end
+            
+            isSearching = false
+        end)
+    end
+    
+    -- Connect search button
+    SearchButton.MouseButton1Click:Connect(function()
+        searchFunctions()
+    end)
+    
+    -- Allow search with Enter key
+    SearchBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            searchFunctions()
+        end
+    end)
+    
+    -- Add a help button
+    local HelpButton = Instance.new("TextButton")
+    HelpButton.Size = UDim2.new(0, 25, 0, 25)
+    HelpButton.Position = UDim2.new(0, 5, 0, 3)
+    HelpButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    HelpButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+    HelpButton.Font = Enum.Font.SourceSansBold
+    HelpButton.TextSize = 14
+    HelpButton.Text = "?"
+    HelpButton.Parent = TitleBar
+    
+    HelpButton.MouseButton1Click:Connect(function()
+        -- Show a list of common search terms
+        local commonTerms = {
+            "speed", "walkspeed", "runspeed", "damage", "health", "maxhealth",
+            "jump", "jumppower", "gravity", "fire", "shoot", "attack",
+            "reload", "ammo", "money", "cash", "coin", "score",
+            "kill", "death", "respawn", "teleport", "position"
+        }
+        
+        updateStatus("Common search terms: " .. table.concat(commonTerms, ", "))
+    end)
+    
+    -- Initial help message
+    updateStatus("Ready - Try searching for 'speed', 'damage', 'health', etc.")
+end)
+
+if not success then
+    warn("Function Explorer Error: " .. tostring(errorMsg))
+    
+    -- Try to display error
+    pcall(function()
+        -- Create a simple error message that won't crash
+        local Players = game:GetService("Players")
+        local player = Players.LocalPlayer
+        
+        if player and player:FindFirstChild("PlayerGui") then
+            local screenGui = Instance.new("ScreenGui")
+            screenGui.Name = "ErrorMessage"
+            screenGui.Parent = player.PlayerGui
+            
+            local frame = Instance.new("Frame")
+            frame.Size = UDim2.new(0, 300, 0, 100)
+            frame.Position = UDim2.new(0.5, -150, 0.5, -50)
+            frame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+            frame.BorderSizePixel = 0
+            frame.Parent = screenGui
+            
+            local text = Instance.new("TextLabel")
+            text.Size = UDim2.new(1, -20, 1, -20)
+            text.Position = UDim2.new(0, 10, 0, 10)
+            text.BackgroundTransparency = 1
+            text.TextColor3 = Color3.fromRGB(255, 100, 100)
+            text.Font = Enum.Font.SourceSans
+            text.TextSize = 16
+            text.TextWrapped = true
+            text.Text = "Function Explorer Error: " .. tostring(errorMsg)
+            text.Parent = frame
+        end
+    end)
+end
