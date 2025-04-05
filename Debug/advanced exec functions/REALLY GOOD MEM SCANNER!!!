@@ -1,6 +1,7 @@
--- GC Explorer GUI - CoreGui Version
+-- GC Explorer GUI - Real-time Version
 -- Created for maxz12 on 2025-04-05
 -- A cheat-engine like interface for Roblox garbage collection with CoreGui integration
+-- Added real-time updates and sorting functionality
 
 -- Services
 local UserInputService = game:GetService("UserInputService")
@@ -55,7 +56,7 @@ Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.SourceSansBold
-Title.Text = "GC Explorer v1.2 [Right Shift to Toggle]"
+Title.Text = "GC Explorer v1.3 [Right Shift to Toggle]"
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.ZIndex = 1000
 Title.Parent = TitleBar
@@ -209,9 +210,23 @@ ResultsHeader.BorderSizePixel = 0
 ResultsHeader.ZIndex = 1000
 ResultsHeader.Parent = ResultsSection
 
+-- Auto-Update Toggle
+local AutoUpdateToggle = Instance.new("TextButton")
+AutoUpdateToggle.Name = "AutoUpdateToggle"
+AutoUpdateToggle.Size = UDim2.new(0, 100, 0, 25)
+AutoUpdateToggle.Position = UDim2.new(0.5, -50, 0.5, -12.5)
+AutoUpdateToggle.BackgroundColor3 = Color3.fromRGB(70, 130, 70)
+AutoUpdateToggle.BorderSizePixel = 0
+AutoUpdateToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoUpdateToggle.TextSize = 13
+AutoUpdateToggle.Font = Enum.Font.SourceSansBold
+AutoUpdateToggle.Text = "Auto Update: ON"
+AutoUpdateToggle.ZIndex = 1000
+AutoUpdateToggle.Parent = ResultsHeader
+
 local ResultsLabel = Instance.new("TextLabel")
 ResultsLabel.Name = "ResultsLabel"
-ResultsLabel.Size = UDim2.new(0.6, 0, 1, 0)
+ResultsLabel.Size = UDim2.new(0.3, 0, 1, 0)
 ResultsLabel.Position = UDim2.new(0, 5, 0, 0)
 ResultsLabel.BackgroundTransparency = 1
 ResultsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -236,11 +251,90 @@ ChangeAllButton.Text = "Change All"
 ChangeAllButton.ZIndex = 1000
 ChangeAllButton.Parent = ResultsHeader
 
+-- Results column headers (for sorting)
+local ColumnHeadersFrame = Instance.new("Frame")
+ColumnHeadersFrame.Name = "ColumnHeadersFrame"
+ColumnHeadersFrame.Size = UDim2.new(1, -10, 0, 25)
+ColumnHeadersFrame.Position = UDim2.new(0, 5, 0, 30)
+ColumnHeadersFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+ColumnHeadersFrame.BorderSizePixel = 0
+ColumnHeadersFrame.ZIndex = 1000
+ColumnHeadersFrame.Parent = ResultsSection
+
+-- Column Headers for sorting
+local IndexHeader = Instance.new("TextButton")
+IndexHeader.Name = "IndexHeader"
+IndexHeader.Size = UDim2.new(0, 30, 1, 0)
+IndexHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+IndexHeader.BorderSizePixel = 0
+IndexHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+IndexHeader.TextSize = 12
+IndexHeader.Font = Enum.Font.SourceSansBold
+IndexHeader.Text = "#"
+IndexHeader.ZIndex = 1000
+IndexHeader.Parent = ColumnHeadersFrame
+
+local KeyHeader = Instance.new("TextButton")
+KeyHeader.Name = "KeyHeader"
+KeyHeader.Size = UDim2.new(0.3, 0, 1, 0)
+KeyHeader.Position = UDim2.new(0, 30, 0, 0)
+KeyHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+KeyHeader.BorderSizePixel = 0
+KeyHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+KeyHeader.TextSize = 12
+KeyHeader.Font = Enum.Font.SourceSansBold
+KeyHeader.Text = "Key ↓"
+KeyHeader.TextXAlignment = Enum.TextXAlignment.Left
+KeyHeader.ZIndex = 1000
+KeyHeader.Parent = ColumnHeadersFrame
+
+local ValueHeader = Instance.new("TextButton")
+ValueHeader.Name = "ValueHeader"
+ValueHeader.Size = UDim2.new(0.4, 0, 1, 0)
+ValueHeader.Position = UDim2.new(0.3, 30, 0, 0)
+ValueHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+ValueHeader.BorderSizePixel = 0
+ValueHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+ValueHeader.TextSize = 12
+ValueHeader.Font = Enum.Font.SourceSansBold
+ValueHeader.Text = "Value"
+ValueHeader.TextXAlignment = Enum.TextXAlignment.Left
+ValueHeader.ZIndex = 1000
+ValueHeader.Parent = ColumnHeadersFrame
+
+local TypeHeader = Instance.new("TextButton")
+TypeHeader.Name = "TypeHeader"
+TypeHeader.Size = UDim2.new(0.15, 0, 1, 0)
+TypeHeader.Position = UDim2.new(0.7, 30, 0, 0)
+TypeHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+TypeHeader.BorderSizePixel = 0
+TypeHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+TypeHeader.TextSize = 12
+TypeHeader.Font = Enum.Font.SourceSansBold
+TypeHeader.Text = "Type"
+TypeHeader.TextXAlignment = Enum.TextXAlignment.Left
+TypeHeader.ZIndex = 1000
+TypeHeader.Parent = ColumnHeadersFrame
+
+local UpdatedHeader = Instance.new("TextButton")
+UpdatedHeader.Name = "UpdatedHeader"
+UpdatedHeader.Size = UDim2.new(0.15, -30, 1, 0)
+UpdatedHeader.Position = UDim2.new(0.85, 30, 0, 0)
+UpdatedHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+UpdatedHeader.BorderSizePixel = 0
+UpdatedHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+UpdatedHeader.TextSize = 12
+UpdatedHeader.Font = Enum.Font.SourceSansBold
+UpdatedHeader.Text = "Updated"
+UpdatedHeader.TextXAlignment = Enum.TextXAlignment.Left
+UpdatedHeader.ZIndex = 1000
+UpdatedHeader.Parent = ColumnHeadersFrame
+
 -- Create ScrollingFrame for results
 local ResultsList = Instance.new("ScrollingFrame")
 ResultsList.Name = "ResultsList"
-ResultsList.Size = UDim2.new(1, -10, 1, -35)
-ResultsList.Position = UDim2.new(0, 5, 0, 30)
+ResultsList.Size = UDim2.new(1, -10, 1, -60)
+ResultsList.Position = UDim2.new(0, 5, 0, 55)
 ResultsList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 ResultsList.BorderSizePixel = 0
 ResultsList.ScrollBarThickness = 6
@@ -309,6 +403,20 @@ TypeLabel.Text = "string"
 TypeLabel.TextXAlignment = Enum.TextXAlignment.Left
 TypeLabel.ZIndex = 1000
 TypeLabel.Parent = ResultTemplate
+
+-- NEW: Last updated indicator
+local UpdatedLabel = Instance.new("TextLabel")
+UpdatedLabel.Name = "UpdatedLabel"
+UpdatedLabel.Size = UDim2.new(0.15, -30, 1, 0)
+UpdatedLabel.Position = UDim2.new(0.85, 30, 0, 0)
+UpdatedLabel.BackgroundTransparency = 1
+UpdatedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+UpdatedLabel.TextSize = 11
+UpdatedLabel.Font = Enum.Font.SourceSans
+UpdatedLabel.Text = "Just now"
+UpdatedLabel.TextXAlignment = Enum.TextXAlignment.Left
+UpdatedLabel.ZIndex = 1000
+UpdatedLabel.Parent = ResultTemplate
 
 -- Change All UI (initially hidden)
 local ChangeAllUI = Instance.new("Frame")
@@ -483,7 +591,7 @@ MinimizedTitle.BackgroundTransparency = 1
 MinimizedTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 MinimizedTitle.TextSize = 14
 MinimizedTitle.Font = Enum.Font.SourceSansBold
-MinimizedTitle.Text = "GC Explorer v1.2"
+MinimizedTitle.Text = "GC Explorer v1.3"
 MinimizedTitle.TextXAlignment = Enum.TextXAlignment.Left
 MinimizedTitle.ZIndex = 1000
 MinimizedTitle.Parent = MinimizedFrame
@@ -506,6 +614,11 @@ local selectedSearchType = "Contains"
 local searchResults = {}
 local isMinimized = false
 local isVisible = true
+local isAutoUpdateEnabled = true
+local currentSortColumn = "Key"
+local currentSortDirection = "Descending" -- Start with Descending so first click will make it Ascending
+local updateConnection = nil
+local highlightDuration = 1.5 -- Duration for highlighting changed values
 
 -- Functions
 local function showStatus(message)
@@ -532,6 +645,26 @@ local function selectSearchType(searchTypeName)
     selectedSearchType = searchTypeName
     SearchTypeDropdown.Text = searchTypeName
     SearchTypeDropdownFrame.Visible = false
+end
+
+local function getTimeAgo(timestamp)
+    if not timestamp then
+        return "Never"
+    end
+    
+    local seconds = os.time() - timestamp
+    
+    if seconds < 5 then
+        return "Just now"
+    elseif seconds < 60 then
+        return seconds .. "s ago"
+    elseif seconds < 3600 then
+        return math.floor(seconds / 60) .. "m ago"
+    elseif seconds < 86400 then
+        return math.floor(seconds / 3600) .. "h ago"
+    else
+        return math.floor(seconds / 86400) .. "d ago"
+    end
 end
 
 local function clearResults()
@@ -586,6 +719,30 @@ local function convertValueToType(valueText, targetType)
     end
 end
 
+local function highlightValueChange(resultEntry)
+    if not resultEntry or not resultEntry:FindFirstChild("ValueTextBox") then return end
+    
+    local originalColor = resultEntry.ValueTextBox.BackgroundColor3
+    local originalTextColor = resultEntry.ValueTextBox.TextColor3
+    
+    -- Highlight
+    resultEntry.ValueTextBox.BackgroundColor3 = Color3.fromRGB(100, 180, 100)
+    resultEntry.ValueTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
+    -- Set the "Updated" label to "Just now"
+    if resultEntry:FindFirstChild("UpdatedLabel") then
+        resultEntry.UpdatedLabel.Text = "Just now"
+    end
+    
+    -- Reset after a delay
+    delay(highlightDuration, function()
+        if resultEntry and resultEntry:FindFirstChild("ValueTextBox") then
+            resultEntry.ValueTextBox.BackgroundColor3 = originalColor
+            resultEntry.ValueTextBox.TextColor3 = originalTextColor
+        end
+    end)
+end
+
 local function setValueFromTextBox(resultIndex, textBox)
     local result = searchResults[resultIndex]
     if not result then return false end
@@ -607,10 +764,18 @@ local function setValueFromTextBox(resultIndex, textBox)
     local success, err = pcall(function()
         result.table[result.key] = newValue
         result.value = newValue
+        result.lastUpdated = os.time()
     end)
     
     if success then
         showStatus("Value changed successfully: " .. result.key)
+        
+        -- Update the UI element
+        local resultEntry = ResultsList:FindFirstChild("Result" .. resultIndex)
+        if resultEntry then
+            highlightValueChange(resultEntry)
+        end
+        
         return true
     else
         showStatus("Error: " .. tostring(err))
@@ -630,6 +795,7 @@ local function applyChangeAll()
     local newValueText = NewValueInput.Text
     local successCount = 0
     local failCount = 0
+    local currentTime = os.time()
     
     for i, result in ipairs(searchResults) do
         local valueType = type(result.value)
@@ -639,11 +805,17 @@ local function applyChangeAll()
             local success, _ = pcall(function()
                 result.table[result.key] = newValue
                 result.value = newValue
+                result.lastUpdated = currentTime
                 
                 -- Update the text box in the UI
                 local resultEntry = ResultsList:FindFirstChild("Result" .. i)
                 if resultEntry and resultEntry:FindFirstChild("ValueTextBox") then
                     resultEntry.ValueTextBox.Text = valueToString(newValue)
+                    highlightValueChange(resultEntry)
+                    
+                    if resultEntry:FindFirstChild("UpdatedLabel") then
+                        resultEntry.UpdatedLabel.Text = "Just now"
+                    end
                 end
             end)
             
@@ -713,6 +885,172 @@ local function matchesSearchCriteria(key, value, searchValue, searchType)
     return false
 end
 
+-- Compare function for sorting
+local function compareValues(a, b)
+    if currentSortColumn == "Key" then
+        if type(a.key) == "string" and type(b.key) == "string" then
+            if currentSortDirection == "Ascending" then
+                return string.lower(a.key) < string.lower(b.key)
+            else
+                return string.lower(a.key) > string.lower(b.key)
+            end
+        else
+            return tostring(a.key) < tostring(b.key)
+        end
+    elseif currentSortColumn == "Value" then
+        local aType = type(a.value)
+        local bType = type(b.value)
+        
+        if aType == bType and (aType == "number" or aType == "boolean") then
+            if currentSortDirection == "Ascending" then
+                return a.value < b.value
+            else
+                return a.value > b.value
+            end
+        else
+            local aStr = valueToString(a.value)
+            local bStr = valueToString(b.value)
+            if currentSortDirection == "Ascending" then
+                return aStr < bStr
+            else
+                return aStr > bStr
+            end
+        end
+    elseif currentSortColumn == "Type" then
+        if currentSortDirection == "Ascending" then
+            return type(a.value) < type(b.value)
+        else
+            return type(a.value) > type(b.value)
+        end
+    elseif currentSortColumn == "Updated" then
+        local aTime = a.lastUpdated or 0
+        local bTime = b.lastUpdated or 0
+        if currentSortDirection == "Ascending" then
+            return aTime < bTime
+        else
+            return aTime > bTime
+        end
+    else -- Default to index
+        if currentSortDirection == "Ascending" then
+            return a.index < b.index
+        else
+            return a.index > b.index
+        end
+    end
+end
+
+-- Function to sort and reposition results
+local function sortResults()
+    -- Sort the results
+    table.sort(searchResults, compareValues)
+    
+    -- Update the UI to reflect the new order
+    for i, result in ipairs(searchResults) do
+        result.index = i
+        local resultEntry = ResultsList:FindFirstChild("Result" .. i)
+        if resultEntry then
+            resultEntry.IndexLabel.Text = tostring(i)
+            resultEntry.Position = UDim2.new(0, 5, 0, (i - 1) * 35)
+        end
+    end
+    
+    -- Update the sort indicators in the headers
+    local headers = {IndexHeader, KeyHeader, ValueHeader, TypeHeader, UpdatedHeader}
+    for _, header in ipairs(headers) do
+        if header.Name:sub(1, -7) == currentSortColumn then
+            header.Text = header.Name:sub(1, -7) .. (currentSortDirection == "Ascending" and " ↑" or " ↓")
+        else
+            header.Text = header.Name:sub(1, -7)
+        end
+    end
+end
+
+-- Function to toggle the sort direction or column
+local function toggleSort(column)
+    if currentSortColumn == column then
+        -- Toggle direction if same column
+        currentSortDirection = currentSortDirection == "Ascending" and "Descending" or "Ascending"
+    else
+        -- Change column and set default direction
+        currentSortColumn = column
+        currentSortDirection = "Ascending"
+    end
+    
+    sortResults()
+end
+
+-- Update all displayed values from their source tables
+local function updateDisplayedValues()
+    local changedCount = 0
+    local timeNow = os.time()
+    
+    for i, result in ipairs(searchResults) do
+        local currentValue = result.table[result.key]
+        
+        -- Check if the value has changed
+        if currentValue ~= result.value then
+            result.value = currentValue
+            result.lastUpdated = timeNow
+            changedCount = changedCount + 1
+            
+            -- Update the UI if it exists
+            local resultEntry = ResultsList:FindFirstChild("Result" .. i)
+            if resultEntry and resultEntry:FindFirstChild("ValueTextBox") then
+                resultEntry.ValueTextBox.Text = valueToString(currentValue)
+                highlightValueChange(resultEntry)
+            end
+        end
+        
+        -- Update time ago labels
+        local resultEntry = ResultsList:FindFirstChild("Result" .. i)
+        if resultEntry and resultEntry:FindFirstChild("UpdatedLabel") and result.lastUpdated then
+            resultEntry.UpdatedLabel.Text = getTimeAgo(result.lastUpdated)
+        end
+    end
+    
+    if changedCount > 0 then
+        showStatus(changedCount .. " values updated automatically")
+        
+        -- If sorting by "Updated" column, resort
+        if currentSortColumn == "Updated" then
+            sortResults()
+        end
+    end
+    
+    return changedCount
+end
+
+-- Toggle auto update feature
+local function toggleAutoUpdate()
+    isAutoUpdateEnabled = not isAutoUpdateEnabled
+    
+    if isAutoUpdateEnabled then
+        AutoUpdateToggle.Text = "Auto Update: ON"
+        AutoUpdateToggle.BackgroundColor3 = Color3.fromRGB(70, 130, 70)
+        
+        -- Setup the update connection if it doesn't exist
+        if not updateConnection then
+            updateConnection = RunService.Heartbeat:Connect(function()
+                -- Update at most once per second
+                if not lastUpdateTime or os.time() - lastUpdateTime >= 1 then
+                    updateDisplayedValues()
+                    lastUpdateTime = os.time()
+                end
+            end)
+        end
+    else
+        AutoUpdateToggle.Text = "Auto Update: OFF"
+        AutoUpdateToggle.BackgroundColor3 = Color3.fromRGB(130, 70, 70)
+        
+        -- Disconnect the update
+        if updateConnection then
+            updateConnection:Disconnect()
+            updateConnection = nil
+        end
+    end
+end
+
+-- Function to refresh all search results with the current search criteria
 local function searchGC()
     clearResults()
     showStatus("Searching...")
@@ -720,6 +1058,7 @@ local function searchGC()
     local searchValue = SearchInput.Text
     local count = 0
     local tableCount = 0
+    local currentTime = os.time()
     
     -- Get all GC objects
     local gcObjects = getgc(true)
@@ -745,7 +1084,8 @@ local function searchGC()
                             table = obj,
                             key = key,
                             value = value,
-                            valueType = valueType
+                            valueType = valueType,
+                            lastUpdated = currentTime
                         })
                         
                         -- Create result entry in UI
@@ -755,6 +1095,7 @@ local function searchGC()
                         newResult.KeyLabel.Text = tostring(key)
                         newResult.ValueTextBox.Text = valueToString(value)
                         newResult.TypeLabel.Text = valueType
+                        newResult.UpdatedLabel.Text = "Just now"
                         newResult.Visible = true
                         newResult.Position = UDim2.new(0, 5, 0, (count - 1) * 35)
                         newResult.Parent = ResultsList
@@ -785,11 +1126,29 @@ local function searchGC()
         end
     end
     
+    -- Apply the initial sort
+    sortResults()
+    
     updateResultsLabel()
     showStatus("Found " .. count .. " results in " .. tableCount .. " tables")
     
     -- Enable/disable Change All button based on results
     ChangeAllButton.Visible = (count > 0)
+    
+    -- Set up auto-update if enabled
+    if isAutoUpdateEnabled and count > 0 and not updateConnection then
+        lastUpdateTime = os.time()
+        updateConnection = RunService.Heartbeat:Connect(function()
+            -- Update at most once per second
+            if os.time() - lastUpdateTime >= 1 then
+                updateDisplayedValues()
+                lastUpdateTime = os.time()
+            end
+        end)
+    elseif count == 0 and updateConnection then
+        updateConnection:Disconnect()
+        updateConnection = nil
+    end
 end
 
 local function toggleMinimize()
@@ -830,6 +1189,10 @@ end)
 
 -- Set up button connections
 CloseButton.MouseButton1Click:Connect(function()
+    if updateConnection then
+        updateConnection:Disconnect()
+        updateConnection = nil
+    end
     GCExplorer:Destroy()
 end)
 
@@ -840,6 +1203,7 @@ TypeDropdown.MouseButton1Click:Connect(toggleTypeDropdown)
 SearchTypeDropdown.MouseButton1Click:Connect(toggleSearchTypeDropdown)
 SearchButton.MouseButton1Click:Connect(searchGC)
 ChangeAllButton.MouseButton1Click:Connect(showChangeAllUI)
+AutoUpdateToggle.MouseButton1Click:Connect(toggleAutoUpdate)
 
 -- Set up type options connections
 for _, button in pairs(TypeDropdownFrame:GetChildren()) do
@@ -872,6 +1236,13 @@ SearchInput.FocusLost:Connect(function(enterPressed)
     end
 end)
 
+-- Set up sorting headers
+IndexHeader.MouseButton1Click:Connect(function() toggleSort("Index") end)
+KeyHeader.MouseButton1Click:Connect(function() toggleSort("Key") end)
+ValueHeader.MouseButton1Click:Connect(function() toggleSort("Value") end)
+TypeHeader.MouseButton1Click:Connect(function() toggleSort("Type") end)
+UpdatedHeader.MouseButton1Click:Connect(function() toggleSort("Updated") end)
+
 -- Prevent clicks on dropdown menus from closing them
 for _, frame in pairs({TypeDropdownFrame, SearchTypeDropdownFrame}) do
     frame.InputBegan:Connect(function(input)
@@ -888,4 +1259,4 @@ MinimizedFrame.Draggable = true
 -- Initial status
 showStatus("Ready to search. Press Right Shift to toggle visibility.")
 
-print("GC Explorer v1.2 loaded successfully - Press Right Shift to toggle visibility")
+print("GC Explorer v1.3 loaded successfully - Press Right Shift to toggle visibility")
