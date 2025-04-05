@@ -1,16 +1,30 @@
--- GC Explorer GUI - Enhanced Version
+-- GC Explorer GUI - CoreGui Version
 -- Created for maxz12 on 2025-04-05
--- A cheat-engine like interface for Roblox garbage collection
+-- A cheat-engine like interface for Roblox garbage collection with CoreGui integration
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local PlayerGui = player:WaitForChild("PlayerGui")
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
 
--- Create the main GUI
+-- Create the main GUI in CoreGui
 local GCExplorer = Instance.new("ScreenGui")
 GCExplorer.Name = "GCExplorer"
 GCExplorer.ResetOnSpawn = false
-GCExplorer.Parent = PlayerGui
+GCExplorer.DisplayOrder = 999 -- Make it appear above most GUI elements
+GCExplorer.IgnoreGuiInset = true -- Make it ignore the top inset
+
+-- Try to place in CoreGui, fall back to PlayerGui if not possible
+local success, err = pcall(function()
+    GCExplorer.Parent = CoreGui
+end)
+
+if not success then
+    local Players = game:GetService("Players")
+    local player = Players.LocalPlayer
+    GCExplorer.Parent = player:WaitForChild("PlayerGui")
+    warn("CoreGui placement failed: " .. err .. ". Placed in PlayerGui instead.")
+end
 
 -- Create the main frame
 local MainFrame = Instance.new("Frame")
@@ -21,6 +35,7 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
+MainFrame.ZIndex = 1000
 MainFrame.Parent = GCExplorer
 
 -- Title bar
@@ -29,6 +44,7 @@ TitleBar.Name = "TitleBar"
 TitleBar.Size = UDim2.new(1, 0, 0, 30)
 TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex = 1000
 TitleBar.Parent = MainFrame
 
 local Title = Instance.new("TextLabel")
@@ -39,8 +55,9 @@ Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.SourceSansBold
-Title.Text = "GC Explorer v1.1"
+Title.Text = "GC Explorer v1.2 [Right Shift to Toggle]"
 Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.ZIndex = 1000
 Title.Parent = TitleBar
 
 local CloseButton = Instance.new("TextButton")
@@ -52,7 +69,21 @@ CloseButton.TextColor3 = Color3.fromRGB(255, 100, 100)
 CloseButton.TextSize = 20
 CloseButton.Font = Enum.Font.SourceSansBold
 CloseButton.Text = "X"
+CloseButton.ZIndex = 1000
 CloseButton.Parent = TitleBar
+
+-- Minimize/Maximize Button
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
+MinimizeButton.Position = UDim2.new(1, -60, 0, 0)
+MinimizeButton.BackgroundTransparency = 1
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 100)
+MinimizeButton.TextSize = 20
+MinimizeButton.Font = Enum.Font.SourceSansBold
+MinimizeButton.Text = "-"
+MinimizeButton.ZIndex = 1000
+MinimizeButton.Parent = TitleBar
 
 -- Search section
 local SearchSection = Instance.new("Frame")
@@ -61,6 +92,7 @@ SearchSection.Size = UDim2.new(1, -20, 0, 100)
 SearchSection.Position = UDim2.new(0, 10, 0, 40)
 SearchSection.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 SearchSection.BorderSizePixel = 0
+SearchSection.ZIndex = 1000
 SearchSection.Parent = MainFrame
 
 local SearchLabel = Instance.new("TextLabel")
@@ -73,6 +105,7 @@ SearchLabel.TextSize = 14
 SearchLabel.Font = Enum.Font.SourceSans
 SearchLabel.Text = "Search Value:"
 SearchLabel.TextXAlignment = Enum.TextXAlignment.Left
+SearchLabel.ZIndex = 1000
 SearchLabel.Parent = SearchSection
 
 local SearchInput = Instance.new("TextBox")
@@ -87,6 +120,7 @@ SearchInput.Font = Enum.Font.SourceSans
 SearchInput.Text = "" -- Starting empty as requested
 SearchInput.PlaceholderText = "Enter search value..."
 SearchInput.ClearTextOnFocus = false
+SearchInput.ZIndex = 1000
 SearchInput.Parent = SearchSection
 
 -- Type selection
@@ -100,6 +134,7 @@ TypeLabel.TextSize = 14
 TypeLabel.Font = Enum.Font.SourceSans
 TypeLabel.Text = "Value Type:"
 TypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+TypeLabel.ZIndex = 1000
 TypeLabel.Parent = SearchSection
 
 local TypeDropdown = Instance.new("TextButton")
@@ -112,6 +147,7 @@ TypeDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
 TypeDropdown.TextSize = 14
 TypeDropdown.Font = Enum.Font.SourceSans
 TypeDropdown.Text = "All Types"
+TypeDropdown.ZIndex = 1000
 TypeDropdown.Parent = SearchSection
 
 -- Search type selection
@@ -125,6 +161,7 @@ SearchTypeLabel.TextSize = 14
 SearchTypeLabel.Font = Enum.Font.SourceSans
 SearchTypeLabel.Text = "Search Type:"
 SearchTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+SearchTypeLabel.ZIndex = 1000
 SearchTypeLabel.Parent = SearchSection
 
 local SearchTypeDropdown = Instance.new("TextButton")
@@ -137,6 +174,7 @@ SearchTypeDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
 SearchTypeDropdown.TextSize = 14
 SearchTypeDropdown.Font = Enum.Font.SourceSans
 SearchTypeDropdown.Text = "Contains"
+SearchTypeDropdown.ZIndex = 1000
 SearchTypeDropdown.Parent = SearchSection
 
 -- Search button
@@ -150,6 +188,7 @@ SearchButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 SearchButton.TextSize = 16
 SearchButton.Font = Enum.Font.SourceSansBold
 SearchButton.Text = "Search"
+SearchButton.ZIndex = 1000
 SearchButton.Parent = SearchSection
 
 -- Results section
@@ -159,6 +198,7 @@ ResultsSection.Size = UDim2.new(1, -20, 1, -150)
 ResultsSection.Position = UDim2.new(0, 10, 0, 145)
 ResultsSection.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 ResultsSection.BorderSizePixel = 0
+ResultsSection.ZIndex = 1000
 ResultsSection.Parent = MainFrame
 
 local ResultsHeader = Instance.new("Frame")
@@ -166,6 +206,7 @@ ResultsHeader.Name = "ResultsHeader"
 ResultsHeader.Size = UDim2.new(1, 0, 0, 30)
 ResultsHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 ResultsHeader.BorderSizePixel = 0
+ResultsHeader.ZIndex = 1000
 ResultsHeader.Parent = ResultsSection
 
 local ResultsLabel = Instance.new("TextLabel")
@@ -178,9 +219,10 @@ ResultsLabel.TextSize = 14
 ResultsLabel.Font = Enum.Font.SourceSansBold
 ResultsLabel.Text = "Results: (0 found)"
 ResultsLabel.TextXAlignment = Enum.TextXAlignment.Left
+ResultsLabel.ZIndex = 1000
 ResultsLabel.Parent = ResultsHeader
 
--- NEW: Change All Button
+-- Change All Button
 local ChangeAllButton = Instance.new("TextButton")
 ChangeAllButton.Name = "ChangeAllButton"
 ChangeAllButton.Size = UDim2.new(0, 100, 0, 25)
@@ -191,6 +233,7 @@ ChangeAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ChangeAllButton.TextSize = 13
 ChangeAllButton.Font = Enum.Font.SourceSansBold
 ChangeAllButton.Text = "Change All"
+ChangeAllButton.ZIndex = 1000
 ChangeAllButton.Parent = ResultsHeader
 
 -- Create ScrollingFrame for results
@@ -202,6 +245,7 @@ ResultsList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 ResultsList.BorderSizePixel = 0
 ResultsList.ScrollBarThickness = 6
 ResultsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+ResultsList.ZIndex = 1000
 ResultsList.Parent = ResultsSection
 
 -- Template for result entry (will be cloned for each result)
@@ -211,6 +255,7 @@ ResultTemplate.Size = UDim2.new(1, -10, 0, 30)
 ResultTemplate.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 ResultTemplate.BorderSizePixel = 0
 ResultTemplate.Visible = false
+ResultTemplate.ZIndex = 1000
 ResultTemplate.Parent = ResultsList
 
 local IndexLabel = Instance.new("TextLabel")
@@ -221,6 +266,7 @@ IndexLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 IndexLabel.TextSize = 12
 IndexLabel.Font = Enum.Font.SourceSans
 IndexLabel.Text = "1"
+IndexLabel.ZIndex = 1000
 IndexLabel.Parent = ResultTemplate
 
 local KeyLabel = Instance.new("TextLabel")
@@ -233,9 +279,10 @@ KeyLabel.TextSize = 12
 KeyLabel.Font = Enum.Font.SourceSans
 KeyLabel.Text = "keyName"
 KeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+KeyLabel.ZIndex = 1000
 KeyLabel.Parent = ResultTemplate
 
--- CHANGED: ValueLabel is now a TextBox for direct editing
+-- ValueLabel is now a TextBox for direct editing
 local ValueTextBox = Instance.new("TextBox")
 ValueTextBox.Name = "ValueTextBox"
 ValueTextBox.Size = UDim2.new(0.4, 0, 0, 20)
@@ -247,6 +294,7 @@ ValueTextBox.TextSize = 12
 ValueTextBox.Font = Enum.Font.SourceSans
 ValueTextBox.Text = "value"
 ValueTextBox.ClearTextOnFocus = false
+ValueTextBox.ZIndex = 1000
 ValueTextBox.Parent = ResultTemplate
 
 local TypeLabel = Instance.new("TextLabel")
@@ -259,6 +307,7 @@ TypeLabel.TextSize = 12
 TypeLabel.Font = Enum.Font.SourceSans
 TypeLabel.Text = "string"
 TypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+TypeLabel.ZIndex = 1000
 TypeLabel.Parent = ResultTemplate
 
 -- Change All UI (initially hidden)
@@ -270,7 +319,7 @@ ChangeAllUI.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 ChangeAllUI.BorderSizePixel = 2
 ChangeAllUI.BorderColor3 = Color3.fromRGB(180, 70, 70)
 ChangeAllUI.Visible = false
-ChangeAllUI.ZIndex = 100
+ChangeAllUI.ZIndex = 1500
 ChangeAllUI.Parent = GCExplorer
 
 local ChangeAllTitle = Instance.new("TextLabel")
@@ -282,7 +331,7 @@ ChangeAllTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 ChangeAllTitle.TextSize = 16
 ChangeAllTitle.Font = Enum.Font.SourceSansBold
 ChangeAllTitle.Text = "Change All Values"
-ChangeAllTitle.ZIndex = 100
+ChangeAllTitle.ZIndex = 1500
 ChangeAllTitle.Parent = ChangeAllUI
 
 local NewValueLabel = Instance.new("TextLabel")
@@ -295,7 +344,7 @@ NewValueLabel.TextSize = 14
 NewValueLabel.Font = Enum.Font.SourceSans
 NewValueLabel.Text = "New Value for All:"
 NewValueLabel.TextXAlignment = Enum.TextXAlignment.Left
-NewValueLabel.ZIndex = 100
+NewValueLabel.ZIndex = 1500
 NewValueLabel.Parent = ChangeAllUI
 
 local NewValueInput = Instance.new("TextBox")
@@ -309,7 +358,7 @@ NewValueInput.TextSize = 14
 NewValueInput.Font = Enum.Font.SourceSans
 NewValueInput.Text = "999" -- Default to 999 as requested
 NewValueInput.ClearTextOnFocus = false
-NewValueInput.ZIndex = 100
+NewValueInput.ZIndex = 1500
 NewValueInput.Parent = ChangeAllUI
 
 local ApplyAllButton = Instance.new("TextButton")
@@ -322,7 +371,7 @@ ApplyAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ApplyAllButton.TextSize = 14
 ApplyAllButton.Font = Enum.Font.SourceSansBold
 ApplyAllButton.Text = "Apply All"
-ApplyAllButton.ZIndex = 100
+ApplyAllButton.ZIndex = 1500
 ApplyAllButton.Parent = ChangeAllUI
 
 local CancelAllButton = Instance.new("TextButton")
@@ -335,7 +384,7 @@ CancelAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CancelAllButton.TextSize = 14
 CancelAllButton.Font = Enum.Font.SourceSansBold
 CancelAllButton.Text = "Cancel"
-CancelAllButton.ZIndex = 100
+CancelAllButton.ZIndex = 1500
 CancelAllButton.Parent = ChangeAllUI
 
 -- Type dropdown contents
@@ -346,7 +395,7 @@ TypeDropdownFrame.Position = UDim2.new(0, 0, 1, 0)
 TypeDropdownFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 TypeDropdownFrame.BorderSizePixel = 0
 TypeDropdownFrame.Visible = false
-TypeDropdownFrame.ZIndex = 10
+TypeDropdownFrame.ZIndex = 1100
 TypeDropdownFrame.Parent = TypeDropdown
 
 local typeOptions = {"All Types", "string", "number", "boolean", "table"}
@@ -361,7 +410,7 @@ for i, option in ipairs(typeOptions) do
     OptionButton.TextSize = 14
     OptionButton.Font = Enum.Font.SourceSans
     OptionButton.Text = option
-    OptionButton.ZIndex = 10
+    OptionButton.ZIndex = 1100
     OptionButton.Parent = TypeDropdownFrame
 end
 
@@ -373,7 +422,7 @@ SearchTypeDropdownFrame.Position = UDim2.new(0, 0, 1, 0)
 SearchTypeDropdownFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 SearchTypeDropdownFrame.BorderSizePixel = 0
 SearchTypeDropdownFrame.Visible = false
-SearchTypeDropdownFrame.ZIndex = 10
+SearchTypeDropdownFrame.ZIndex = 1100
 SearchTypeDropdownFrame.Parent = SearchTypeDropdown
 
 local searchTypeOptions = {"Contains", "Exact Match", "Starts With", "Ends With", "Greater Than", "Less Than"}
@@ -388,7 +437,7 @@ for i, option in ipairs(searchTypeOptions) do
     OptionButton.TextSize = 14
     OptionButton.Font = Enum.Font.SourceSans
     OptionButton.Text = option
-    OptionButton.ZIndex = 10
+    OptionButton.ZIndex = 1100
     OptionButton.Parent = SearchTypeDropdownFrame
 end
 
@@ -399,6 +448,7 @@ StatusBar.Size = UDim2.new(1, 0, 0, 20)
 StatusBar.Position = UDim2.new(0, 0, 1, -20)
 StatusBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 StatusBar.BorderSizePixel = 0
+StatusBar.ZIndex = 1000
 StatusBar.Parent = MainFrame
 
 local StatusText = Instance.new("TextLabel")
@@ -411,12 +461,51 @@ StatusText.TextSize = 12
 StatusText.Font = Enum.Font.SourceSans
 StatusText.Text = "Ready"
 StatusText.TextXAlignment = Enum.TextXAlignment.Left
+StatusText.ZIndex = 1000
 StatusText.Parent = StatusBar
+
+-- Minimized mode
+local MinimizedFrame = Instance.new("Frame")
+MinimizedFrame.Name = "MinimizedFrame"
+MinimizedFrame.Size = UDim2.new(0, 200, 0, 30)
+MinimizedFrame.Position = UDim2.new(0, 10, 0, 10)
+MinimizedFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MinimizedFrame.BorderSizePixel = 0
+MinimizedFrame.Visible = false
+MinimizedFrame.ZIndex = 1000
+MinimizedFrame.Parent = GCExplorer
+
+local MinimizedTitle = Instance.new("TextLabel")
+MinimizedTitle.Name = "MinimizedTitle"
+MinimizedTitle.Size = UDim2.new(1, -40, 1, 0)
+MinimizedTitle.Position = UDim2.new(0, 10, 0, 0)
+MinimizedTitle.BackgroundTransparency = 1
+MinimizedTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizedTitle.TextSize = 14
+MinimizedTitle.Font = Enum.Font.SourceSansBold
+MinimizedTitle.Text = "GC Explorer v1.2"
+MinimizedTitle.TextXAlignment = Enum.TextXAlignment.Left
+MinimizedTitle.ZIndex = 1000
+MinimizedTitle.Parent = MinimizedFrame
+
+local MaximizeButton = Instance.new("TextButton")
+MaximizeButton.Name = "MaximizeButton"
+MaximizeButton.Size = UDim2.new(0, 30, 0, 30)
+MaximizeButton.Position = UDim2.new(1, -30, 0, 0)
+MaximizeButton.BackgroundTransparency = 1
+MaximizeButton.TextColor3 = Color3.fromRGB(100, 255, 100)
+MaximizeButton.TextSize = 20
+MaximizeButton.Font = Enum.Font.SourceSansBold
+MaximizeButton.Text = "+"
+MaximizeButton.ZIndex = 1000
+MaximizeButton.Parent = MinimizedFrame
 
 -- Variables to store state
 local selectedType = "All Types"
 local selectedSearchType = "Contains"
 local searchResults = {}
+local isMinimized = false
+local isVisible = true
 
 -- Functions
 local function showStatus(message)
@@ -703,10 +792,49 @@ local function searchGC()
     ChangeAllButton.Visible = (count > 0)
 end
 
+local function toggleMinimize()
+    isMinimized = not isMinimized
+    
+    if isMinimized then
+        MainFrame.Visible = false
+        MinimizedFrame.Visible = true
+    else
+        MainFrame.Visible = true
+        MinimizedFrame.Visible = false
+    end
+end
+
+local function toggleVisibility()
+    isVisible = not isVisible
+    
+    GCExplorer.Enabled = isVisible
+    
+    -- If toggling back to visible, also restore the correct minimized state
+    if isVisible then
+        if isMinimized then
+            MainFrame.Visible = false
+            MinimizedFrame.Visible = true
+        else
+            MainFrame.Visible = true
+            MinimizedFrame.Visible = false
+        end
+    end
+end
+
+-- Capture keyboard events
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        toggleVisibility()
+    end
+end)
+
 -- Set up button connections
 CloseButton.MouseButton1Click:Connect(function()
     GCExplorer:Destroy()
 end)
+
+MinimizeButton.MouseButton1Click:Connect(toggleMinimize)
+MaximizeButton.MouseButton1Click:Connect(toggleMinimize)
 
 TypeDropdown.MouseButton1Click:Connect(toggleTypeDropdown)
 SearchTypeDropdown.MouseButton1Click:Connect(toggleSearchTypeDropdown)
@@ -753,7 +881,11 @@ for _, frame in pairs({TypeDropdownFrame, SearchTypeDropdownFrame}) do
     end)
 end
 
--- Initial status
-showStatus("Ready to search. Enter a value or leave blank to find all.")
+-- Make GUI draggable even while minimized
+MinimizedFrame.Active = true
+MinimizedFrame.Draggable = true
 
-print("GC Explorer v1.1 loaded successfully")
+-- Initial status
+showStatus("Ready to search. Press Right Shift to toggle visibility.")
+
+print("GC Explorer v1.2 loaded successfully - Press Right Shift to toggle visibility")
