@@ -1,0 +1,83 @@
+-- Script to find tables containing a specific value in garbage collection
+-- Created for maxz12 on 2025-04-05 04:58:30
+
+-- Create a function that can be called with any value to search for
+local function findValueInGC(targetValue)
+    local matches = 0
+    print("Searching for values matching: " .. tostring(targetValue))
+    print("This may take a moment...")
+    
+    for _, v in next, getgc(true) do
+        if type(v) == "table" then
+            for key, value in pairs(v) do
+                -- Check if the value matches our target
+                if value == targetValue then
+                    -- Get the table name for reference
+                    local name = rawget(v, "Name") or rawget(v, "ClassName") or "Unnamed"
+                    
+                    -- Print information about the match
+                    print("MATCH FOUND:")
+                    print("  Table: " .. name)
+                    print("  Key: " .. tostring(key))
+                    print("  Value: " .. tostring(value))
+                    
+                    -- Print some additional table info for context
+                    print("  Additional properties in this table:")
+                    local count = 0
+                    for k, v in pairs(v) do
+                        if count < 5 and k ~= key then -- Show up to 5 other properties
+                            print("    " .. tostring(k) .. ": " .. tostring(v))
+                            count = count + 1
+                        end
+                    end
+                    print("  --------------------------")
+                    
+                    matches = matches + 1
+                    wait(0.01) -- Prevent freezing
+                end
+                
+                -- Also check nested tables if value is a table
+                if type(value) == "table" then
+                    for subKey, subValue in pairs(value) do
+                        if subValue == targetValue then
+                            local name = rawget(v, "Name") or rawget(v, "ClassName") or "Unnamed"
+                            print("MATCH FOUND IN NESTED TABLE:")
+                            print("  Parent Table: " .. name)
+                            print("  Parent Key: " .. tostring(key))
+                            print("  Nested Key: " .. tostring(subKey))
+                            print("  Value: " .. tostring(subValue))
+                            print("  --------------------------")
+                            
+                            matches = matches + 1
+                            wait(0.01)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    print("Search complete! Found " .. matches .. " matches.")
+    return matches
+end
+
+-- EXAMPLES OF HOW TO USE:
+
+findValueInGC(23)
+
+-- Find all tables with numeric value 100
+-- findValueInGC(100)
+
+-- Find all tables with a specific string
+-- findValueInGC("MaxSpeed")
+
+-- Find all tables with a boolean value
+-- findValueInGC(true)
+
+-- Find all tables with a specific instance
+-- local part = workspace.SomePart
+-- findValueInGC(part)
+
+-- Call the function with your desired value below
+-- Replace 50 with whatever value you're looking for
+--findValueInGC(50)
