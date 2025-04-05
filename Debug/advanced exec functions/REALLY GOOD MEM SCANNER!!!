@@ -1,0 +1,759 @@
+-- GC Explorer GUI - Enhanced Version
+-- Created for maxz12 on 2025-04-05
+-- A cheat-engine like interface for Roblox garbage collection
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+
+-- Create the main GUI
+local GCExplorer = Instance.new("ScreenGui")
+GCExplorer.Name = "GCExplorer"
+GCExplorer.ResetOnSpawn = false
+GCExplorer.Parent = PlayerGui
+
+-- Create the main frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 600, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -300, 0.5, -200)
+MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = GCExplorer
+
+-- Title bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, -10, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "GC Explorer v1.1"
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -30, 0, 0)
+CloseButton.BackgroundTransparency = 1
+CloseButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+CloseButton.TextSize = 20
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Text = "X"
+CloseButton.Parent = TitleBar
+
+-- Search section
+local SearchSection = Instance.new("Frame")
+SearchSection.Name = "SearchSection"
+SearchSection.Size = UDim2.new(1, -20, 0, 100)
+SearchSection.Position = UDim2.new(0, 10, 0, 40)
+SearchSection.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+SearchSection.BorderSizePixel = 0
+SearchSection.Parent = MainFrame
+
+local SearchLabel = Instance.new("TextLabel")
+SearchLabel.Name = "SearchLabel"
+SearchLabel.Size = UDim2.new(1, -10, 0, 20)
+SearchLabel.Position = UDim2.new(0, 5, 0, 5)
+SearchLabel.BackgroundTransparency = 1
+SearchLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchLabel.TextSize = 14
+SearchLabel.Font = Enum.Font.SourceSans
+SearchLabel.Text = "Search Value:"
+SearchLabel.TextXAlignment = Enum.TextXAlignment.Left
+SearchLabel.Parent = SearchSection
+
+local SearchInput = Instance.new("TextBox")
+SearchInput.Name = "SearchInput"
+SearchInput.Size = UDim2.new(1, -10, 0, 25)
+SearchInput.Position = UDim2.new(0, 5, 0, 25)
+SearchInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SearchInput.BorderSizePixel = 0
+SearchInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchInput.TextSize = 14
+SearchInput.Font = Enum.Font.SourceSans
+SearchInput.Text = "" -- Starting empty as requested
+SearchInput.PlaceholderText = "Enter search value..."
+SearchInput.ClearTextOnFocus = false
+SearchInput.Parent = SearchSection
+
+-- Type selection
+local TypeLabel = Instance.new("TextLabel")
+TypeLabel.Name = "TypeLabel"
+TypeLabel.Size = UDim2.new(0, 80, 0, 25)
+TypeLabel.Position = UDim2.new(0, 5, 0, 60)
+TypeLabel.BackgroundTransparency = 1
+TypeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TypeLabel.TextSize = 14
+TypeLabel.Font = Enum.Font.SourceSans
+TypeLabel.Text = "Value Type:"
+TypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+TypeLabel.Parent = SearchSection
+
+local TypeDropdown = Instance.new("TextButton")
+TypeDropdown.Name = "TypeDropdown"
+TypeDropdown.Size = UDim2.new(0, 120, 0, 25)
+TypeDropdown.Position = UDim2.new(0, 85, 0, 60)
+TypeDropdown.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+TypeDropdown.BorderSizePixel = 0
+TypeDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+TypeDropdown.TextSize = 14
+TypeDropdown.Font = Enum.Font.SourceSans
+TypeDropdown.Text = "All Types"
+TypeDropdown.Parent = SearchSection
+
+-- Search type selection
+local SearchTypeLabel = Instance.new("TextLabel")
+SearchTypeLabel.Name = "SearchTypeLabel"
+SearchTypeLabel.Size = UDim2.new(0, 80, 0, 25)
+SearchTypeLabel.Position = UDim2.new(0.5, 0, 0, 60)
+SearchTypeLabel.BackgroundTransparency = 1
+SearchTypeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchTypeLabel.TextSize = 14
+SearchTypeLabel.Font = Enum.Font.SourceSans
+SearchTypeLabel.Text = "Search Type:"
+SearchTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+SearchTypeLabel.Parent = SearchSection
+
+local SearchTypeDropdown = Instance.new("TextButton")
+SearchTypeDropdown.Name = "SearchTypeDropdown"
+SearchTypeDropdown.Size = UDim2.new(0, 120, 0, 25)
+SearchTypeDropdown.Position = UDim2.new(0.5, 80, 0, 60)
+SearchTypeDropdown.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SearchTypeDropdown.BorderSizePixel = 0
+SearchTypeDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchTypeDropdown.TextSize = 14
+SearchTypeDropdown.Font = Enum.Font.SourceSans
+SearchTypeDropdown.Text = "Contains"
+SearchTypeDropdown.Parent = SearchSection
+
+-- Search button
+local SearchButton = Instance.new("TextButton")
+SearchButton.Name = "SearchButton"
+SearchButton.Size = UDim2.new(0, 100, 0, 30)
+SearchButton.Position = UDim2.new(1, -110, 0, 60)
+SearchButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+SearchButton.BorderSizePixel = 0
+SearchButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchButton.TextSize = 16
+SearchButton.Font = Enum.Font.SourceSansBold
+SearchButton.Text = "Search"
+SearchButton.Parent = SearchSection
+
+-- Results section
+local ResultsSection = Instance.new("Frame")
+ResultsSection.Name = "ResultsSection"
+ResultsSection.Size = UDim2.new(1, -20, 1, -150)
+ResultsSection.Position = UDim2.new(0, 10, 0, 145)
+ResultsSection.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ResultsSection.BorderSizePixel = 0
+ResultsSection.Parent = MainFrame
+
+local ResultsHeader = Instance.new("Frame")
+ResultsHeader.Name = "ResultsHeader"
+ResultsHeader.Size = UDim2.new(1, 0, 0, 30)
+ResultsHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ResultsHeader.BorderSizePixel = 0
+ResultsHeader.Parent = ResultsSection
+
+local ResultsLabel = Instance.new("TextLabel")
+ResultsLabel.Name = "ResultsLabel"
+ResultsLabel.Size = UDim2.new(0.6, 0, 1, 0)
+ResultsLabel.Position = UDim2.new(0, 5, 0, 0)
+ResultsLabel.BackgroundTransparency = 1
+ResultsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ResultsLabel.TextSize = 14
+ResultsLabel.Font = Enum.Font.SourceSansBold
+ResultsLabel.Text = "Results: (0 found)"
+ResultsLabel.TextXAlignment = Enum.TextXAlignment.Left
+ResultsLabel.Parent = ResultsHeader
+
+-- NEW: Change All Button
+local ChangeAllButton = Instance.new("TextButton")
+ChangeAllButton.Name = "ChangeAllButton"
+ChangeAllButton.Size = UDim2.new(0, 100, 0, 25)
+ChangeAllButton.Position = UDim2.new(1, -105, 0.5, -12.5)
+ChangeAllButton.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
+ChangeAllButton.BorderSizePixel = 0
+ChangeAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChangeAllButton.TextSize = 13
+ChangeAllButton.Font = Enum.Font.SourceSansBold
+ChangeAllButton.Text = "Change All"
+ChangeAllButton.Parent = ResultsHeader
+
+-- Create ScrollingFrame for results
+local ResultsList = Instance.new("ScrollingFrame")
+ResultsList.Name = "ResultsList"
+ResultsList.Size = UDim2.new(1, -10, 1, -35)
+ResultsList.Position = UDim2.new(0, 5, 0, 30)
+ResultsList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ResultsList.BorderSizePixel = 0
+ResultsList.ScrollBarThickness = 6
+ResultsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+ResultsList.Parent = ResultsSection
+
+-- Template for result entry (will be cloned for each result)
+local ResultTemplate = Instance.new("Frame")
+ResultTemplate.Name = "ResultTemplate"
+ResultTemplate.Size = UDim2.new(1, -10, 0, 30)
+ResultTemplate.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+ResultTemplate.BorderSizePixel = 0
+ResultTemplate.Visible = false
+ResultTemplate.Parent = ResultsList
+
+local IndexLabel = Instance.new("TextLabel")
+IndexLabel.Name = "IndexLabel"
+IndexLabel.Size = UDim2.new(0, 30, 1, 0)
+IndexLabel.BackgroundTransparency = 1
+IndexLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+IndexLabel.TextSize = 12
+IndexLabel.Font = Enum.Font.SourceSans
+IndexLabel.Text = "1"
+IndexLabel.Parent = ResultTemplate
+
+local KeyLabel = Instance.new("TextLabel")
+KeyLabel.Name = "KeyLabel"
+KeyLabel.Size = UDim2.new(0.3, 0, 1, 0)
+KeyLabel.Position = UDim2.new(0, 30, 0, 0)
+KeyLabel.BackgroundTransparency = 1
+KeyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyLabel.TextSize = 12
+KeyLabel.Font = Enum.Font.SourceSans
+KeyLabel.Text = "keyName"
+KeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+KeyLabel.Parent = ResultTemplate
+
+-- CHANGED: ValueLabel is now a TextBox for direct editing
+local ValueTextBox = Instance.new("TextBox")
+ValueTextBox.Name = "ValueTextBox"
+ValueTextBox.Size = UDim2.new(0.4, 0, 0, 20)
+ValueTextBox.Position = UDim2.new(0.3, 30, 0.5, -10)
+ValueTextBox.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+ValueTextBox.BorderSizePixel = 0
+ValueTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+ValueTextBox.TextSize = 12
+ValueTextBox.Font = Enum.Font.SourceSans
+ValueTextBox.Text = "value"
+ValueTextBox.ClearTextOnFocus = false
+ValueTextBox.Parent = ResultTemplate
+
+local TypeLabel = Instance.new("TextLabel")
+TypeLabel.Name = "TypeLabel"
+TypeLabel.Size = UDim2.new(0.15, 0, 1, 0)
+TypeLabel.Position = UDim2.new(0.7, 30, 0, 0)
+TypeLabel.BackgroundTransparency = 1
+TypeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+TypeLabel.TextSize = 12
+TypeLabel.Font = Enum.Font.SourceSans
+TypeLabel.Text = "string"
+TypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+TypeLabel.Parent = ResultTemplate
+
+-- Change All UI (initially hidden)
+local ChangeAllUI = Instance.new("Frame")
+ChangeAllUI.Name = "ChangeAllUI"
+ChangeAllUI.Size = UDim2.new(0, 300, 0, 120)
+ChangeAllUI.Position = UDim2.new(0.5, -150, 0.5, -60)
+ChangeAllUI.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ChangeAllUI.BorderSizePixel = 2
+ChangeAllUI.BorderColor3 = Color3.fromRGB(180, 70, 70)
+ChangeAllUI.Visible = false
+ChangeAllUI.ZIndex = 100
+ChangeAllUI.Parent = GCExplorer
+
+local ChangeAllTitle = Instance.new("TextLabel")
+ChangeAllTitle.Name = "ChangeAllTitle"
+ChangeAllTitle.Size = UDim2.new(1, 0, 0, 30)
+ChangeAllTitle.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ChangeAllTitle.BorderSizePixel = 0
+ChangeAllTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChangeAllTitle.TextSize = 16
+ChangeAllTitle.Font = Enum.Font.SourceSansBold
+ChangeAllTitle.Text = "Change All Values"
+ChangeAllTitle.ZIndex = 100
+ChangeAllTitle.Parent = ChangeAllUI
+
+local NewValueLabel = Instance.new("TextLabel")
+NewValueLabel.Name = "NewValueLabel"
+NewValueLabel.Size = UDim2.new(1, -20, 0, 20)
+NewValueLabel.Position = UDim2.new(0, 10, 0, 40)
+NewValueLabel.BackgroundTransparency = 1
+NewValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+NewValueLabel.TextSize = 14
+NewValueLabel.Font = Enum.Font.SourceSans
+NewValueLabel.Text = "New Value for All:"
+NewValueLabel.TextXAlignment = Enum.TextXAlignment.Left
+NewValueLabel.ZIndex = 100
+NewValueLabel.Parent = ChangeAllUI
+
+local NewValueInput = Instance.new("TextBox")
+NewValueInput.Name = "NewValueInput"
+NewValueInput.Size = UDim2.new(1, -20, 0, 25)
+NewValueInput.Position = UDim2.new(0, 10, 0, 60)
+NewValueInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+NewValueInput.BorderSizePixel = 0
+NewValueInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+NewValueInput.TextSize = 14
+NewValueInput.Font = Enum.Font.SourceSans
+NewValueInput.Text = "999" -- Default to 999 as requested
+NewValueInput.ClearTextOnFocus = false
+NewValueInput.ZIndex = 100
+NewValueInput.Parent = ChangeAllUI
+
+local ApplyAllButton = Instance.new("TextButton")
+ApplyAllButton.Name = "ApplyAllButton"
+ApplyAllButton.Size = UDim2.new(0, 100, 0, 25)
+ApplyAllButton.Position = UDim2.new(0.25, -50, 1, -35)
+ApplyAllButton.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
+ApplyAllButton.BorderSizePixel = 0
+ApplyAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ApplyAllButton.TextSize = 14
+ApplyAllButton.Font = Enum.Font.SourceSansBold
+ApplyAllButton.Text = "Apply All"
+ApplyAllButton.ZIndex = 100
+ApplyAllButton.Parent = ChangeAllUI
+
+local CancelAllButton = Instance.new("TextButton")
+CancelAllButton.Name = "CancelAllButton"
+CancelAllButton.Size = UDim2.new(0, 100, 0, 25)
+CancelAllButton.Position = UDim2.new(0.75, -50, 1, -35)
+CancelAllButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+CancelAllButton.BorderSizePixel = 0
+CancelAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CancelAllButton.TextSize = 14
+CancelAllButton.Font = Enum.Font.SourceSansBold
+CancelAllButton.Text = "Cancel"
+CancelAllButton.ZIndex = 100
+CancelAllButton.Parent = ChangeAllUI
+
+-- Type dropdown contents
+local TypeDropdownFrame = Instance.new("Frame")
+TypeDropdownFrame.Name = "TypeDropdownFrame"
+TypeDropdownFrame.Size = UDim2.new(0, 120, 0, 120)
+TypeDropdownFrame.Position = UDim2.new(0, 0, 1, 0)
+TypeDropdownFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+TypeDropdownFrame.BorderSizePixel = 0
+TypeDropdownFrame.Visible = false
+TypeDropdownFrame.ZIndex = 10
+TypeDropdownFrame.Parent = TypeDropdown
+
+local typeOptions = {"All Types", "string", "number", "boolean", "table"}
+for i, option in ipairs(typeOptions) do
+    local OptionButton = Instance.new("TextButton")
+    OptionButton.Name = option
+    OptionButton.Size = UDim2.new(1, 0, 0, 24)
+    OptionButton.Position = UDim2.new(0, 0, 0, (i-1)*24)
+    OptionButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    OptionButton.BorderSizePixel = 0
+    OptionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    OptionButton.TextSize = 14
+    OptionButton.Font = Enum.Font.SourceSans
+    OptionButton.Text = option
+    OptionButton.ZIndex = 10
+    OptionButton.Parent = TypeDropdownFrame
+end
+
+-- Search type dropdown contents
+local SearchTypeDropdownFrame = Instance.new("Frame")
+SearchTypeDropdownFrame.Name = "SearchTypeDropdownFrame"
+SearchTypeDropdownFrame.Size = UDim2.new(0, 120, 0, 144)
+SearchTypeDropdownFrame.Position = UDim2.new(0, 0, 1, 0)
+SearchTypeDropdownFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SearchTypeDropdownFrame.BorderSizePixel = 0
+SearchTypeDropdownFrame.Visible = false
+SearchTypeDropdownFrame.ZIndex = 10
+SearchTypeDropdownFrame.Parent = SearchTypeDropdown
+
+local searchTypeOptions = {"Contains", "Exact Match", "Starts With", "Ends With", "Greater Than", "Less Than"}
+for i, option in ipairs(searchTypeOptions) do
+    local OptionButton = Instance.new("TextButton")
+    OptionButton.Name = option
+    OptionButton.Size = UDim2.new(1, 0, 0, 24)
+    OptionButton.Position = UDim2.new(0, 0, 0, (i-1)*24)
+    OptionButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    OptionButton.BorderSizePixel = 0
+    OptionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    OptionButton.TextSize = 14
+    OptionButton.Font = Enum.Font.SourceSans
+    OptionButton.Text = option
+    OptionButton.ZIndex = 10
+    OptionButton.Parent = SearchTypeDropdownFrame
+end
+
+-- Status bar
+local StatusBar = Instance.new("Frame")
+StatusBar.Name = "StatusBar"
+StatusBar.Size = UDim2.new(1, 0, 0, 20)
+StatusBar.Position = UDim2.new(0, 0, 1, -20)
+StatusBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+StatusBar.BorderSizePixel = 0
+StatusBar.Parent = MainFrame
+
+local StatusText = Instance.new("TextLabel")
+StatusText.Name = "StatusText"
+StatusText.Size = UDim2.new(1, -10, 1, 0)
+StatusText.Position = UDim2.new(0, 5, 0, 0)
+StatusText.BackgroundTransparency = 1
+StatusText.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusText.TextSize = 12
+StatusText.Font = Enum.Font.SourceSans
+StatusText.Text = "Ready"
+StatusText.TextXAlignment = Enum.TextXAlignment.Left
+StatusText.Parent = StatusBar
+
+-- Variables to store state
+local selectedType = "All Types"
+local selectedSearchType = "Contains"
+local searchResults = {}
+
+-- Functions
+local function showStatus(message)
+    StatusText.Text = message
+end
+
+local function toggleTypeDropdown()
+    TypeDropdownFrame.Visible = not TypeDropdownFrame.Visible
+    SearchTypeDropdownFrame.Visible = false
+end
+
+local function toggleSearchTypeDropdown()
+    SearchTypeDropdownFrame.Visible = not SearchTypeDropdownFrame.Visible
+    TypeDropdownFrame.Visible = false
+end
+
+local function selectType(typeName)
+    selectedType = typeName
+    TypeDropdown.Text = typeName
+    TypeDropdownFrame.Visible = false
+end
+
+local function selectSearchType(searchTypeName)
+    selectedSearchType = searchTypeName
+    SearchTypeDropdown.Text = searchTypeName
+    SearchTypeDropdownFrame.Visible = false
+end
+
+local function clearResults()
+    for _, child in pairs(ResultsList:GetChildren()) do
+        if child:IsA("Frame") and child.Name ~= "ResultTemplate" then
+            child:Destroy()
+        end
+    end
+    ResultsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+    searchResults = {}
+end
+
+local function updateResultsLabel()
+    ResultsLabel.Text = "Results: (" .. #searchResults .. " found)"
+end
+
+local function valueToString(value)
+    local valueType = type(value)
+    if valueType == "string" then
+        if #value > 30 then
+            return string.sub(value, 1, 27) .. "..."
+        else
+            return value
+        end
+    elseif valueType == "number" or valueType == "boolean" then
+        return tostring(value)
+    elseif valueType == "table" then
+        return "[Table]"
+    elseif valueType == "function" then
+        return "[Function]"
+    elseif valueType == "userdata" then
+        return "[UserData]"
+    else
+        return "[" .. valueType .. "]"
+    end
+end
+
+local function convertValueToType(valueText, targetType)
+    if targetType == "number" then
+        return tonumber(valueText)
+    elseif targetType == "boolean" then
+        if valueText:lower() == "true" then
+            return true
+        elseif valueText:lower() == "false" then
+            return false
+        else
+            return nil
+        end
+    else
+        -- For strings or other types, return as is
+        return valueText
+    end
+end
+
+local function setValueFromTextBox(resultIndex, textBox)
+    local result = searchResults[resultIndex]
+    if not result then return false end
+    
+    local newValueText = textBox.Text
+    local valueType = type(result.value)
+    
+    -- Try to convert to appropriate type
+    local newValue = convertValueToType(newValueText, valueType)
+    
+    if newValue == nil and valueType ~= "string" then
+        showStatus("Error: Could not convert '" .. newValueText .. "' to " .. valueType)
+        -- Reset text box to current value
+        textBox.Text = valueToString(result.value)
+        return false
+    end
+    
+    -- Set the value
+    local success, err = pcall(function()
+        result.table[result.key] = newValue
+        result.value = newValue
+    end)
+    
+    if success then
+        showStatus("Value changed successfully: " .. result.key)
+        return true
+    else
+        showStatus("Error: " .. tostring(err))
+        -- Reset text box to current value
+        textBox.Text = valueToString(result.value)
+        return false
+    end
+end
+
+local function showChangeAllUI()
+    ChangeAllUI.Visible = true
+    NewValueInput.Text = "999" -- Set default to 999
+    NewValueInput:CaptureFocus()
+end
+
+local function applyChangeAll()
+    local newValueText = NewValueInput.Text
+    local successCount = 0
+    local failCount = 0
+    
+    for i, result in ipairs(searchResults) do
+        local valueType = type(result.value)
+        local newValue = convertValueToType(newValueText, valueType)
+        
+        if newValue ~= nil or valueType == "string" then
+            local success, _ = pcall(function()
+                result.table[result.key] = newValue
+                result.value = newValue
+                
+                -- Update the text box in the UI
+                local resultEntry = ResultsList:FindFirstChild("Result" .. i)
+                if resultEntry and resultEntry:FindFirstChild("ValueTextBox") then
+                    resultEntry.ValueTextBox.Text = valueToString(newValue)
+                end
+            end)
+            
+            if success then
+                successCount = successCount + 1
+            else
+                failCount = failCount + 1
+            end
+        else
+            failCount = failCount + 1
+        end
+    end
+    
+    showStatus("Changed " .. successCount .. " values successfully. " .. failCount .. " failed.")
+    ChangeAllUI.Visible = false
+end
+
+local function matchesSearchCriteria(key, value, searchValue, searchType)
+    -- If key is not a string, we can't search it effectively
+    if type(key) ~= "string" then
+        return false
+    end
+    
+    -- For string values
+    if type(value) == "string" then
+        if searchType == "Contains" then
+            return string.find(string.lower(key), string.lower(searchValue)) ~= nil
+        elseif searchType == "Exact Match" then
+            return string.lower(key) == string.lower(searchValue)
+        elseif searchType == "Starts With" then
+            return string.find(string.lower(key), "^" .. string.lower(searchValue)) ~= nil
+        elseif searchType == "Ends With" then
+            return string.find(string.lower(key), string.lower(searchValue) .. "$") ~= nil
+        end
+    -- For number values
+    elseif type(value) == "number" and tonumber(searchValue) then
+        local numSearchValue = tonumber(searchValue)
+        if searchType == "Greater Than" then
+            return value > numSearchValue
+        elseif searchType == "Less Than" then
+            return value < numSearchValue
+        elseif searchType == "Exact Match" then
+            return value == numSearchValue
+        elseif searchType == "Contains" then
+            -- Check if number contains the digits
+            return string.find(tostring(value), searchValue) ~= nil
+        end
+    -- For boolean values
+    elseif type(value) == "boolean" and (searchValue == "true" or searchValue == "false") then
+        local boolSearchValue = searchValue == "true"
+        if searchType == "Exact Match" or searchType == "Contains" then
+            return value == boolSearchValue
+        end
+    end
+    
+    -- Default to checking the key if other checks didn't match
+    if searchType == "Contains" then
+        return string.find(string.lower(key), string.lower(searchValue)) ~= nil
+    elseif searchType == "Exact Match" then
+        return string.lower(key) == string.lower(searchValue)
+    elseif searchType == "Starts With" then
+        return string.find(string.lower(key), "^" .. string.lower(searchValue)) ~= nil
+    elseif searchType == "Ends With" then
+        return string.find(string.lower(key), string.lower(searchValue) .. "$") ~= nil
+    end
+    
+    return false
+end
+
+local function searchGC()
+    clearResults()
+    showStatus("Searching...")
+    
+    local searchValue = SearchInput.Text
+    local count = 0
+    local tableCount = 0
+    
+    -- Get all GC objects
+    local gcObjects = getgc(true)
+    
+    -- Loop through all GC objects
+    for _, obj in next, gcObjects do
+        if type(obj) == "table" then
+            tableCount = tableCount + 1
+            
+            -- Scan each table
+            for key, value in pairs(obj) do
+                local valueType = type(value)
+                
+                -- Filter by type if needed
+                if selectedType == "All Types" or valueType == selectedType then
+                    -- Check if it matches search criteria
+                    if searchValue == "" or matchesSearchCriteria(key, value, searchValue, selectedSearchType) then
+                        count = count + 1
+                        
+                        -- Store result
+                        table.insert(searchResults, {
+                            index = count,
+                            table = obj,
+                            key = key,
+                            value = value,
+                            valueType = valueType
+                        })
+                        
+                        -- Create result entry in UI
+                        local newResult = ResultTemplate:Clone()
+                        newResult.Name = "Result" .. count
+                        newResult.IndexLabel.Text = tostring(count)
+                        newResult.KeyLabel.Text = tostring(key)
+                        newResult.ValueTextBox.Text = valueToString(value)
+                        newResult.TypeLabel.Text = valueType
+                        newResult.Visible = true
+                        newResult.Position = UDim2.new(0, 5, 0, (count - 1) * 35)
+                        newResult.Parent = ResultsList
+                        
+                        -- Set up the value text box to update the value when it loses focus
+                        newResult.ValueTextBox.FocusLost:Connect(function(enterPressed)
+                            if enterPressed then
+                                setValueFromTextBox(count, newResult.ValueTextBox)
+                            end
+                        end)
+                        
+                        -- Limit results to prevent UI lag
+                        if count >= 1000 then
+                            showStatus("Reached maximum results (1000). Try refining your search.")
+                            break
+                        end
+                        
+                        -- Update canvas size
+                        ResultsList.CanvasSize = UDim2.new(0, 0, 0, count * 35)
+                    end
+                end
+            end
+            
+            -- If we reached the limit, break out of outer loop too
+            if count >= 1000 then
+                break
+            end
+        end
+    end
+    
+    updateResultsLabel()
+    showStatus("Found " .. count .. " results in " .. tableCount .. " tables")
+    
+    -- Enable/disable Change All button based on results
+    ChangeAllButton.Visible = (count > 0)
+end
+
+-- Set up button connections
+CloseButton.MouseButton1Click:Connect(function()
+    GCExplorer:Destroy()
+end)
+
+TypeDropdown.MouseButton1Click:Connect(toggleTypeDropdown)
+SearchTypeDropdown.MouseButton1Click:Connect(toggleSearchTypeDropdown)
+SearchButton.MouseButton1Click:Connect(searchGC)
+ChangeAllButton.MouseButton1Click:Connect(showChangeAllUI)
+
+-- Set up type options connections
+for _, button in pairs(TypeDropdownFrame:GetChildren()) do
+    if button:IsA("TextButton") then
+        button.MouseButton1Click:Connect(function()
+            selectType(button.Text)
+        end)
+    end
+end
+
+-- Set up search type options connections
+for _, button in pairs(SearchTypeDropdownFrame:GetChildren()) do
+    if button:IsA("TextButton") then
+        button.MouseButton1Click:Connect(function()
+            selectSearchType(button.Text)
+        end)
+    end
+end
+
+-- Apply and cancel buttons for Change All
+ApplyAllButton.MouseButton1Click:Connect(applyChangeAll)
+CancelAllButton.MouseButton1Click:Connect(function()
+    ChangeAllUI.Visible = false
+end)
+
+-- Search input connects to search button when Enter is pressed
+SearchInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        searchGC()
+    end
+end)
+
+-- Prevent clicks on dropdown menus from closing them
+for _, frame in pairs({TypeDropdownFrame, SearchTypeDropdownFrame}) do
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            input:Dispose()
+        end
+    end)
+end
+
+-- Initial status
+showStatus("Ready to search. Enter a value or leave blank to find all.")
+
+print("GC Explorer v1.1 loaded successfully")
