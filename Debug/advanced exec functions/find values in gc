@@ -1,83 +1,128 @@
--- Script to find tables containing a specific value in garbage collection
--- Created for maxz12 on 2025-04-05 04:58:30
+-- Advanced GC Value Finder and Modifier
+-- Created for maxz12 on 2025-04-05 05:02:51
+-- Automatically runs on execution
 
--- Create a function that can be called with any value to search for
-local function findValueInGC(targetValue)
-    local matches = 0
-    print("Searching for values matching: " .. tostring(targetValue))
-    print("This may take a moment...")
+-- CONFIGURATION - CHANGE THESE VALUES
+local valueToFind = 23 -- What value to search for
+local modifierAmount = 2 -- Multiply found values by this amount
+local shouldModify = true -- Set to false if you only want to find, not modify
+
+-- Improved table identification
+local function getTableIdentifier(tbl)
+    -- Try various common identifiers
+    local identifier = rawget(tbl, "Name") or rawget(tbl, "ClassName") or rawget(tbl, "Id") 
+        or rawget(tbl, "Type") or rawget(tbl, "ID") or rawget(tbl, "name") or rawget(tbl, "className")
     
-    for _, v in next, getgc(true) do
-        if type(v) == "table" then
-            for key, value in pairs(v) do
-                -- Check if the value matches our target
-                if value == targetValue then
-                    -- Get the table name for reference
-                    local name = rawget(v, "Name") or rawget(v, "ClassName") or "Unnamed"
-                    
-                    -- Print information about the match
-                    print("MATCH FOUND:")
-                    print("  Table: " .. name)
-                    print("  Key: " .. tostring(key))
-                    print("  Value: " .. tostring(value))
-                    
-                    -- Print some additional table info for context
-                    print("  Additional properties in this table:")
-                    local count = 0
-                    for k, v in pairs(v) do
-                        if count < 5 and k ~= key then -- Show up to 5 other properties
-                            print("    " .. tostring(k) .. ": " .. tostring(v))
-                            count = count + 1
-                        end
+    if identifier then
+        return tostring(identifier)
+    end
+    
+    -- Check if it's a weapon, tool, or game object
+    if rawget(tbl, "Damage") or rawget(tbl, "Ammo") or rawget(tbl, "FireRate") or 
+       rawget(tbl, "ReloadTime") or rawget(tbl, "Spread") or rawget(tbl, "Range") then
+        return "Weapon/Tool"
+    elseif rawget(tbl, "Health") or rawget(tbl, "MaxHealth") or rawget(tbl, "Speed") or 
+           rawget(tbl, "Stamina") or rawget(tbl, "Energy") then
+        return "Character/Entity"
+    elseif rawget(tbl, "Position") or rawget(tbl, "Rotation") or rawget(tbl, "Size") then
+        return "Physics Object"
+    end
+    
+    -- Create a signature based on key patterns
+    local keySignature = ""
+    local keyCount = 0
+    for k, _ in pairs(tbl) do
+        if type(k) == "string" and keyCount < 3 then
+            keySignature = keySignature .. "[" .. k .. "]"
+            keyCount = keyCount + 1
+        end
+    end
+    
+    if keySignature ~= "" then
+        return "Table with keys " .. keySignature
+    end
+    
+    return "Unnamed Table"
+end
+
+-- Main execution logic - runs immediately
+local matches = 0
+print("⚡ SEARCHING for values matching: " .. tostring(valueToFind))
+print("⚙️ Will " .. (shouldModify and "MODIFY by multiplying with " .. modifierAmount or "NOT modify values"))
+
+for _, v in next, getgc(true) do
+    if type(v) == "table" then
+        for key, value in pairs(v) do
+            -- Direct value match
+            if value == valueToFind then
+                local tableType = getTableIdentifier(v)
+                
+                print("✅ MATCH FOUND:")
+                print("  Table Type: " .. tableType)
+                print("  Key: " .. tostring(key))
+                print("  Original Value: " .. tostring(value))
+                
+                -- Showing up to 5 other properties for context
+                print("  Related properties:")
+                local count = 0
+                for k, v in pairs(v) do
+                    if count < 5 and k ~= key and type(k) == "string" then
+                        print("    " .. tostring(k) .. ": " .. tostring(v))
+                        count = count + 1
                     end
-                    print("  --------------------------")
-                    
-                    matches = matches + 1
-                    wait(0.01) -- Prevent freezing
                 end
                 
-                -- Also check nested tables if value is a table
-                if type(value) == "table" then
-                    for subKey, subValue in pairs(value) do
-                        if subValue == targetValue then
-                            local name = rawget(v, "Name") or rawget(v, "ClassName") or "Unnamed"
-                            print("MATCH FOUND IN NESTED TABLE:")
-                            print("  Parent Table: " .. name)
-                            print("  Parent Key: " .. tostring(key))
-                            print("  Nested Key: " .. tostring(subKey))
-                            print("  Value: " .. tostring(subValue))
-                            print("  --------------------------")
-                            
-                            matches = matches + 1
-                            wait(0.01)
+                -- Modify the value if enabled
+                if shouldModify then
+                    if type(value) == "number" then
+                        local newValue = value * modifierAmount
+                        v[key] = newValue
+                        print("  ⚠️ MODIFIED to: " .. tostring(newValue))
+                    else
+                        print("  ❌ Not modified: Only numbers can be multiplied")
+                    end
+                end
+                
+                print("  --------------------------")
+                matches = matches + 1
+                wait(0.01)
+            end
+            
+            -- Check nested tables
+            if type(value) == "table" then
+                for subKey, subValue in pairs(value) do
+                    if subValue == valueToFind then
+                        local parentType = getTableIdentifier(v)
+                        local nestedType = getTableIdentifier(value)
+                        
+                        print("✅ MATCH FOUND IN NESTED TABLE:")
+                        print("  Parent Table: " .. parentType)
+                        print("  Nested Table: " .. nestedType)
+                        print("  Access Path: [" .. tostring(key) .. "][" .. tostring(subKey) .. "]")
+                        print("  Original Value: " .. tostring(subValue))
+                        
+                        -- Modify the nested value if enabled
+                        if shouldModify then
+                            if type(subValue) == "number" then
+                                local newValue = subValue * modifierAmount
+                                value[subKey] = newValue
+                                print("  ⚠️ MODIFIED to: " .. tostring(newValue))
+                            else
+                                print("  ❌ Not modified: Only numbers can be multiplied")
+                            end
                         end
+                        
+                        print("  --------------------------")
+                        matches = matches + 1
+                        wait(0.01)
                     end
                 end
             end
         end
     end
-    
-    print("Search complete! Found " .. matches .. " matches.")
-    return matches
 end
 
--- EXAMPLES OF HOW TO USE:
-
-findValueInGC(23)
-
--- Find all tables with numeric value 100
--- findValueInGC(100)
-
--- Find all tables with a specific string
--- findValueInGC("MaxSpeed")
-
--- Find all tables with a boolean value
--- findValueInGC(true)
-
--- Find all tables with a specific instance
--- local part = workspace.SomePart
--- findValueInGC(part)
-
--- Call the function with your desired value below
--- Replace 50 with whatever value you're looking for
---findValueInGC(50)
+print("🔍 Search complete! Found " .. matches .. " matches.")
+if matches > 0 and shouldModify then
+    print("🔧 Modified " .. matches .. " value(s) by multiplying with " .. modifierAmount)
+end
