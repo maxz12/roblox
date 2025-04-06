@@ -389,22 +389,6 @@ ValueTextBox.ClearTextOnFocus = false
 ValueTextBox.ZIndex = 1000
 ValueTextBox.Parent = ResultTemplate
 
--- Add this to your GUI creation code, right after ValueTextBox is created in the ResultTemplate
-local ExploreButton = Instance.new("TextButton")
-ExploreButton.Name = "ExploreButton"
-ExploreButton.Size = UDim2.new(0, 20, 0, 20)
-ExploreButton.Position = UDim2.new(0.7, -20, 0.5, -10)  -- Position it before the lock button
-ExploreButton.BackgroundColor3 = Color3.fromRGB(40, 100, 180)
-ExploreButton.BorderSizePixel = 1
-ExploreButton.BorderColor3 = Color3.fromRGB(60, 120, 200)
-ExploreButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ExploreButton.TextSize = 10
-ExploreButton.Font = Enum.Font.SourceSansBold
-ExploreButton.Text = "🔍"
-ExploreButton.ZIndex = 1000
-ExploreButton.Visible = false  -- Hide by default, only show for tables
-ExploreButton.Parent = ResultTemplate
-
 -- Lock button for each value
 local LockButton = Instance.new("TextButton")
 LockButton.Name = "LockButton"
@@ -657,544 +641,6 @@ local updateConnection = nil
 local lastUpdateTime = 0
 local highlightDuration = 1.5
 
--- Add this code after all the UI definition code, before the existing functions
-
--- Table Explorer Window
-local TableExplorerFrame = Instance.new("Frame")
-TableExplorerFrame.Name = "TableExplorerFrame"
-TableExplorerFrame.Size = UDim2.new(0, 500, 0, 400)
-TableExplorerFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
-TableExplorerFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-TableExplorerFrame.BorderSizePixel = 2
-TableExplorerFrame.BorderColor3 = Color3.fromRGB(70, 70, 70)
-TableExplorerFrame.Visible = false
-TableExplorerFrame.ZIndex = 2000
-TableExplorerFrame.Active = true
-TableExplorerFrame.Draggable = true
-TableExplorerFrame.Parent = GCExplorer
-
--- Title bar
-local TableTitleBar = Instance.new("Frame")
-TableTitleBar.Name = "TitleBar"
-TableTitleBar.Size = UDim2.new(1, 0, 0, 30)
-TableTitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-TableTitleBar.BorderSizePixel = 0
-TableTitleBar.ZIndex = 2000
-TableTitleBar.Parent = TableExplorerFrame
-
-local TableTitle = Instance.new("TextLabel")
-TableTitle.Name = "Title"
-TableTitle.Size = UDim2.new(1, -40, 1, 0)
-TableTitle.Position = UDim2.new(0, 10, 0, 0)
-TableTitle.BackgroundTransparency = 1
-TableTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-TableTitle.TextSize = 16
-TableTitle.Font = Enum.Font.SourceSansBold
-TableTitle.Text = "Table Explorer"
-TableTitle.TextXAlignment = Enum.TextXAlignment.Left
-TableTitle.ZIndex = 2000
-TableTitle.Parent = TableTitleBar
-
-local TableCloseButton = Instance.new("TextButton")
-TableCloseButton.Name = "CloseButton"
-TableCloseButton.Size = UDim2.new(0, 30, 0, 30)
-TableCloseButton.Position = UDim2.new(1, -30, 0, 0)
-TableCloseButton.BackgroundTransparency = 1
-TableCloseButton.TextColor3 = Color3.fromRGB(255, 100, 100)
-TableCloseButton.TextSize = 20
-TableCloseButton.Font = Enum.Font.SourceSansBold
-TableCloseButton.Text = "X"
-TableCloseButton.ZIndex = 2000
-TableCloseButton.Parent = TableTitleBar
-
-local TablePathBar = Instance.new("Frame")
-TablePathBar.Name = "PathBar"
-TablePathBar.Size = UDim2.new(1, 0, 0, 30)
-TablePathBar.Position = UDim2.new(0, 0, 0, 30)
-TablePathBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-TablePathBar.BorderSizePixel = 0
-TablePathBar.ZIndex = 2000
-TablePathBar.Parent = TableExplorerFrame
-
-local TablePathLabel = Instance.new("TextLabel")
-TablePathLabel.Name = "PathLabel"
-TablePathLabel.Size = UDim2.new(1, -10, 1, 0)
-TablePathLabel.Position = UDim2.new(0, 10, 0, 0)
-TablePathLabel.BackgroundTransparency = 1
-TablePathLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-TablePathLabel.TextSize = 14
-TablePathLabel.Font = Enum.Font.SourceSans
-TablePathLabel.Text = "Path: root"
-TablePathLabel.TextXAlignment = Enum.TextXAlignment.Left
-TablePathLabel.ZIndex = 2000
-TablePathLabel.Parent = TablePathBar
-
--- Table content scroll frame
-local TableContentFrame = Instance.new("ScrollingFrame")
-TableContentFrame.Name = "TableContentFrame"
-TableContentFrame.Size = UDim2.new(1, -20, 1, -70)
-TableContentFrame.Position = UDim2.new(0, 10, 0, 70)
-TableContentFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-TableContentFrame.BorderSizePixel = 0
-TableContentFrame.ScrollBarThickness = 6
-TableContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-TableContentFrame.ZIndex = 2000
-TableContentFrame.Parent = TableExplorerFrame
-
--- Table entry template
-local TableEntryTemplate = Instance.new("Frame")
-TableEntryTemplate.Name = "TableEntryTemplate"
-TableEntryTemplate.Size = UDim2.new(1, -10, 0, 25)
-TableEntryTemplate.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-TableEntryTemplate.BorderSizePixel = 0
-TableEntryTemplate.Visible = false
-TableEntryTemplate.ZIndex = 2000
-TableEntryTemplate.Parent = TableContentFrame
-
-local EntryKeyLabel = Instance.new("TextLabel")
-EntryKeyLabel.Name = "KeyLabel"
-EntryKeyLabel.Size = UDim2.new(0.3, 0, 1, 0)
-EntryKeyLabel.Position = UDim2.new(0, 5, 0, 0)
-EntryKeyLabel.BackgroundTransparency = 1
-EntryKeyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-EntryKeyLabel.TextSize = 14
-EntryKeyLabel.Font = Enum.Font.SourceSans
-EntryKeyLabel.Text = "key"
-EntryKeyLabel.TextXAlignment = Enum.TextXAlignment.Left
-EntryKeyLabel.ZIndex = 2000
-EntryKeyLabel.Parent = TableEntryTemplate
-
-local EntryTypeLabel = Instance.new("TextLabel")
-EntryTypeLabel.Name = "TypeLabel"
-EntryTypeLabel.Size = UDim2.new(0.2, 0, 1, 0)
-EntryTypeLabel.Position = UDim2.new(0.3, 5, 0, 0)
-EntryTypeLabel.BackgroundTransparency = 1
-EntryTypeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-EntryTypeLabel.TextSize = 14
-EntryTypeLabel.Font = Enum.Font.SourceSans
-EntryTypeLabel.Text = "type"
-EntryTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
-EntryTypeLabel.ZIndex = 2000
-EntryTypeLabel.Parent = TableEntryTemplate
-
-local EntryValueBox = Instance.new("TextBox")
-EntryValueBox.Name = "ValueBox"
-EntryValueBox.Size = UDim2.new(0.5, -10, 0, 20)
-EntryValueBox.Position = UDim2.new(0.5, 0, 0.5, -10)
-EntryValueBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-EntryValueBox.BorderSizePixel = 0
-EntryValueBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-EntryValueBox.TextSize = 14
-EntryValueBox.Font = Enum.Font.SourceSans
-EntryValueBox.Text = "value"
-EntryValueBox.ClearTextOnFocus = false
-EntryValueBox.ZIndex = 2000
-EntryValueBox.Parent = TableEntryTemplate
-
--- Table Functions
-local currentTablePath = {}
-local currentTableRef = nil
-local tableExplorerMode = ""  -- "view" or "edit"
-
--- Add these new functions at the end of your script (after the existing functions)
-
--- Utility function to get a value from a nested table using a path
--- Function to find a result by its ID
-local function findResultById(id)
-    for _, result in ipairs(searchResults) do
-        if result.id == id then
-            return result
-        end
-    end
-    return nil
-end
-
-local function getValueFromPath(baseTable, path)
-    local current = baseTable
-    for _, key in ipairs(path) do
-        if type(current) ~= "table" then
-            return nil
-        end
-        current = current[key]
-    end
-    return current
-end
-
--- Function to safely set a value in a table (with read-only bypass attempts)
-local function safeSetTableValue(tbl, key, value)
-    -- First try the normal way
-    local success, result = pcall(function()
-        tbl[key] = value
-        return true
-    end)
-    
-    if success then
-        return true, nil
-    end
-    
-    -- If normal way fails, attempt bypass methods
-    local bypassMethods = {
-        -- Method 1: Using rawset (works for some protection methods)
-        function()
-            rawset(tbl, key, value)
-            return tbl[key] == value
-        end,
-        
-        -- Method 2: Using debug.setmetatable (works for some metatables)
-        function()
-            local oldmt = getmetatable(tbl)
-            local status = pcall(function()
-                debug.setmetatable(tbl, {})
-                tbl[key] = value
-            end)
-            pcall(function()
-                debug.setmetatable(tbl, oldmt)
-            end)
-            return status and tbl[key] == value
-        end,
-        
-        -- Method 3: Using setreadonly if available (for Synapse X/similar)
-        function()
-            local setreadonly = setreadonly or (debug and debug.setmetatable and function(t, bool)
-                local mt = getmetatable(t) or {}
-                mt.__metatable = not bool and mt or "The metatable is locked"
-                debug.setmetatable(t, mt)
-                return true
-            end)
-            
-            if setreadonly then
-                local status = pcall(function()
-                    setreadonly(tbl, false)
-                    tbl[key] = value
-                    setreadonly(tbl, true)
-                end)
-                return status and tbl[key] == value
-            end
-            return false
-        end
-    }
-    
-    -- Try each bypass method
-    for i, bypassFn in ipairs(bypassMethods) do
-        local status, success = pcall(bypassFn)
-        if status and success then
-            return true, "Protected table modified using bypass method " .. i
-        end
-    end
-    
-    -- All methods failed
-    return false, "This appears to be a read-only table that cannot be modified."
-end
-
--- Function to update the UI display of a table value
-local function updateTableEntryDisplay(entryFrame, key, value)
-    local keyLabel = entryFrame:FindFirstChild("KeyLabel")
-    local typeLabel = entryFrame:FindFirstChild("TypeLabel")
-    local valueBox = entryFrame:FindFirstChild("ValueBox")
-    
-    if keyLabel then
-        keyLabel.Text = tostring(key)
-    end
-    
-    if typeLabel then
-        typeLabel.Text = type(value)
-    end
-    
-    if valueBox then
-        if type(value) == "table" then
-            valueBox.Text = "[Table] - Click to explore"
-            valueBox.TextColor3 = Color3.fromRGB(100, 200, 255)
-        else
-            valueBox.Text = valueToString(value)
-            valueBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-        end
-    end
-end
-
--- Function to clear the table explorer view
-local function clearTableExplorer()
-    for _, child in pairs(TableContentFrame:GetChildren()) do
-        if child:IsA("Frame") and child.Name ~= "TableEntryTemplate" then
-            child:Destroy()
-        end
-    end
-    TableContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-end
-
--- Function to update the path display in the table explorer
-local function updateTablePath()
-    local pathText = "Path: root"
-    if #currentTablePath > 0 then
-        pathText = "Path: root"
-        for _, key in ipairs(currentTablePath) do
-            pathText = pathText .. " > " .. tostring(key)
-        end
-    end
-    TablePathLabel.Text = pathText
-end
-
--- Function to set a value in the table being explored
-local function setTableExplorerValue(key, value, valueBox)
-    if not currentTableRef then return end
-    
-    local success, message = safeSetTableValue(currentTableRef, key, value)
-    
-    if success then
-        highlightValueChange(valueBox)
-        if message then
-            showStatus(message)
-        end
-    else
-        showStatus(message or "Could not modify table value")
-        -- Reset the value display
-        valueBox.Text = valueToString(currentTableRef[key])
-    end
-end
-
--- Circular dependency fix - forward declare functions
-local populateTableExplorer
-
--- Function to handle clicks on table values
-local function handleTableValueClick(valueBox, key, tableRef)
-    -- If it's a table, navigate into it
-    local value = tableRef[key]
-    if type(value) == "table" then
-        table.insert(currentTablePath, key)
-        currentTableRef = value
-        populateTableExplorer(value)
-        updateTablePath()
-    end
-end
-
--- Now define populateTableExplorer after its forward declaration
-populateTableExplorer = function(tableToExplore)
-    clearTableExplorer()
-    if not tableToExplore or type(tableToExplore) ~= "table" then
-        showStatus("Cannot explore value: not a table")
-        return
-    end
-    
-    -- Add back button if we're in a nested table
-    if #currentTablePath > 0 then
-        local backButton = TableEntryTemplate:Clone()
-        backButton.Name = "BackButton"
-        backButton.KeyLabel.Text = "[..]"
-        backButton.TypeLabel.Text = "navigate up"
-        backButton.ValueBox.Text = "Parent Table"
-        backButton.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
-        backButton.Visible = true
-        backButton.Position = UDim2.new(0, 5, 0, 0)
-        backButton.Parent = TableContentFrame
-        
-        backButton.ValueBox.MouseButton1Click:Connect(function()
-            -- Go up one level
-            table.remove(currentTablePath)
-            if #currentTablePath == 0 then
-                currentTableRef = nil
-                TableExplorerFrame.Visible = false
-                return
-            else
-                -- Navigate to parent table
-                local result = findResultById(tableExplorerMode)
-                if result then
-                    currentTableRef = getValueFromPath(result.table, currentTablePath)
-                    populateTableExplorer(currentTableRef)
-                    updateTablePath()
-                end
-            end
-        end)
-    end
-    
-    -- Sort the keys for consistent display
-    local keys = {}
-    for k, _ in pairs(tableToExplore) do
-        table.insert(keys, k)
-    end
-    
-    -- Sort keys by type first, then by value
-    table.sort(keys, function(a, b)
-        local typeA, typeB = type(a), type(b)
-        if typeA ~= typeB then
-            return typeA < typeB
-        elseif typeA == "string" or typeA == "number" then
-            return tostring(a) < tostring(b)
-        else
-            return tostring(a) < tostring(b)
-        end
-    end)
-    
-    -- Create entries for each key-value pair
-    local yOffset = #currentTablePath > 0 and 30 or 0
-    for i, key in ipairs(keys) do
-        local value = tableToExplore[key]
-        
-        local entryFrame = TableEntryTemplate:Clone()
-        entryFrame.Name = "Entry_" .. i
-        entryFrame.Visible = true
-        entryFrame.Position = UDim2.new(0, 5, 0, yOffset)
-        entryFrame.Parent = TableContentFrame
-        
-        updateTableEntryDisplay(entryFrame, key, value)
-        
-        -- Handle table navigation
-        entryFrame.ValueBox.MouseButton1Click:Connect(function()
-            handleTableValueClick(entryFrame.ValueBox, key, tableToExplore)
-        end)
-        
-        -- Handle value editing
-        entryFrame.ValueBox.FocusLost:Connect(function(enterPressed)
-            if enterPressed and type(value) ~= "table" then
-                local newValue = convertValueToType(entryFrame.ValueBox.Text, type(value))
-                if newValue ~= nil or type(value) == "string" then
-                    setTableExplorerValue(key, newValue, entryFrame.ValueBox)
-                else
-                    entryFrame.ValueBox.Text = valueToString(value)
-                    showStatus("Invalid value format for type: " .. type(value))
-                end
-            end
-        end)
-        
-        yOffset = yOffset + 30
-    end
-    
-    -- Update canvas size
-    TableContentFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 10)
-end
-
--- Function to open the table explorer for a specific table
-local function openTableExplorer(resultId)
-    print("Opening table explorer for ID:", resultId)
-    
-    local result = findResultById(resultId)
-    if not result then
-        showStatus("Error: Could not find result with ID " .. tostring(resultId))
-        return
-    end
-    
-    if type(result.value) ~= "table" then
-        showStatus("Cannot explore value: not a table")
-        return
-    end
-    
-    -- Reset table explorer state
-    currentTablePath = {}
-    currentTableRef = result.value
-    tableExplorerMode = resultId
-    
-    -- Update title
-    TableTitle.Text = "Table Explorer: " .. tostring(result.key)
-    
-    -- Update path
-    updateTablePath()
-    
-    -- Populate with table contents
-    populateTableExplorer(result.value)
-    
-    -- Show the explorer
-    TableExplorerFrame.Visible = true
-    
-    print("Table explorer should be visible now")
-end
-
--- Add table exploration button to ValueTextBox in createResultEntry function
-local function createResultEntry(result, index)
-    local newResult = ResultTemplate:Clone()
-    newResult.Name = "Result_" .. result.id
-    newResult.IndexLabel.Text = tostring(index)
-    newResult.KeyLabel.Text = tostring(result.key)
-    newResult.ValueTextBox.Text = valueToString(result.value)
-    newResult.TypeLabel.Text = type(result.value)
-    newResult.UpdatedLabel.Text = "Just now"
-    newResult.Visible = true
-    newResult.Position = UDim2.new(0, 5, 0, (index - 1) * 35)
-    newResult.Parent = ResultsList
-    
-    -- Store the result ID in the buttons using attributes
-    newResult.LockButton:SetAttribute("ResultId", result.id)
-    newResult.ValueTextBox:SetAttribute("ResultId", result.id)
-    newResult.ValueTextBox:SetAttribute("Locked", false)
-    
-    -- Set up the lock button click handler
-    newResult.LockButton.MouseButton1Click:Connect(function()
-        toggleLockValue(newResult.LockButton)
-    end)
-    
-    -- Set up the value text box behavior
-    if type(result.value) == "table" then
-        -- For tables, show special formatting and enable exploration
-        newResult.ValueTextBox.Text = "[Table] - Click to explore"
-        newResult.ValueTextBox.TextColor3 = Color3.fromRGB(100, 200, 255)
-        
-        -- Add table exploration on click
-        newResult.ValueTextBox.MouseButton1Click:Connect(function()
-            openTableExplorer(result.id)
-        end)
-    else
-        -- For other types, set up normal editing
-        newResult.ValueTextBox.FocusLost:Connect(function(enterPressed)
-            if enterPressed then
-                setValueFromTextBox(newResult.ValueTextBox)
-            end
-        end)
-    end
-    
-    return newResult
-end
-
--- Replace the setValueFromTextBox function with this improved version
-local function setValueFromTextBox(textBox)
-    -- Get the result ID from the textbox attribute
-    local resultId = textBox:GetAttribute("ResultId")
-    if not resultId then return false end
-    
-    local result = findResultById(resultId)
-    if not result then return false end
-    
-    local newValueText = textBox.Text
-    local valueType = type(result.value)
-    
-    -- If it's a table, we don't edit directly
-    if valueType == "table" then
-        openTableExplorer(resultId)
-        return true
-    end
-    
-    -- Try to convert to appropriate type
-    local newValue = convertValueToType(newValueText, valueType)
-    
-    if newValue == nil and valueType ~= "string" then
-        showStatus("Error: Could not convert '" .. newValueText .. "' to " .. valueType)
-        -- Reset text box to current value
-        textBox.Text = valueToString(result.value)
-        return false
-    end
-    
-    -- Set the value with read-only protection bypass
-    local success, message = safeSetTableValue(result.table, result.key, newValue)
-    
-    if success then
-        result.value = newValue
-        result.lastUpdated = os.time()
-        
-        showStatus(message or "Value changed: " .. tostring(result.key))
-        highlightValueChange(textBox)
-        return true
-    else
-        showStatus("Error: " .. (message or "Unknown error"))
-        -- Reset text box to current value
-        textBox.Text = valueToString(result.value)
-        return false
-    end
-end
-
--- Add close button handler for table explorer
-TableCloseButton.MouseButton1Click:Connect(function()
-    TableExplorerFrame.Visible = false
-    currentTablePath = {}
-    currentTableRef = nil
-    tableExplorerMode = ""
-end)
-
 -- Functions
 local function showStatus(message)
     StatusText.Text = message
@@ -1203,41 +649,6 @@ end
 local function toggleTypeDropdown()
     TypeDropdownFrame.Visible = not TypeDropdownFrame.Visible
     SearchTypeDropdownFrame.Visible = false
-end
-
--- Function to try bypassing read-only table protection
-local function bypassReadOnly(table, key, value)
-    -- Try 3 different methods to set the value
-    local methods = {
-        function() -- Method 1: Direct assignment
-            table[key] = value
-        end,
-        function() -- Method 2: Using rawset (avoids metatable __newindex)
-            rawset(table, key, value)
-        end,
-        function() -- Method 3: Using metatables with debug.setmetatable
-            local success, _ = pcall(function()
-                local mt = getmetatable(table)
-                local oldNewIndex = mt.__newindex
-                mt.__newindex = nil
-                rawset(table, key, value)
-                mt.__newindex = oldNewIndex
-            end)
-            if not success then
-                error("Still read-only")
-            end
-        end
-    }
-    
-    -- Try each method until one works
-    for _, method in ipairs(methods) do
-        local success = pcall(method)
-        if success then
-            return true
-        end
-    end
-    
-    return false
 end
 
 local function toggleSearchTypeDropdown()
@@ -1256,7 +667,6 @@ local function selectSearchType(searchTypeName)
     SearchTypeDropdown.Text = searchTypeName
     SearchTypeDropdownFrame.Visible = false
 end
-
 
 local function getTimeAgo(timestamp)
     if not timestamp then return "Never" end
@@ -1364,6 +774,57 @@ local function highlightValueChange(valueTextBox)
     end)
 end
 
+local function setValueFromTextBox(resultId, textBox)
+    -- Find the result by ID
+    local result = nil
+    for _, r in ipairs(searchResults) do
+        if r.id == resultId then
+            result = r
+            break
+        end
+    end
+    
+    if not result then return false end
+    
+    -- If locked, don't allow changes
+    if lockStates[resultId] then
+        showStatus("Cannot change locked value: " .. tostring(result.key))
+        textBox.Text = valueToString(result.value)
+        return false
+    end
+    
+    local newValueText = textBox.Text
+    local valueType = type(result.value)
+    
+    -- Try to convert to appropriate type
+    local newValue = convertValueToType(newValueText, valueType)
+    
+    if newValue == nil and valueType ~= "string" then
+        showStatus("Error: Could not convert '" .. newValueText .. "' to " .. valueType)
+        -- Reset text box to current value
+        textBox.Text = valueToString(result.value)
+        return false
+    end
+    
+    -- Set the value
+    local success, err = pcall(function()
+        result.table[result.key] = newValue
+        result.value = newValue
+        result.lastUpdated = os.time()
+    end)
+    
+    if success then
+        showStatus("Value changed successfully: " .. tostring(result.key))
+        highlightValueChange(textBox)
+        return true
+    else
+        showStatus("Error: " .. tostring(err))
+        -- Reset text box to current value
+        textBox.Text = valueToString(result.value)
+        return false
+    end
+end
+
 local function updateLockDisplay(resultId)
     local resultEntry = ResultsList:FindFirstChild("Result_" .. resultId)
     if not resultEntry then return end
@@ -1398,29 +859,32 @@ local function updateLockDisplay(resultId)
 end
 
 local function toggleLockValue(resultId)
-    -- Make sure resultId is a number - convert from button attribute if needed
-    if type(resultId) == "table" and resultId:IsA("Instance") and resultId:GetAttribute("ResultId") then
-        resultId = resultId:GetAttribute("ResultId")
-    end
-    
-    if not resultId or type(resultId) ~= "number" then
-        showStatus("Error: Invalid result ID for locking")
-        return
-    end
-    
     -- Toggle locked state
-    lockStates[resultId] = not (lockStates[resultId] or false)
+    lockStates[resultId] = not lockStates[resultId]
     
-    -- Update the lock display
-    updateLockDisplay(resultId)
+    -- Find the result
+    local result = nil
+    for _, r in ipairs(searchResults) do
+        if r.id == resultId then
+            result = r
+            break
+        end
+    end
     
-    -- Find the result for the status message
-    local result = findResultById(resultId)
     if result then
+        -- Update the lock display
+        updateLockDisplay(resultId)
+        
         -- Show status message
         local actionText = lockStates[resultId] and "Locked" or "Unlocked"
         showStatus(actionText .. " value: " .. tostring(result.key))
     end
+end
+
+local function showChangeAllUI()
+    ChangeAllUI.Visible = true
+    NewValueInput.Text = "999"
+    NewValueInput:CaptureFocus()
 end
 
 local function applyChangeAll()
@@ -1718,25 +1182,21 @@ local function toggleAutoUpdate()
 end
 
 -- Create a result entry in the UI
--- Create a result entry in the UI
 local function createResultEntry(result, index)
     local newResult = ResultTemplate:Clone()
     newResult.Name = "Result_" .. result.id
     newResult.IndexLabel.Text = tostring(index)
     newResult.KeyLabel.Text = tostring(result.key)
+    newResult.ValueTextBox.Text = valueToString(result.value)
     newResult.TypeLabel.Text = type(result.value)
     newResult.UpdatedLabel.Text = "Just now"
     newResult.Visible = true
     newResult.Position = UDim2.new(0, 5, 0, (index - 1) * 35)
+    newResult.Parent = ResultsList
     
-    -- Store the result ID in the buttons using attributes
+    -- Store the result ID in the button itself using attributes
+    -- This ensures the event handler always has the correct ID
     newResult.LockButton:SetAttribute("ResultId", result.id)
-    newResult.ValueTextBox:SetAttribute("ResultId", result.id)
-    newResult.ValueTextBox:SetAttribute("Locked", false)
-    
-    if newResult:FindFirstChild("ExploreButton") then
-        newResult.ExploreButton:SetAttribute("ResultId", result.id)
-    end
     
     -- Set up the lock button click handler
     newResult.LockButton.MouseButton1Click:Connect(function()
@@ -1744,40 +1204,15 @@ local function createResultEntry(result, index)
         toggleLockValue(id)
     end)
     
-    -- Handle table values differently
-    if type(result.value) == "table" then
-        -- For tables, show "[Table]" text and enable exploration
-        newResult.ValueTextBox.Text = "[Table]"
-        newResult.ValueTextBox.TextColor3 = Color3.fromRGB(100, 200, 255)
-        
-        -- Make the explore button visible for tables
-        if newResult:FindFirstChild("ExploreButton") then
-            newResult.ExploreButton.Visible = true
-            newResult.ExploreButton.MouseButton1Click:Connect(function()
-                local id = newResult.ExploreButton:GetAttribute("ResultId")
-                openTableExplorer(id)
-                print("Trying to open table explorer for ID:", id)
-            end)
+    -- Set up the value text box to update the value when it loses focus
+    newResult.ValueTextBox:SetAttribute("ResultId", result.id)
+    newResult.ValueTextBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local id = newResult.ValueTextBox:GetAttribute("ResultId")
+            setValueFromTextBox(id, newResult.ValueTextBox)
         end
-    else
-        -- For other values, set normal text and editing
-        newResult.ValueTextBox.Text = valueToString(result.value)
-        newResult.ValueTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-        
-        -- Hide explore button for non-tables
-        if newResult:FindFirstChild("ExploreButton") then
-            newResult.ExploreButton.Visible = false
-        end
-        
-        -- Set up value editing
-        newResult.ValueTextBox.FocusLost:Connect(function(enterPressed)
-            if enterPressed then
-                setValueFromTextBox(newResult.ValueTextBox)
-            end
-        end)
-    end
+    end)
     
-    newResult.Parent = ResultsList
     return newResult
 end
 
@@ -1970,53 +1405,6 @@ UpdatedHeader.MouseButton1Click:Connect(function() toggleSort("Updated") end)
 MinimizedFrame.Active = true
 MinimizedFrame.Draggable = true
 
--- Add close button handler for table explorer
-TableCloseButton.MouseButton1Click:Connect(function()
-    TableExplorerFrame.Visible = false
-    currentTablePath = {}
-    currentTableRef = nil
-    tableExplorerMode = ""
-end)
-
--- Add after you define all your functions
--- Make tables clearly identifiable
-for _, result in ipairs(searchResults) do
-    if type(result.value) == "table" then
-        local resultEntry = ResultsList:FindFirstChild("Result_" .. result.id)
-        if resultEntry and resultEntry:FindFirstChild("ValueTextBox") then
-            resultEntry.ValueTextBox.Text = "[Table] - Click to explore"
-            resultEntry.ValueTextBox.TextColor3 = Color3.fromRGB(100, 200, 255)
-        end
-    end
-end
-
--- Add this to the end of your script
--- Make the Table Explorer window more visible
-TableExplorerFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-TableExplorerFrame.BorderColor3 = Color3.fromRGB(100, 150, 255)
-TableExplorerFrame.BorderSizePixel = 2
-TableExplorerFrame.ZIndex = 2500  -- Ensure it's above everything else
-
--- Make sure to bring it to front when opening
-local function bringToFront()
-    -- This will help ensure the TableExplorerFrame is visible and on top
-    TableExplorerFrame.ZIndex = 2500
-    for _, child in pairs(TableExplorerFrame:GetChildren()) do
-        if child:IsA("GuiObject") then
-            child.ZIndex = 2500
-            
-            for _, subChild in pairs(child:GetChildren()) do
-                if subChild:IsA("GuiObject") then
-                    subChild.ZIndex = 2500
-                end
-            end
-        end
-    end
-end
-
--- Add this call at the end of openTableExplorer function
--- After the line that sets TableExplorerFrame.Visible = true
-bringToFront()
 -- Initial status
 showStatus("Ready to search. Press Right Shift to toggle visibility.")
 
