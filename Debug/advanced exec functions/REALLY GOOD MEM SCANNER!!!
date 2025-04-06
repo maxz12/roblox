@@ -1,7 +1,7 @@
 -- GC Explorer GUI - Real-time Version
 -- Created for maxz12 on 2025-04-05
 -- A cheat-engine like interface for Roblox garbage collection with CoreGui integration
--- Added real-time updates and sorting functionality
+-- Added real-time updates, sorting functionality and value locking
 
 -- Services
 local UserInputService = game:GetService("UserInputService")
@@ -12,19 +12,17 @@ local RunService = game:GetService("RunService")
 local GCExplorer = Instance.new("ScreenGui")
 GCExplorer.Name = "GCExplorer"
 GCExplorer.ResetOnSpawn = false
-GCExplorer.DisplayOrder = 999 -- Make it appear above most GUI elements
-GCExplorer.IgnoreGuiInset = true -- Make it ignore the top inset
+GCExplorer.DisplayOrder = 999
+GCExplorer.IgnoreGuiInset = true
 
 -- Try to place in CoreGui, fall back to PlayerGui if not possible
-local success, err = pcall(function()
+local success = pcall(function()
     GCExplorer.Parent = CoreGui
 end)
 
 if not success then
-    local Players = game:GetService("Players")
-    local player = Players.LocalPlayer
-    GCExplorer.Parent = player:WaitForChild("PlayerGui")
-    warn("CoreGui placement failed: " .. err .. ". Placed in PlayerGui instead.")
+    GCExplorer.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    warn("CoreGui placement failed. Placed in PlayerGui instead.")
 end
 
 -- Create the main frame
@@ -118,7 +116,7 @@ SearchInput.BorderSizePixel = 0
 SearchInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 SearchInput.TextSize = 14
 SearchInput.Font = Enum.Font.SourceSans
-SearchInput.Text = "" -- Starting empty as requested
+SearchInput.Text = ""
 SearchInput.PlaceholderText = "Enter search value..."
 SearchInput.ClearTextOnFocus = false
 SearchInput.ZIndex = 1000
@@ -379,7 +377,7 @@ KeyLabel.Parent = ResultTemplate
 -- ValueLabel is now a TextBox for direct editing
 local ValueTextBox = Instance.new("TextBox")
 ValueTextBox.Name = "ValueTextBox"
-ValueTextBox.Size = UDim2.new(0.4, 0, 0, 20)
+ValueTextBox.Size = UDim2.new(0.4, -25, 0, 20) -- Reduced width to make room for lock button
 ValueTextBox.Position = UDim2.new(0.3, 30, 0.5, -10)
 ValueTextBox.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
 ValueTextBox.BorderSizePixel = 0
@@ -390,6 +388,21 @@ ValueTextBox.Text = "value"
 ValueTextBox.ClearTextOnFocus = false
 ValueTextBox.ZIndex = 1000
 ValueTextBox.Parent = ResultTemplate
+
+-- Lock button for each value
+local LockButton = Instance.new("TextButton")
+LockButton.Name = "LockButton"
+LockButton.Size = UDim2.new(0, 20, 0, 20)
+LockButton.Position = UDim2.new(0.7, 5, 0.5, -10)
+LockButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+LockButton.BorderSizePixel = 1
+LockButton.BorderColor3 = Color3.fromRGB(100, 100, 100)
+LockButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+LockButton.TextSize = 10
+LockButton.Font = Enum.Font.SourceSansBold
+LockButton.Text = "🔓"
+LockButton.ZIndex = 1000
+LockButton.Parent = ResultTemplate
 
 local TypeLabel = Instance.new("TextLabel")
 TypeLabel.Name = "TypeLabel"
@@ -404,7 +417,7 @@ TypeLabel.TextXAlignment = Enum.TextXAlignment.Left
 TypeLabel.ZIndex = 1000
 TypeLabel.Parent = ResultTemplate
 
--- NEW: Last updated indicator
+-- Last updated indicator
 local UpdatedLabel = Instance.new("TextLabel")
 UpdatedLabel.Name = "UpdatedLabel"
 UpdatedLabel.Size = UDim2.new(0.15, -30, 1, 0)
@@ -608,17 +621,25 @@ MaximizeButton.Text = "+"
 MaximizeButton.ZIndex = 1000
 MaximizeButton.Parent = MinimizedFrame
 
+-- Color constants
+local NORMAL_COLOR = Color3.fromRGB(70, 70, 70) -- Normal box color
+local LOCKED_COLOR = Color3.fromRGB(120, 50, 50) -- Locked box color
+local HIGHLIGHT_COLOR = Color3.fromRGB(100, 180, 100) -- Highlight color for changes
+
 -- Variables to store state
 local selectedType = "All Types"
 local selectedSearchType = "Contains"
 local searchResults = {}
+local resultIdCounter = 0
+local lockStates = {}
 local isMinimized = false
 local isVisible = true
 local isAutoUpdateEnabled = true
 local currentSortColumn = "Key"
-local currentSortDirection = "Descending" -- Start with Descending so first click will make it Ascending
+local currentSortDirection = "Descending"
 local updateConnection = nil
-local highlightDuration = 1.5 -- Duration for highlighting changed values
+local lastUpdateTime = 0
+local highlightDuration = 1.5
 
 -- Functions
 local function showStatus(message)
@@ -648,9 +669,7 @@ local function selectSearchType(searchTypeName)
 end
 
 local function getTimeAgo(timestamp)
-    if not timestamp then
-        return "Never"
-    end
+    if not timestamp then return "Never" end
     
     local seconds = os.time() - timestamp
     
@@ -675,6 +694,8 @@ local function clearResults()
     end
     ResultsList.CanvasSize = UDim2.new(0, 0, 0, 0)
     searchResults = {}
+    lockStates = {}
+    resultIdCounter = 0
 end
 
 local function updateResultsLabel()
@@ -706,9 +727,10 @@ local function convertValueToType(valueText, targetType)
     if targetType == "number" then
         return tonumber(valueText)
     elseif targetType == "boolean" then
-        if valueText:lower() == "true" then
+        local lower = valueText:lower()
+        if lower == "true" then
             return true
-        elseif valueText:lower() == "false" then
+        elseif lower == "false" then
             return false
         else
             return nil
@@ -719,33 +741,57 @@ local function convertValueToType(valueText, targetType)
     end
 end
 
-local function highlightValueChange(resultEntry)
-    if not resultEntry or not resultEntry:FindFirstChild("ValueTextBox") then return end
+local function highlightValueChange(valueTextBox)
+    if not valueTextBox then return end
     
-    local originalColor = resultEntry.ValueTextBox.BackgroundColor3
-    local originalTextColor = resultEntry.ValueTextBox.TextColor3
+    local originalColor = valueTextBox.BackgroundColor3
+    local originalTextColor = valueTextBox.TextColor3
     
     -- Highlight
-    resultEntry.ValueTextBox.BackgroundColor3 = Color3.fromRGB(100, 180, 100)
-    resultEntry.ValueTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    valueTextBox.BackgroundColor3 = HIGHLIGHT_COLOR
+    valueTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     
-    -- Set the "Updated" label to "Just now"
-    if resultEntry:FindFirstChild("UpdatedLabel") then
+    -- Update "Updated" label to "Just now" if possible
+    local resultEntry = valueTextBox.Parent
+    if resultEntry and resultEntry:FindFirstChild("UpdatedLabel") then
         resultEntry.UpdatedLabel.Text = "Just now"
     end
     
-    -- Reset after a delay
+    -- Reset after a delay, but keep locked color if locked
     delay(highlightDuration, function()
-        if resultEntry and resultEntry:FindFirstChild("ValueTextBox") then
-            resultEntry.ValueTextBox.BackgroundColor3 = originalColor
-            resultEntry.ValueTextBox.TextColor3 = originalTextColor
+        if valueTextBox then
+            local resultName = valueTextBox.Parent.Name
+            local resultId = tonumber(resultName:match("Result_(%d+)"))
+            
+            if resultId and lockStates[resultId] then
+                valueTextBox.BackgroundColor3 = LOCKED_COLOR
+            else
+                valueTextBox.BackgroundColor3 = originalColor
+            end
+            
+            valueTextBox.TextColor3 = originalTextColor
         end
     end)
 end
 
-local function setValueFromTextBox(resultIndex, textBox)
-    local result = searchResults[resultIndex]
+local function setValueFromTextBox(resultId, textBox)
+    -- Find the result by ID
+    local result = nil
+    for _, r in ipairs(searchResults) do
+        if r.id == resultId then
+            result = r
+            break
+        end
+    end
+    
     if not result then return false end
+    
+    -- If locked, don't allow changes
+    if lockStates[resultId] then
+        showStatus("Cannot change locked value: " .. tostring(result.key))
+        textBox.Text = valueToString(result.value)
+        return false
+    end
     
     local newValueText = textBox.Text
     local valueType = type(result.value)
@@ -768,14 +814,8 @@ local function setValueFromTextBox(resultIndex, textBox)
     end)
     
     if success then
-        showStatus("Value changed successfully: " .. result.key)
-        
-        -- Update the UI element
-        local resultEntry = ResultsList:FindFirstChild("Result" .. resultIndex)
-        if resultEntry then
-            highlightValueChange(resultEntry)
-        end
-        
+        showStatus("Value changed successfully: " .. tostring(result.key))
+        highlightValueChange(textBox)
         return true
     else
         showStatus("Error: " .. tostring(err))
@@ -785,9 +825,65 @@ local function setValueFromTextBox(resultIndex, textBox)
     end
 end
 
+local function updateLockDisplay(resultId)
+    local resultEntry = ResultsList:FindFirstChild("Result_" .. resultId)
+    if not resultEntry then return end
+    
+    local isLocked = lockStates[resultId]
+    
+    -- Update lock button
+    local lockButton = resultEntry:FindFirstChild("LockButton")
+    if lockButton then
+        if isLocked then
+            lockButton.Text = "🔒"
+            lockButton.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
+            lockButton.BorderColor3 = Color3.fromRGB(200, 100, 100)
+            lockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        else
+            lockButton.Text = "🔓"
+            lockButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            lockButton.BorderColor3 = Color3.fromRGB(100, 100, 100)
+            lockButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end
+    
+    -- Update value text box
+    local valueTextBox = resultEntry:FindFirstChild("ValueTextBox")
+    if valueTextBox then
+        if isLocked then
+            valueTextBox.BackgroundColor3 = LOCKED_COLOR
+        else
+            valueTextBox.BackgroundColor3 = NORMAL_COLOR
+        end
+    end
+end
+
+local function toggleLockValue(resultId)
+    -- Toggle locked state
+    lockStates[resultId] = not lockStates[resultId]
+    
+    -- Find the result
+    local result = nil
+    for _, r in ipairs(searchResults) do
+        if r.id == resultId then
+            result = r
+            break
+        end
+    end
+    
+    if result then
+        -- Update the lock display
+        updateLockDisplay(resultId)
+        
+        -- Show status message
+        local actionText = lockStates[resultId] and "Locked" or "Unlocked"
+        showStatus(actionText .. " value: " .. tostring(result.key))
+    end
+end
+
 local function showChangeAllUI()
     ChangeAllUI.Visible = true
-    NewValueInput.Text = "999" -- Set default to 999
+    NewValueInput.Text = "999"
     NewValueInput:CaptureFocus()
 end
 
@@ -795,27 +891,30 @@ local function applyChangeAll()
     local newValueText = NewValueInput.Text
     local successCount = 0
     local failCount = 0
+    local lockedCount = 0
     local currentTime = os.time()
     
-    for i, result in ipairs(searchResults) do
+    for _, result in ipairs(searchResults) do
+        -- Skip locked values
+        if lockStates[result.id] then
+            lockedCount = lockedCount + 1
+            continue
+        end
+        
         local valueType = type(result.value)
         local newValue = convertValueToType(newValueText, valueType)
         
         if newValue ~= nil or valueType == "string" then
-            local success, _ = pcall(function()
+            local success = pcall(function()
                 result.table[result.key] = newValue
                 result.value = newValue
                 result.lastUpdated = currentTime
                 
                 -- Update the text box in the UI
-                local resultEntry = ResultsList:FindFirstChild("Result" .. i)
+                local resultEntry = ResultsList:FindFirstChild("Result_" .. result.id)
                 if resultEntry and resultEntry:FindFirstChild("ValueTextBox") then
                     resultEntry.ValueTextBox.Text = valueToString(newValue)
-                    highlightValueChange(resultEntry)
-                    
-                    if resultEntry:FindFirstChild("UpdatedLabel") then
-                        resultEntry.UpdatedLabel.Text = "Just now"
-                    end
+                    highlightValueChange(resultEntry.ValueTextBox)
                 end
             end)
             
@@ -829,26 +928,24 @@ local function applyChangeAll()
         end
     end
     
-    showStatus("Changed " .. successCount .. " values successfully. " .. failCount .. " failed.")
+    showStatus("Changed " .. successCount .. " values. Failed: " .. failCount .. ". Locked: " .. lockedCount)
     ChangeAllUI.Visible = false
 end
 
 local function matchesSearchCriteria(key, value, searchValue, searchType)
-    -- If key is not a string, we can't search it effectively
-    if type(key) ~= "string" then
-        return false
-    end
+    -- If key is not a string, convert it to string for searching
+    local keyStr = tostring(key)
     
     -- For string values
     if type(value) == "string" then
         if searchType == "Contains" then
-            return string.find(string.lower(key), string.lower(searchValue)) ~= nil
+            return string.find(string.lower(keyStr), string.lower(searchValue)) ~= nil
         elseif searchType == "Exact Match" then
-            return string.lower(key) == string.lower(searchValue)
+            return string.lower(keyStr) == string.lower(searchValue)
         elseif searchType == "Starts With" then
-            return string.find(string.lower(key), "^" .. string.lower(searchValue)) ~= nil
+            return string.find(string.lower(keyStr), "^" .. string.lower(searchValue)) ~= nil
         elseif searchType == "Ends With" then
-            return string.find(string.lower(key), string.lower(searchValue) .. "$") ~= nil
+            return string.find(string.lower(keyStr), string.lower(searchValue) .. "$") ~= nil
         end
     -- For number values
     elseif type(value) == "number" and tonumber(searchValue) then
@@ -873,13 +970,13 @@ local function matchesSearchCriteria(key, value, searchValue, searchType)
     
     -- Default to checking the key if other checks didn't match
     if searchType == "Contains" then
-        return string.find(string.lower(key), string.lower(searchValue)) ~= nil
+        return string.find(string.lower(keyStr), string.lower(searchValue)) ~= nil
     elseif searchType == "Exact Match" then
-        return string.lower(key) == string.lower(searchValue)
+        return string.lower(keyStr) == string.lower(searchValue)
     elseif searchType == "Starts With" then
-        return string.find(string.lower(key), "^" .. string.lower(searchValue)) ~= nil
+        return string.find(string.lower(keyStr), "^" .. string.lower(searchValue)) ~= nil
     elseif searchType == "Ends With" then
-        return string.find(string.lower(key), string.lower(searchValue) .. "$") ~= nil
+        return string.find(string.lower(keyStr), string.lower(searchValue) .. "$") ~= nil
     end
     
     return false
@@ -887,33 +984,44 @@ end
 
 -- Compare function for sorting
 local function compareValues(a, b)
+    -- Default return for when comparison isn't possible
+    local defaultCompare = currentSortDirection == "Ascending"
+    
     if currentSortColumn == "Key" then
-        if type(a.key) == "string" and type(b.key) == "string" then
-            if currentSortDirection == "Ascending" then
-                return string.lower(a.key) < string.lower(b.key)
-            else
-                return string.lower(a.key) > string.lower(b.key)
-            end
+        local aKey = tostring(a.key)
+        local bKey = tostring(b.key)
+        
+        if currentSortDirection == "Ascending" then
+            return string.lower(aKey) < string.lower(bKey)
         else
-            return tostring(a.key) < tostring(b.key)
+            return string.lower(aKey) > string.lower(bKey)
         end
     elseif currentSortColumn == "Value" then
         local aType = type(a.value)
         local bType = type(b.value)
         
-        if aType == bType and (aType == "number" or aType == "boolean") then
-            if currentSortDirection == "Ascending" then
-                return a.value < b.value
+        if aType == bType then
+            if aType == "number" or aType == "boolean" then
+                if currentSortDirection == "Ascending" then
+                    return a.value < b.value
+                else
+                    return a.value > b.value
+                end
             else
-                return a.value > b.value
+                local aStr = valueToString(a.value)
+                local bStr = valueToString(b.value)
+                if currentSortDirection == "Ascending" then
+                    return aStr < bStr
+                else
+                    return aStr > bStr
+                end
             end
         else
-            local aStr = valueToString(a.value)
-            local bStr = valueToString(b.value)
+            -- Different types, sort by type name
             if currentSortDirection == "Ascending" then
-                return aStr < bStr
+                return aType < bType
             else
-                return aStr > bStr
+                return aType > bType
             end
         end
     elseif currentSortColumn == "Type" then
@@ -930,24 +1038,47 @@ local function compareValues(a, b)
         else
             return aTime > bTime
         end
-    else -- Default to index
+    else -- Index
         if currentSortDirection == "Ascending" then
             return a.index < b.index
         else
             return a.index > b.index
         end
     end
+    
+    return defaultCompare
+end
+
+-- Update header text to show sorting state
+local function updateSortHeaders()
+    local headers = {
+        {header = IndexHeader, name = "Index"},
+        {header = KeyHeader, name = "Key"},
+        {header = ValueHeader, name = "Value"},
+        {header = TypeHeader, name = "Type"},
+        {header = UpdatedHeader, name = "Updated"}
+    }
+    
+    for _, item in ipairs(headers) do
+        if item.name == currentSortColumn then
+            item.header.Text = item.name .. (currentSortDirection == "Ascending" and " ↑" or " ↓")
+            item.header.TextColor3 = Color3.fromRGB(255, 255, 255) -- Highlight active sort
+        else
+            item.header.Text = item.name
+            item.header.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end
 end
 
 -- Function to sort and reposition results
 local function sortResults()
-    -- Sort the results
+    -- Sort the results array
     table.sort(searchResults, compareValues)
     
     -- Update the UI to reflect the new order
     for i, result in ipairs(searchResults) do
         result.index = i
-        local resultEntry = ResultsList:FindFirstChild("Result" .. i)
+        local resultEntry = ResultsList:FindFirstChild("Result_" .. result.id)
         if resultEntry then
             resultEntry.IndexLabel.Text = tostring(i)
             resultEntry.Position = UDim2.new(0, 5, 0, (i - 1) * 35)
@@ -955,14 +1086,7 @@ local function sortResults()
     end
     
     -- Update the sort indicators in the headers
-    local headers = {IndexHeader, KeyHeader, ValueHeader, TypeHeader, UpdatedHeader}
-    for _, header in ipairs(headers) do
-        if header.Name:sub(1, -7) == currentSortColumn then
-            header.Text = header.Name:sub(1, -7) .. (currentSortDirection == "Ascending" and " ↑" or " ↓")
-        else
-            header.Text = header.Name:sub(1, -7)
-        end
-    end
+    updateSortHeaders()
 end
 
 -- Function to toggle the sort direction or column
@@ -977,6 +1101,7 @@ local function toggleSort(column)
     end
     
     sortResults()
+    showStatus("Sorted by " .. column .. " (" .. currentSortDirection .. ")")
 end
 
 -- Update all displayed values from their source tables
@@ -984,7 +1109,12 @@ local function updateDisplayedValues()
     local changedCount = 0
     local timeNow = os.time()
     
-    for i, result in ipairs(searchResults) do
+    for _, result in ipairs(searchResults) do
+        -- Skip locked values
+        if lockStates[result.id] then
+            continue
+        end
+        
         local currentValue = result.table[result.key]
         
         -- Check if the value has changed
@@ -994,15 +1124,15 @@ local function updateDisplayedValues()
             changedCount = changedCount + 1
             
             -- Update the UI if it exists
-            local resultEntry = ResultsList:FindFirstChild("Result" .. i)
+            local resultEntry = ResultsList:FindFirstChild("Result_" .. result.id)
             if resultEntry and resultEntry:FindFirstChild("ValueTextBox") then
                 resultEntry.ValueTextBox.Text = valueToString(currentValue)
-                highlightValueChange(resultEntry)
+                highlightValueChange(resultEntry.ValueTextBox)
             end
         end
         
         -- Update time ago labels
-        local resultEntry = ResultsList:FindFirstChild("Result" .. i)
+        local resultEntry = ResultsList:FindFirstChild("Result_" .. result.id)
         if resultEntry and resultEntry:FindFirstChild("UpdatedLabel") and result.lastUpdated then
             resultEntry.UpdatedLabel.Text = getTimeAgo(result.lastUpdated)
         end
@@ -1029,10 +1159,11 @@ local function toggleAutoUpdate()
         AutoUpdateToggle.BackgroundColor3 = Color3.fromRGB(70, 130, 70)
         
         -- Setup the update connection if it doesn't exist
-        if not updateConnection then
+        if not updateConnection and #searchResults > 0 then
+            lastUpdateTime = os.time()
             updateConnection = RunService.Heartbeat:Connect(function()
                 -- Update at most once per second
-                if not lastUpdateTime or os.time() - lastUpdateTime >= 1 then
+                if os.time() - lastUpdateTime >= 1 then
                     updateDisplayedValues()
                     lastUpdateTime = os.time()
                 end
@@ -1048,6 +1179,41 @@ local function toggleAutoUpdate()
             updateConnection = nil
         end
     end
+end
+
+-- Create a result entry in the UI
+local function createResultEntry(result, index)
+    local newResult = ResultTemplate:Clone()
+    newResult.Name = "Result_" .. result.id
+    newResult.IndexLabel.Text = tostring(index)
+    newResult.KeyLabel.Text = tostring(result.key)
+    newResult.ValueTextBox.Text = valueToString(result.value)
+    newResult.TypeLabel.Text = type(result.value)
+    newResult.UpdatedLabel.Text = "Just now"
+    newResult.Visible = true
+    newResult.Position = UDim2.new(0, 5, 0, (index - 1) * 35)
+    newResult.Parent = ResultsList
+    
+    -- Store the result ID in the button itself using attributes
+    -- This ensures the event handler always has the correct ID
+    newResult.LockButton:SetAttribute("ResultId", result.id)
+    
+    -- Set up the lock button click handler
+    newResult.LockButton.MouseButton1Click:Connect(function()
+        local id = newResult.LockButton:GetAttribute("ResultId")
+        toggleLockValue(id)
+    end)
+    
+    -- Set up the value text box to update the value when it loses focus
+    newResult.ValueTextBox:SetAttribute("ResultId", result.id)
+    newResult.ValueTextBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local id = newResult.ValueTextBox:GetAttribute("ResultId")
+            setValueFromTextBox(id, newResult.ValueTextBox)
+        end
+    end)
+    
+    return newResult
 end
 
 -- Function to refresh all search results with the current search criteria
@@ -1078,34 +1244,27 @@ local function searchGC()
                     if searchValue == "" or matchesSearchCriteria(key, value, searchValue, selectedSearchType) then
                         count = count + 1
                         
+                        -- Create a unique ID for this result
+                        resultIdCounter = resultIdCounter + 1
+                        local resultId = resultIdCounter
+                        
                         -- Store result
-                        table.insert(searchResults, {
+                        local result = {
+                            id = resultId,
                             index = count,
                             table = obj,
                             key = key,
                             value = value,
-                            valueType = valueType,
                             lastUpdated = currentTime
-                        })
+                        }
                         
-                        -- Create result entry in UI
-                        local newResult = ResultTemplate:Clone()
-                        newResult.Name = "Result" .. count
-                        newResult.IndexLabel.Text = tostring(count)
-                        newResult.KeyLabel.Text = tostring(key)
-                        newResult.ValueTextBox.Text = valueToString(value)
-                        newResult.TypeLabel.Text = valueType
-                        newResult.UpdatedLabel.Text = "Just now"
-                        newResult.Visible = true
-                        newResult.Position = UDim2.new(0, 5, 0, (count - 1) * 35)
-                        newResult.Parent = ResultsList
+                        table.insert(searchResults, result)
                         
-                        -- Set up the value text box to update the value when it loses focus
-                        newResult.ValueTextBox.FocusLost:Connect(function(enterPressed)
-                            if enterPressed then
-                                setValueFromTextBox(count, newResult.ValueTextBox)
-                            end
-                        end)
+                        -- Initialize lock state (unlocked by default)
+                        lockStates[resultId] = false
+                        
+                        -- Create the UI element
+                        createResultEntry(result, count)
                         
                         -- Limit results to prevent UI lag
                         if count >= 1000 then
@@ -1139,7 +1298,6 @@ local function searchGC()
     if isAutoUpdateEnabled and count > 0 and not updateConnection then
         lastUpdateTime = os.time()
         updateConnection = RunService.Heartbeat:Connect(function()
-            -- Update at most once per second
             if os.time() - lastUpdateTime >= 1 then
                 updateDisplayedValues()
                 lastUpdateTime = os.time()
@@ -1242,15 +1400,6 @@ KeyHeader.MouseButton1Click:Connect(function() toggleSort("Key") end)
 ValueHeader.MouseButton1Click:Connect(function() toggleSort("Value") end)
 TypeHeader.MouseButton1Click:Connect(function() toggleSort("Type") end)
 UpdatedHeader.MouseButton1Click:Connect(function() toggleSort("Updated") end)
-
--- Prevent clicks on dropdown menus from closing them
-for _, frame in pairs({TypeDropdownFrame, SearchTypeDropdownFrame}) do
-    frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            input:Dispose()
-        end
-    end)
-end
 
 -- Make GUI draggable even while minimized
 MinimizedFrame.Active = true
