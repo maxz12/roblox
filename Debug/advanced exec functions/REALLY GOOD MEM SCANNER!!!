@@ -639,7 +639,10 @@ local currentSortColumn = "Key"
 local currentSortDirection = "Descending"
 local updateConnection = nil
 local lastUpdateTime = 0
+-- Add this new variable to control update frequency
+local updateInterval = 0.1  -- Set to 0.1 for 10 updates per second (was effectively 1.0 before)
 local highlightDuration = 1.5
+local lockedValues = {}  -- Store the actual locked values
 
 -- Functions
 local function showStatus(message)
@@ -789,7 +792,7 @@ local function setValueFromTextBox(resultId, textBox)
     -- If locked, don't allow changes
     if lockStates[resultId] then
         showStatus("Cannot change locked value: " .. tostring(result.key))
-        textBox.Text = valueToString(result.value)
+        textBox.Text = valueToString(lockedValues[resultId] or result.value)
         return false
     end
     
@@ -860,7 +863,8 @@ end
 
 local function toggleLockValue(resultId)
     -- Toggle locked state
-    lockStates[resultId] = not lockStates[resultId]
+    local isNowLocked = not lockStates[resultId]
+    lockStates[resultId] = isNowLocked
     
     -- Find the result
     local result = nil
@@ -872,11 +876,18 @@ local function toggleLockValue(resultId)
     end
     
     if result then
+        -- If we're locking, store the current value
+        if isNowLocked then
+            lockedValues[resultId] = result.value
+        else
+            lockedValues[resultId] = nil
+        end
+        
         -- Update the lock display
         updateLockDisplay(resultId)
         
         -- Show status message
-        local actionText = lockStates[resultId] and "Locked" or "Unlocked"
+        local actionText = isNowLocked and "Locked" or "Unlocked"
         showStatus(actionText .. " value: " .. tostring(result.key))
     end
 end
@@ -1107,14 +1118,28 @@ end
 -- Update all displayed values from their source tables
 local function updateDisplayedValues()
     local changedCount = 0
+    local lockedEnforcedCount = 0
     local timeNow = os.time()
     
     for _, result in ipairs(searchResults) do
-        -- Skip locked values
+        -- Handle locked values first - enforce the locked value
         if lockStates[result.id] then
+            local lockedValue = lockedValues[result.id]
+            
+            -- If the current value doesn't match the locked value, force it back
+            if result.table[result.key] ~= lockedValue then
+                -- Restore the locked value
+                pcall(function()
+                    result.table[result.key] = lockedValue
+                    lockedEnforcedCount = lockedEnforcedCount + 1
+                end)
+            end
+            
+            -- Skip further processing for locked values
             continue
         end
         
+        -- For unlocked values, check for changes (same as before)
         local currentValue = result.table[result.key]
         
         -- Check if the value has changed
@@ -1139,16 +1164,20 @@ local function updateDisplayedValues()
     end
     
     if changedCount > 0 then
-        showStatus(changedCount .. " values updated automatically")
+        showStatus(changedCount .. " values updated automatically" .. 
+                  (lockedEnforcedCount > 0 and ", " .. lockedEnforcedCount .. " locked values enforced" or ""))
         
         -- If sorting by "Updated" column, resort
         if currentSortColumn == "Updated" then
             sortResults()
         end
+    elseif lockedEnforcedCount > 0 then
+        showStatus(lockedEnforcedCount .. " locked values enforced")
     end
     
     return changedCount
 end
+
 
 -- Toggle auto update feature
 local function toggleAutoUpdate()
@@ -1160,12 +1189,12 @@ local function toggleAutoUpdate()
         
         -- Setup the update connection if it doesn't exist
         if not updateConnection and #searchResults > 0 then
-            lastUpdateTime = os.time()
+            lastUpdateTime = tick() -- Use tick() instead of os.time() for higher precision
             updateConnection = RunService.Heartbeat:Connect(function()
-                -- Update at most once per second
-                if os.time() - lastUpdateTime >= 1 then
+                -- Update based on the updateInterval (now in seconds with decimal precision)
+                if tick() - lastUpdateTime >= updateInterval then
                     updateDisplayedValues()
-                    lastUpdateTime = os.time()
+                    lastUpdateTime = tick()
                 end
             end)
         end
@@ -1296,11 +1325,11 @@ local function searchGC()
     
     -- Set up auto-update if enabled
     if isAutoUpdateEnabled and count > 0 and not updateConnection then
-        lastUpdateTime = os.time()
+        lastUpdateTime = tick() -- Use tick() instead of os.time()
         updateConnection = RunService.Heartbeat:Connect(function()
-            if os.time() - lastUpdateTime >= 1 then
+            if tick() - lastUpdateTime >= updateInterval then
                 updateDisplayedValues()
-                lastUpdateTime = os.time()
+                lastUpdateTime = tick()
             end
         end)
     elseif count == 0 and updateConnection then
