@@ -1,0 +1,242 @@
+-- Target Teleporter (MatchTargets Version)
+-- For user: maxz12 (2025-04-07 02:50:49)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local localPlayer = Players.LocalPlayer
+
+-- Config values
+local config = {
+    enabled = false,
+    radius = 10,
+    maxRadius = 50
+}
+
+-- Target path
+local targetsPath = workspace:FindFirstChild("Targets"):FindFirstChild("MatchTargets")
+if not targetsPath then
+    warn("Could not find workspace.Targets.MatchTargets!")
+    return
+end
+
+-- Create a simple GUI for control
+local gui = Instance.new("ScreenGui")
+gui.Name = "TargetTeleporterGUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = CoreGui
+
+-- Main frame
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 120)
+frame.Position = UDim2.new(1, -220, 1, -140)
+frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+frame.BorderSizePixel = 2
+frame.Active = true
+frame.Draggable = true
+frame.Parent = gui
+
+-- Title bar
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 25)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = frame
+
+local title = Instance.new("TextLabel")
+title.Text = "Target Teleporter"
+title.Size = UDim2.new(1, -10, 1, 0)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 14
+title.Parent = titleBar
+
+-- Toggle button
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Position = UDim2.new(0.5, -40, 0, 35)
+toggleBtn.Size = UDim2.new(0, 80, 0, 25)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+toggleBtn.Text = "OFF"
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.TextSize = 14
+toggleBtn.Parent = frame
+
+-- Radius label
+local radiusLabel = Instance.new("TextLabel")
+radiusLabel.Position = UDim2.new(0, 10, 0, 70)
+radiusLabel.Size = UDim2.new(0, 180, 0, 20)
+radiusLabel.BackgroundTransparency = 1
+radiusLabel.Text = "Radius: " .. config.radius
+radiusLabel.Font = Enum.Font.SourceSans
+radiusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+radiusLabel.TextSize = 14
+radiusLabel.TextXAlignment = Enum.TextXAlignment.Left
+radiusLabel.Parent = frame
+
+-- Radius slider (using button for simplicity)
+local sliderBtn = Instance.new("TextButton")
+sliderBtn.Position = UDim2.new(0, 10, 0, 90)
+sliderBtn.Size = UDim2.new(0, 180, 0, 20)
+sliderBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+sliderBtn.Text = ""
+sliderBtn.Parent = frame
+
+local sliderFill = Instance.new("Frame")
+sliderFill.Size = UDim2.new(config.radius / config.maxRadius, 0, 1, 0) 
+sliderFill.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+sliderFill.BorderSizePixel = 0
+sliderFill.Parent = sliderBtn
+
+-- Fixed angle for circle positions
+local angle = 0
+
+-- Count display
+local countLabel = Instance.new("TextLabel")
+countLabel.Position = UDim2.new(0, 10, 1, -20)
+countLabel.Size = UDim2.new(1, -20, 0, 20)
+countLabel.BackgroundTransparency = 1
+countLabel.Text = "Targets: " .. #targetsPath:GetChildren()
+countLabel.Font = Enum.Font.SourceSans
+countLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+countLabel.TextSize = 12
+countLabel.TextXAlignment = Enum.TextXAlignment.Left
+countLabel.Parent = frame
+
+-- Toggle function
+toggleBtn.MouseButton1Click:Connect(function()
+    config.enabled = not config.enabled
+    toggleBtn.Text = config.enabled and "ON" or "OFF"
+    toggleBtn.BackgroundColor3 = config.enabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+end)
+
+-- Simple slider implementation using a button
+sliderBtn.MouseButton1Down:Connect(function(x)
+    local relativeX = x / sliderBtn.AbsoluteSize.X
+    config.radius = math.max(3, math.min(config.maxRadius, relativeX * config.maxRadius))
+    sliderFill.Size = UDim2.new(config.radius / config.maxRadius, 0, 1, 0)
+    radiusLabel.Text = "Radius: " .. math.floor(config.radius * 10) / 10
+end)
+
+-- Mouse move handler for slider
+local mouseDown = false
+sliderBtn.MouseButton1Down:Connect(function() mouseDown = true end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        mouseDown = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if mouseDown and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local mousePos = UserInputService:GetMouseLocation()
+        local btnPos = sliderBtn.AbsolutePosition
+        local btnSize = sliderBtn.AbsoluteSize
+        
+        if mousePos.X >= btnPos.X and mousePos.X <= btnPos.X + btnSize.X then
+            local relativeX = (mousePos.X - btnPos.X) / btnSize.X
+            config.radius = math.max(3, math.min(config.maxRadius, relativeX * config.maxRadius))
+            sliderFill.Size = UDim2.new(config.radius / config.maxRadius, 0, 1, 0)
+            radiusLabel.Text = "Radius: " .. math.floor(config.radius * 10) / 10
+        end
+    end
+end)
+
+-- Function to get the center position of an object (part or model)
+local function getObjectPosition(object)
+    if object:IsA("BasePart") then
+        return object.Position
+    elseif object:IsA("Model") then
+        if object.PrimaryPart then
+            return object.PrimaryPart.Position
+        else
+            local parts = {}
+            for _, part in pairs(object:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    table.insert(parts, part)
+                end
+            end
+            
+            if #parts > 0 then
+                local sum = Vector3.new(0, 0, 0)
+                for _, part in pairs(parts) do
+                    sum = sum + part.Position
+                end
+                return sum / #parts
+            end
+        end
+    end
+    
+    -- Fallback
+    return Vector3.new(0, 0, 0)
+end
+
+-- Function to position targets in a circle
+local function positionTargets(center)
+    if not center then return end
+    
+    -- Get all targets from the MatchTargets folder
+    local targets = targetsPath:GetChildren()
+    countLabel.Text = "Targets: " .. #targets
+    
+    -- If no targets, nothing to do
+    if #targets == 0 then return end
+    
+    -- Position targets in a fixed circle
+    for i, target in ipairs(targets) do
+        -- Calculate position in static circle
+        local targetAngle = (2 * math.pi * i / #targets) + angle
+        
+        -- Calculate offset using world coordinates
+        local offsetX = math.cos(targetAngle) * config.radius
+        local offsetZ = math.sin(targetAngle) * config.radius
+        
+        -- Position at that point
+        local targetPos = center + Vector3.new(offsetX, 0, offsetZ)
+        
+        -- Make target face the center of the circle
+        local lookDir = (center - targetPos).Unit
+        
+        -- Handle different object types
+        if target:IsA("BasePart") then
+            target.CFrame = CFrame.new(targetPos, targetPos + lookDir)
+        elseif target:IsA("Model") then
+            -- Try to use PrimaryPart if available
+            if target.PrimaryPart then
+                local offset = target:GetPrimaryPartCFrame().Position - target.PrimaryPart.Position
+                target:SetPrimaryPartCFrame(CFrame.new(targetPos + offset, targetPos + offset + lookDir))
+            else
+                -- Try to move all parts if no PrimaryPart
+                local originalPos = getObjectPosition(target)
+                for _, part in pairs(target:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        local relativePos = part.Position - originalPos
+                        part.CFrame = CFrame.new(targetPos + relativePos, targetPos + relativePos + lookDir)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Real-time teleportation using Heartbeat
+RunService.Heartbeat:Connect(function()
+    -- Skip if disabled
+    if not config.enabled then return end
+    
+    local character = localPlayer.Character
+    if not character then return end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    -- Always position targets every frame
+    positionTargets(hrp.Position)
+end)
+
+print("[maxz12 @ 2025-04-07 02:50:49] Target Teleporter loaded - now teleporting all objects from workspace.Targets.MatchTargets!")
