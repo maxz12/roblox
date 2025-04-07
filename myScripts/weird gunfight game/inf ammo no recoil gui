@@ -1,0 +1,229 @@
+-- Zero-Lag Cheat GUI
+-- Created for maxz12 on 2025-04-07 02:21:59
+
+-- Services
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+
+-- Variables
+local infiniteAmmoEnabled = false
+local noRecoilEnabled = false
+local checkInterval = 5 -- Check ammo only every 3 seconds
+local lastCheckTime = 0
+local ammoThreshold = 1000
+
+-- Original GC Value Changer Function (Kept exactly as specified)
+local function findAndSetValues(searchTerm, newValue)
+    searchTerm = searchTerm:lower()
+    local count = 0
+    
+    -- Get all GC objects
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" then
+            -- Scan each table
+            for key, value in pairs(obj) do
+                -- Check if key contains search term (case insensitive)
+                if type(key) == "string" and string.find(string.lower(key), searchTerm) then
+                    -- Only modify if value type matches new value type
+                    if type(value) == type(newValue) then
+                        -- Set the new value
+                        obj[key] = newValue
+                        count = count + 1
+                    end
+                end
+            end
+        end
+    end
+    
+    return count
+end
+
+-- Create GUI
+local CheatGUI = Instance.new("ScreenGui")
+CheatGUI.Name = "ZeroLagCheatGUI"
+CheatGUI.ResetOnSpawn = false
+CheatGUI.DisplayOrder = 999
+CheatGUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Parent to CoreGui directly
+pcall(function()
+    CheatGUI.Parent = CoreGui
+end)
+
+if not CheatGUI.Parent then
+    CheatGUI.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 200, 0, 120)
+MainFrame.Position = UDim2.new(0.5, -100, 0.5, -60)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(60, 60, 60)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = CheatGUI
+
+-- Title
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, -10, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "Zero-Lag Cheat v1.0"
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
+
+-- Infinite Ammo Toggle
+local AmmoToggle = Instance.new("TextButton")
+AmmoToggle.Name = "AmmoToggle"
+AmmoToggle.Size = UDim2.new(0, 20, 0, 20)
+AmmoToggle.Position = UDim2.new(0, 10, 0, 40)
+AmmoToggle.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+AmmoToggle.BorderSizePixel = 1
+AmmoToggle.Text = ""
+AmmoToggle.Parent = MainFrame
+
+local AmmoLabel = Instance.new("TextLabel")
+AmmoLabel.Name = "AmmoLabel"
+AmmoLabel.Size = UDim2.new(0, 150, 0, 20)
+AmmoLabel.Position = UDim2.new(0, 40, 0, 40)
+AmmoLabel.BackgroundTransparency = 1
+AmmoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+AmmoLabel.TextSize = 14
+AmmoLabel.Font = Enum.Font.SourceSans
+AmmoLabel.Text = "Infinite Ammo"
+AmmoLabel.TextXAlignment = Enum.TextXAlignment.Left
+AmmoLabel.Parent = MainFrame
+
+-- No Recoil Toggle
+local RecoilToggle = Instance.new("TextButton")
+RecoilToggle.Name = "RecoilToggle"
+RecoilToggle.Size = UDim2.new(0, 20, 0, 20)
+RecoilToggle.Position = UDim2.new(0, 10, 0, 70)
+RecoilToggle.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+RecoilToggle.BorderSizePixel = 1
+RecoilToggle.Text = ""
+RecoilToggle.Parent = MainFrame
+
+local RecoilLabel = Instance.new("TextLabel")
+RecoilLabel.Name = "RecoilLabel"
+RecoilLabel.Size = UDim2.new(0, 150, 0, 20)
+RecoilLabel.Position = UDim2.new(0, 40, 0, 70)
+RecoilLabel.BackgroundTransparency = 1
+RecoilLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+RecoilLabel.TextSize = 14
+RecoilLabel.Font = Enum.Font.SourceSans
+RecoilLabel.Text = "No Recoil"
+RecoilLabel.TextXAlignment = Enum.TextXAlignment.Left
+RecoilLabel.Parent = MainFrame
+
+-- Status Label
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(1, -20, 0, 20)
+StatusLabel.Position = UDim2.new(0, 10, 1, -30)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.TextSize = 12
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.Text = "Ready"
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.Parent = MainFrame
+
+-- Create a non-intensive checking method
+local checkAmmoThread = nil
+
+local function startAmmoChecking()
+    if checkAmmoThread then return end
+    
+    checkAmmoThread = coroutine.create(function()
+        while infiniteAmmoEnabled do
+            -- Check ammo only every few seconds to reduce performance impact
+            local timeNow = tick()
+            if timeNow - lastCheckTime >= checkInterval then
+                lastCheckTime = timeNow
+                
+                -- Check ammo levels
+                findAndSetValues("ammo", 9999)
+            end
+            wait(1) -- Wait 1 second between checks
+        end
+    end)
+    
+    coroutine.resume(checkAmmoThread)
+end
+
+local function stopAmmoChecking()
+    if checkAmmoThread then
+        checkAmmoThread = nil
+    end
+end
+
+-- Toggle functions
+local function toggleInfiniteAmmo()
+    infiniteAmmoEnabled = not infiniteAmmoEnabled
+    AmmoToggle.BackgroundColor3 = infiniteAmmoEnabled and Color3.fromRGB(70, 255, 70) or Color3.fromRGB(255, 70, 70)
+    
+    if infiniteAmmoEnabled then
+        -- Apply immediately
+        local count = findAndSetValues("ammo", 9999)
+        StatusLabel.Text = "Set " .. count .. " ammo values"
+        startAmmoChecking()
+    else
+        stopAmmoChecking()
+        StatusLabel.Text = "Infinite ammo disabled"
+    end
+end
+
+local function toggleNoRecoil()
+    noRecoilEnabled = not noRecoilEnabled
+    RecoilToggle.BackgroundColor3 = noRecoilEnabled and Color3.fromRGB(70, 255, 70) or Color3.fromRGB(255, 70, 70)
+    
+    if noRecoilEnabled then
+        -- Only run once when enabled
+        local count = findAndSetValues("recoil", 9999)
+        StatusLabel.Text = "Set " .. count .. " recoil values"
+    else
+        StatusLabel.Text = "No recoil disabled"
+    end
+end
+
+-- Connect button events
+AmmoToggle.MouseButton1Click:Connect(toggleInfiniteAmmo)
+RecoilToggle.MouseButton1Click:Connect(toggleNoRecoil)
+
+-- Function to handle character added
+local function onCharacterAdded(newCharacter)
+    -- Apply cheats on respawn if enabled
+    if infiniteAmmoEnabled then
+        findAndSetValues("ammo", 3000)
+    end
+    
+    if noRecoilEnabled then
+        findAndSetValues("recoil", 9999)
+    end
+end
+
+-- Connect character events
+Players.LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+-- Check if current character exists
+if Players.LocalPlayer.Character then
+    onCharacterAdded(Players.LocalPlayer.Character)
+end
+
+-- Notify user that script loaded
+StatusLabel.Text = "Cheat loaded successfully!"
