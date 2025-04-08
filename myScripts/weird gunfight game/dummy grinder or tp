@@ -1,5 +1,5 @@
--- Target Teleporter (MatchTargets Version)
--- For user: maxz12 (2025-04-07 02:50:49)
+-- Target Teleporter (Fixed Rotation Version)
+-- For user: maxz12 (2025-04-08 02:13:12)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -10,8 +10,9 @@ local localPlayer = Players.LocalPlayer
 -- Config values
 local config = {
     enabled = false,
-    radius = 10,
-    maxRadius = 50
+    distance = 5,           -- How far in front of the player to place targets
+    rotationSpeed = 2,      -- Seconds each target stays at the front
+    stackOffset = 2         -- How far behind to place the stacked targets
 }
 
 -- Target path
@@ -30,8 +31,8 @@ gui.Parent = CoreGui
 
 -- Main frame
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 120)
-frame.Position = UDim2.new(1, -220, 1, -140)
+frame.Size = UDim2.new(0, 200, 0, 170)
+frame.Position = UDim2.new(1, -220, 1, -190)
 frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 frame.BorderSizePixel = 2
 frame.Active = true
@@ -46,7 +47,7 @@ titleBar.BorderSizePixel = 0
 titleBar.Parent = frame
 
 local title = Instance.new("TextLabel")
-title.Text = "Target Teleporter"
+title.Text = "Target Rotator"
 title.Size = UDim2.new(1, -10, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
@@ -67,41 +68,66 @@ toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.TextSize = 14
 toggleBtn.Parent = frame
 
--- Radius label
-local radiusLabel = Instance.new("TextLabel")
-radiusLabel.Position = UDim2.new(0, 10, 0, 70)
-radiusLabel.Size = UDim2.new(0, 180, 0, 20)
-radiusLabel.BackgroundTransparency = 1
-radiusLabel.Text = "Radius: " .. config.radius
-radiusLabel.Font = Enum.Font.SourceSans
-radiusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-radiusLabel.TextSize = 14
-radiusLabel.TextXAlignment = Enum.TextXAlignment.Left
-radiusLabel.Parent = frame
+-- Distance label
+local distanceLabel = Instance.new("TextLabel")
+distanceLabel.Position = UDim2.new(0, 10, 0, 65)
+distanceLabel.Size = UDim2.new(0, 180, 0, 20)
+distanceLabel.BackgroundTransparency = 1
+distanceLabel.Text = "Distance: " .. config.distance
+distanceLabel.Font = Enum.Font.SourceSans
+distanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+distanceLabel.TextSize = 14
+distanceLabel.TextXAlignment = Enum.TextXAlignment.Left
+distanceLabel.Parent = frame
 
--- Radius slider (using button for simplicity)
-local sliderBtn = Instance.new("TextButton")
-sliderBtn.Position = UDim2.new(0, 10, 0, 90)
-sliderBtn.Size = UDim2.new(0, 180, 0, 20)
-sliderBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-sliderBtn.Text = ""
-sliderBtn.Parent = frame
+-- Distance slider
+local distanceSlider = Instance.new("TextButton")
+distanceSlider.Position = UDim2.new(0, 10, 0, 85)
+distanceSlider.Size = UDim2.new(0, 180, 0, 20)
+distanceSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+distanceSlider.Text = ""
+distanceSlider.Parent = frame
 
-local sliderFill = Instance.new("Frame")
-sliderFill.Size = UDim2.new(config.radius / config.maxRadius, 0, 1, 0) 
-sliderFill.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-sliderFill.BorderSizePixel = 0
-sliderFill.Parent = sliderBtn
+local distanceFill = Instance.new("Frame")
+local maxDistance = 20
+distanceFill.Size = UDim2.new(config.distance / maxDistance, 0, 1, 0) 
+distanceFill.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+distanceFill.BorderSizePixel = 0
+distanceFill.Parent = distanceSlider
 
--- Fixed angle for circle positions
-local angle = 0
+-- Rotation speed label
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Position = UDim2.new(0, 10, 0, 110)
+speedLabel.Size = UDim2.new(0, 180, 0, 20)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Text = "Rotation Speed: " .. config.rotationSpeed .. "s"
+speedLabel.Font = Enum.Font.SourceSans
+speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedLabel.TextSize = 14
+speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+speedLabel.Parent = frame
+
+-- Rotation speed slider
+local speedSlider = Instance.new("TextButton")
+speedSlider.Position = UDim2.new(0, 10, 0, 130)
+speedSlider.Size = UDim2.new(0, 180, 0, 20)
+speedSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+speedSlider.Text = ""
+speedSlider.Parent = frame
+
+local speedFill = Instance.new("Frame")
+local maxSpeed = 10
+speedFill.Size = UDim2.new(config.rotationSpeed / maxSpeed, 0, 1, 0) 
+speedFill.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+speedFill.BorderSizePixel = 0
+speedFill.Parent = speedSlider
 
 -- Count display
 local countLabel = Instance.new("TextLabel")
 countLabel.Position = UDim2.new(0, 10, 1, -20)
 countLabel.Size = UDim2.new(1, -20, 0, 20)
 countLabel.BackgroundTransparency = 1
-countLabel.Text = "Targets: " .. #targetsPath:GetChildren()
+countLabel.Text = "Targets: 0 | Active: None"
 countLabel.Font = Enum.Font.SourceSans
 countLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
 countLabel.TextSize = 12
@@ -115,118 +141,79 @@ toggleBtn.MouseButton1Click:Connect(function()
     toggleBtn.BackgroundColor3 = config.enabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
 end)
 
--- Simple slider implementation using a button
-sliderBtn.MouseButton1Down:Connect(function(x)
-    local relativeX = x / sliderBtn.AbsoluteSize.X
-    config.radius = math.max(3, math.min(config.maxRadius, relativeX * config.maxRadius))
-    sliderFill.Size = UDim2.new(config.radius / config.maxRadius, 0, 1, 0)
-    radiusLabel.Text = "Radius: " .. math.floor(config.radius * 10) / 10
-end)
-
--- Mouse move handler for slider
-local mouseDown = false
-sliderBtn.MouseButton1Down:Connect(function() mouseDown = true end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        mouseDown = false
+-- Generic slider implementation
+local function setupSlider(slider, fill, maxVal, configKey, label, prefix, suffix)
+    local isSliding = false
+    
+    -- Update function
+    local function updateValue(relX)
+        local newVal = math.max(0.1, math.min(maxVal, relX * maxVal))
+        config[configKey] = newVal
+        fill.Size = UDim2.new(newVal / maxVal, 0, 1, 0)
+        label.Text = prefix .. string.format("%.1f", newVal) .. suffix
     end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if mouseDown and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local mousePos = UserInputService:GetMouseLocation()
-        local btnPos = sliderBtn.AbsolutePosition
-        local btnSize = sliderBtn.AbsoluteSize
-        
-        if mousePos.X >= btnPos.X and mousePos.X <= btnPos.X + btnSize.X then
-            local relativeX = (mousePos.X - btnPos.X) / btnSize.X
-            config.radius = math.max(3, math.min(config.maxRadius, relativeX * config.maxRadius))
-            sliderFill.Size = UDim2.new(config.radius / config.maxRadius, 0, 1, 0)
-            radiusLabel.Text = "Radius: " .. math.floor(config.radius * 10) / 10
-        end
-    end
-end)
-
--- Function to get the center position of an object (part or model)
-local function getObjectPosition(object)
-    if object:IsA("BasePart") then
-        return object.Position
-    elseif object:IsA("Model") then
-        if object.PrimaryPart then
-            return object.PrimaryPart.Position
-        else
-            local parts = {}
-            for _, part in pairs(object:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    table.insert(parts, part)
-                end
-            end
+    
+    -- Handle mouse down
+    slider.MouseButton1Down:Connect(function(x)
+        isSliding = true
+        local relX = math.clamp(x / slider.AbsoluteSize.X, 0, 1)
+        updateValue(relX)
+    end)
+    
+    -- Handle mouse move
+    UserInputService.InputChanged:Connect(function(input)
+        if isSliding and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local mousePos = UserInputService:GetMouseLocation()
+            local sliderPos = slider.AbsolutePosition
+            local sliderSize = slider.AbsoluteSize
             
-            if #parts > 0 then
-                local sum = Vector3.new(0, 0, 0)
-                for _, part in pairs(parts) do
-                    sum = sum + part.Position
-                end
-                return sum / #parts
+            if mousePos.X >= sliderPos.X and mousePos.X <= sliderPos.X + sliderSize.X then
+                local relX = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
+                updateValue(relX)
             end
         end
-    end
+    end)
     
-    -- Fallback
-    return Vector3.new(0, 0, 0)
+    -- Handle mouse up
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isSliding = false
+        end
+    end)
 end
 
--- Function to position targets in a circle
-local function positionTargets(center)
-    if not center then return end
-    
-    -- Get all targets from the MatchTargets folder
-    local targets = targetsPath:GetChildren()
-    countLabel.Text = "Targets: " .. #targets
-    
-    -- If no targets, nothing to do
-    if #targets == 0 then return end
-    
-    -- Position targets in a fixed circle
-    for i, target in ipairs(targets) do
-        -- Calculate position in static circle
-        local targetAngle = (2 * math.pi * i / #targets) + angle
-        
-        -- Calculate offset using world coordinates
-        local offsetX = math.cos(targetAngle) * config.radius
-        local offsetZ = math.sin(targetAngle) * config.radius
-        
-        -- Position at that point
-        local targetPos = center + Vector3.new(offsetX, 0, offsetZ)
-        
-        -- Make target face the center of the circle
-        local lookDir = (center - targetPos).Unit
-        
-        -- Handle different object types
-        if target:IsA("BasePart") then
-            target.CFrame = CFrame.new(targetPos, targetPos + lookDir)
-        elseif target:IsA("Model") then
-            -- Try to use PrimaryPart if available
-            if target.PrimaryPart then
-                local offset = target:GetPrimaryPartCFrame().Position - target.PrimaryPart.Position
-                target:SetPrimaryPartCFrame(CFrame.new(targetPos + offset, targetPos + offset + lookDir))
-            else
-                -- Try to move all parts if no PrimaryPart
-                local originalPos = getObjectPosition(target)
-                for _, part in pairs(target:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        local relativePos = part.Position - originalPos
-                        part.CFrame = CFrame.new(targetPos + relativePos, targetPos + relativePos + lookDir)
-                    end
-                end
+-- Set up the sliders
+setupSlider(distanceSlider, distanceFill, maxDistance, "distance", distanceLabel, "Distance: ", "")
+setupSlider(speedSlider, speedFill, maxSpeed, "rotationSpeed", speedLabel, "Rotation Speed: ", "s")
+
+-- Variables for target rotation
+local currentTargetIndex = 1
+local lastRotationTime = tick()
+
+-- Move targets to their original positions when script ends
+local function cleanup()
+    for _, target in pairs(targetsPath:GetChildren()) do
+        if target:GetAttribute("OriginalCFrame") then
+            if target:IsA("BasePart") then
+                target.CFrame = target:GetAttribute("OriginalCFrame")
+            elseif target:IsA("Model") and target.PrimaryPart then
+                target:SetPrimaryPartCFrame(target:GetAttribute("OriginalCFrame"))
             end
         end
     end
 end
 
--- Real-time teleportation using Heartbeat
-RunService.Heartbeat:Connect(function()
-    -- Skip if disabled
+-- Store original positions on script start
+for _, target in pairs(targetsPath:GetChildren()) do
+    if target:IsA("BasePart") then
+        target:SetAttribute("OriginalCFrame", target.CFrame)
+    elseif target:IsA("Model") and target.PrimaryPart then
+        target:SetAttribute("OriginalCFrame", target:GetPrimaryPartCFrame())
+    end
+end
+
+-- Main update function to position targets
+local function updateTargetPositions()
     if not config.enabled then return end
     
     local character = localPlayer.Character
@@ -235,8 +222,60 @@ RunService.Heartbeat:Connect(function()
     local hrp = character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     
-    -- Always position targets every frame
-    positionTargets(hrp.Position)
-end)
+    -- Get target list
+    local targets = targetsPath:GetChildren()
+    if #targets == 0 then
+        countLabel.Text = "Targets: 0 | Active: None"
+        return
+    end
+    
+    -- Check for target rotation
+    local currentTime = tick()
+    if currentTime - lastRotationTime >= config.rotationSpeed then
+        currentTargetIndex = currentTargetIndex + 1
+        if currentTargetIndex > #targets then
+            currentTargetIndex = 1
+        end
+        lastRotationTime = currentTime
+    end
+    
+    -- Forward direction and base position
+    local forward = hrp.CFrame.LookVector
+    local basePosition = hrp.Position + (forward * config.distance)
+    
+    -- Position all targets
+    for i, target in ipairs(targets) do
+        local targetPosition
+        
+        if i == currentTargetIndex then
+            -- Current target in front
+            targetPosition = basePosition
+        else
+            -- Calculate position behind the front target
+            -- We'll put it directly behind, in the same line
+            targetPosition = basePosition - (forward * config.stackOffset)
+        end
+        
+        -- Set the target's position
+        if target:IsA("BasePart") then
+            target.CFrame = CFrame.new(targetPosition, targetPosition + forward)
+        elseif target:IsA("Model") and target.PrimaryPart then
+            -- Calculate offset from primary part to the model's pivot
+            local offset = target:GetPrimaryPartCFrame().Position - target.PrimaryPart.Position
+            target:SetPrimaryPartCFrame(CFrame.new(targetPosition + offset, targetPosition + offset + forward))
+        end
+    end
+    
+    -- Update the status label
+    local currentTarget = targets[currentTargetIndex]
+    local targetName = currentTarget and currentTarget.Name or "Unknown"
+    countLabel.Text = "Targets: " .. #targets .. " | Active: " .. targetName .. " (#" .. currentTargetIndex .. ")"
+end
 
-print("[maxz12 @ 2025-04-07 02:50:49] Target Teleporter loaded - now teleporting all objects from workspace.Targets.MatchTargets!")
+-- Connect to Heartbeat for smooth updates
+RunService.Heartbeat:Connect(updateTargetPositions)
+
+-- Cleanup when script is terminated
+script.Destroying:Connect(cleanup)
+
+print("[maxz12 @ 2025-04-08 02:13:12] Target Rotator loaded - now cycling targets from workspace.Targets.MatchTargets!")
