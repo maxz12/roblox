@@ -1,281 +1,120 @@
--- Target Teleporter (Fixed Rotation Version)
--- For user: maxz12 (2025-04-08 02:13:12)
+-- Get references to the local player and character
+local player = game.Players.LocalPlayer
+local char = player.Character or player.CharacterAdded:Wait()
+local hrp = char:WaitForChild("HumanoidRootPart")
+local humanoid = char:WaitForChild("Humanoid")
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local localPlayer = Players.LocalPlayer
+-- Get mouse and camera objects (for first-person and screen info)
+local mouse = player:GetMouse()
+local camera = workspace.CurrentCamera
 
--- Config values
-local config = {
-    enabled = false,
-    distance = 5,           -- How far in front of the player to place targets
-    rotationSpeed = 2,      -- Seconds each target stays at the front
-    stackOffset = 2         -- How far behind to place the stacked targets
-}
+-- Initial targets from the workspace and an empty table for valid ones
+local targets = game.Workspace.Targets.MatchTargets:GetChildren() 
+local validTargets = {}
 
--- Target path
-local targetsPath = workspace:FindFirstChild("Targets"):FindFirstChild("MatchTargets")
-if not targetsPath then
-    warn("Could not find workspace.Targets.MatchTargets!")
-    return
+-- Create a simple GUI toggle button
+local gui = Instance.new("ScreenGui")
+gui.Parent = game.CoreGui
+
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0, 150, 0, 50)
+button.Position = UDim2.new(0.5, -75, 0.5, -25)
+button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+button.Text = "OFF"
+button.Parent = gui
+button.Draggable = true
+
+-- Toggle state for the feature (default: disabled)
+local enabled = false
+
+-- Function to update valid targets by checking for a "Head" part in each target
+local function updateValidTargets()
+    table.clear(validTargets) -- Clear previous targets
+    for i, v in pairs(targets) do
+        if v:FindFirstChild("Head") then
+            table.insert(validTargets, v)
+            print("Found target:", v.Name)
+        end
+    end
 end
 
--- Create a simple GUI for control
-local gui = Instance.new("ScreenGui")
-gui.Name = "TargetTeleporterGUI"
-gui.ResetOnSpawn = false
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-gui.Parent = CoreGui
+-- Function to move dummy heads so that they follow the mouse horizontally.
+local function moveHeads()
+    -- Only run if the feature is enabled
+    if not enabled then return end
 
--- Main frame
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 170)
-frame.Position = UDim2.new(1, -220, 1, -190)
-frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-frame.BorderSizePixel = 2
-frame.Active = true
-frame.Draggable = true
-frame.Parent = gui
+    -- Always update the valid targets list.
+    updateValidTargets()
 
--- Title bar
-local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 25)
-titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-titleBar.BorderSizePixel = 0
-titleBar.Parent = frame
+    -- Calculate the horizontal offset based on mouse position.
+    -- This computes the difference of the mouse's X coordinate from the center of the screen.
+    local centerX = camera.ViewportSize.X / 2
+    local offsetX = (mouse.X - centerX) * 0.05  -- Adjust sensitivity as needed
 
-local title = Instance.new("TextLabel")
-title.Text = "Target Rotator"
-title.Size = UDim2.new(1, -10, 1, 0)
-title.Position = UDim2.new(0, 10, 0, 0)
-title.BackgroundTransparency = 1
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Font = Enum.Font.SourceSansBold
-title.TextSize = 14
-title.Parent = titleBar
+    -- Define a base position relative to the player.
+    -- The dummy heads will be positioned a fixed distance in front of the player,
+    -- plus the horizontally adjusted offset, and a bit elevated.
+    local basePos = hrp.Position + Vector3.new(offsetX, 3, 5)
 
--- Toggle button
-local toggleBtn = Instance.new("TextButton")
-toggleBtn.Position = UDim2.new(0.5, -40, 0, 35)
-toggleBtn.Size = UDim2.new(0, 80, 0, 25)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-toggleBtn.Text = "OFF"
-toggleBtn.Font = Enum.Font.SourceSansBold
-toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleBtn.TextSize = 14
-toggleBtn.Parent = frame
+    -- Move each valid target's head; here we simulate a small up-and-down motion.
+    for i, v in pairs(validTargets) do
+        if v:FindFirstChild("Head") then
+            -- Set an initial position slightly higher
+            v.Head.CFrame = CFrame.new(basePos + Vector3.new(0, 1, 0))
+            task.wait(0.1)
+            -- Bring it back down a little (or adjust as needed for effect)
+            v.Head.CFrame = CFrame.new(basePos)
+        end
+    end
+end
 
--- Distance label
-local distanceLabel = Instance.new("TextLabel")
-distanceLabel.Position = UDim2.new(0, 10, 0, 65)
-distanceLabel.Size = UDim2.new(0, 180, 0, 20)
-distanceLabel.BackgroundTransparency = 1
-distanceLabel.Text = "Distance: " .. config.distance
-distanceLabel.Font = Enum.Font.SourceSans
-distanceLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-distanceLabel.TextSize = 14
-distanceLabel.TextXAlignment = Enum.TextXAlignment.Left
-distanceLabel.Parent = frame
+-- Use RunService to update the heads every Heartbeat.
+local RunService = game:GetService("RunService")
+local connection = nil
 
--- Distance slider
-local distanceSlider = Instance.new("TextButton")
-distanceSlider.Position = UDim2.new(0, 10, 0, 85)
-distanceSlider.Size = UDim2.new(0, 180, 0, 20)
-distanceSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-distanceSlider.Text = ""
-distanceSlider.Parent = frame
+local function toggleFeature()
+    if enabled then
+        -- Start the update loop if not already running
+        if not connection then
+            connection = RunService.Heartbeat:Connect(function()
+                task.spawn(moveHeads)  -- Run asynchronously to avoid potential slowdowns
+            end)
+            print("Head movement started")
+        end
+    else
+        -- Disable the loop if needed
+        if connection then
+            connection:Disconnect()
+            connection = nil
+            print("Head movement stopped")
+        end
+    end
+end
 
-local distanceFill = Instance.new("Frame")
-local maxDistance = 20
-distanceFill.Size = UDim2.new(config.distance / maxDistance, 0, 1, 0) 
-distanceFill.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-distanceFill.BorderSizePixel = 0
-distanceFill.Parent = distanceSlider
+-- When the player's character dies, re-scan the target dummies.
+local function onCharacterDied()
+    print("Player died, rescanning targets...")
+    targets = game.Workspace.Targets.MatchTargets:GetChildren()
+    updateValidTargets()
+end
 
--- Rotation speed label
-local speedLabel = Instance.new("TextLabel")
-speedLabel.Position = UDim2.new(0, 10, 0, 110)
-speedLabel.Size = UDim2.new(0, 180, 0, 20)
-speedLabel.BackgroundTransparency = 1
-speedLabel.Text = "Rotation Speed: " .. config.rotationSpeed .. "s"
-speedLabel.Font = Enum.Font.SourceSans
-speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedLabel.TextSize = 14
-speedLabel.TextXAlignment = Enum.TextXAlignment.Left
-speedLabel.Parent = frame
+humanoid.Died:Connect(onCharacterDied)
 
--- Rotation speed slider
-local speedSlider = Instance.new("TextButton")
-speedSlider.Position = UDim2.new(0, 10, 0, 130)
-speedSlider.Size = UDim2.new(0, 180, 0, 20)
-speedSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-speedSlider.Text = ""
-speedSlider.Parent = frame
-
-local speedFill = Instance.new("Frame")
-local maxSpeed = 10
-speedFill.Size = UDim2.new(config.rotationSpeed / maxSpeed, 0, 1, 0) 
-speedFill.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-speedFill.BorderSizePixel = 0
-speedFill.Parent = speedSlider
-
--- Count display
-local countLabel = Instance.new("TextLabel")
-countLabel.Position = UDim2.new(0, 10, 1, -20)
-countLabel.Size = UDim2.new(1, -20, 0, 20)
-countLabel.BackgroundTransparency = 1
-countLabel.Text = "Targets: 0 | Active: None"
-countLabel.Font = Enum.Font.SourceSans
-countLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-countLabel.TextSize = 12
-countLabel.TextXAlignment = Enum.TextXAlignment.Left
-countLabel.Parent = frame
-
--- Toggle function
-toggleBtn.MouseButton1Click:Connect(function()
-    config.enabled = not config.enabled
-    toggleBtn.Text = config.enabled and "ON" or "OFF"
-    toggleBtn.BackgroundColor3 = config.enabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+-- Reconnect the CharacterAdded event to update our local references if the character respawns.
+player.CharacterAdded:Connect(function(newChar)
+    char = newChar
+    hrp = char:WaitForChild("HumanoidRootPart")
+    humanoid = char:WaitForChild("Humanoid")
+    humanoid.Died:Connect(onCharacterDied)
 end)
 
--- Generic slider implementation
-local function setupSlider(slider, fill, maxVal, configKey, label, prefix, suffix)
-    local isSliding = false
-    
-    -- Update function
-    local function updateValue(relX)
-        local newVal = math.max(0.1, math.min(maxVal, relX * maxVal))
-        config[configKey] = newVal
-        fill.Size = UDim2.new(newVal / maxVal, 0, 1, 0)
-        label.Text = prefix .. string.format("%.1f", newVal) .. suffix
-    end
-    
-    -- Handle mouse down
-    slider.MouseButton1Down:Connect(function(x)
-        isSliding = true
-        local relX = math.clamp(x / slider.AbsoluteSize.X, 0, 1)
-        updateValue(relX)
-    end)
-    
-    -- Handle mouse move
-    UserInputService.InputChanged:Connect(function(input)
-        if isSliding and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local mousePos = UserInputService:GetMouseLocation()
-            local sliderPos = slider.AbsolutePosition
-            local sliderSize = slider.AbsoluteSize
-            
-            if mousePos.X >= sliderPos.X and mousePos.X <= sliderPos.X + sliderSize.X then
-                local relX = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
-                updateValue(relX)
-            end
-        end
-    end)
-    
-    -- Handle mouse up
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isSliding = false
-        end
-    end)
-end
+-- Button click toggles the feature on and off
+button.MouseButton1Click:Connect(function()
+    enabled = not enabled  -- Toggle the enabled state
 
--- Set up the sliders
-setupSlider(distanceSlider, distanceFill, maxDistance, "distance", distanceLabel, "Distance: ", "")
-setupSlider(speedSlider, speedFill, maxSpeed, "rotationSpeed", speedLabel, "Rotation Speed: ", "s")
+    -- Update button appearance accordingly
+    button.Text = enabled and "ON" or "OFF"
+    button.BackgroundColor3 = enabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
 
--- Variables for target rotation
-local currentTargetIndex = 1
-local lastRotationTime = tick()
-
--- Move targets to their original positions when script ends
-local function cleanup()
-    for _, target in pairs(targetsPath:GetChildren()) do
-        if target:GetAttribute("OriginalCFrame") then
-            if target:IsA("BasePart") then
-                target.CFrame = target:GetAttribute("OriginalCFrame")
-            elseif target:IsA("Model") and target.PrimaryPart then
-                target:SetPrimaryPartCFrame(target:GetAttribute("OriginalCFrame"))
-            end
-        end
-    end
-end
-
--- Store original positions on script start
-for _, target in pairs(targetsPath:GetChildren()) do
-    if target:IsA("BasePart") then
-        target:SetAttribute("OriginalCFrame", target.CFrame)
-    elseif target:IsA("Model") and target.PrimaryPart then
-        target:SetAttribute("OriginalCFrame", target:GetPrimaryPartCFrame())
-    end
-end
-
--- Main update function to position targets
-local function updateTargetPositions()
-    if not config.enabled then return end
-    
-    local character = localPlayer.Character
-    if not character then return end
-    
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    -- Get target list
-    local targets = targetsPath:GetChildren()
-    if #targets == 0 then
-        countLabel.Text = "Targets: 0 | Active: None"
-        return
-    end
-    
-    -- Check for target rotation
-    local currentTime = tick()
-    if currentTime - lastRotationTime >= config.rotationSpeed then
-        currentTargetIndex = currentTargetIndex + 1
-        if currentTargetIndex > #targets then
-            currentTargetIndex = 1
-        end
-        lastRotationTime = currentTime
-    end
-    
-    -- Forward direction and base position
-    local forward = hrp.CFrame.LookVector
-    local basePosition = hrp.Position + (forward * config.distance)
-    
-    -- Position all targets
-    for i, target in ipairs(targets) do
-        local targetPosition
-        
-        if i == currentTargetIndex then
-            -- Current target in front
-            targetPosition = basePosition
-        else
-            -- Calculate position behind the front target
-            -- We'll put it directly behind, in the same line
-            targetPosition = basePosition - (forward * config.stackOffset)
-        end
-        
-        -- Set the target's position
-        if target:IsA("BasePart") then
-            target.CFrame = CFrame.new(targetPosition, targetPosition + forward)
-        elseif target:IsA("Model") and target.PrimaryPart then
-            -- Calculate offset from primary part to the model's pivot
-            local offset = target:GetPrimaryPartCFrame().Position - target.PrimaryPart.Position
-            target:SetPrimaryPartCFrame(CFrame.new(targetPosition + offset, targetPosition + offset + forward))
-        end
-    end
-    
-    -- Update the status label
-    local currentTarget = targets[currentTargetIndex]
-    local targetName = currentTarget and currentTarget.Name or "Unknown"
-    countLabel.Text = "Targets: " .. #targets .. " | Active: " .. targetName .. " (#" .. currentTargetIndex .. ")"
-end
-
--- Connect to Heartbeat for smooth updates
-RunService.Heartbeat:Connect(updateTargetPositions)
-
--- Cleanup when script is terminated
-script.Destroying:Connect(cleanup)
-
-print("[maxz12 @ 2025-04-08 02:13:12] Target Rotator loaded - now cycling targets from workspace.Targets.MatchTargets!")
+    toggleFeature()
+end)
