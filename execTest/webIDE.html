@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Minimal Lua Editor</title>
+  <title>Enhanced Lua Editor</title>
   <!-- CodeMirror core -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
@@ -17,14 +17,17 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/selection/active-line.js"></script>
 
+  <!-- Google Fonts -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
+
   <style>
     body, html {
       margin: 0;
       padding: 0;
       height: 100%;
-      background-color: #0a0a0a;
+      background-color: #0c0c14;
       color: #f0f0f0;
-      font-family: 'Consolas', 'Monaco', monospace;
+      font-family: 'JetBrains Mono', 'Consolas', monospace;
       overflow: hidden;
     }
 
@@ -33,24 +36,28 @@
       height: 100%;
       display: flex;
       flex-direction: column;
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
     }
 
     #editor-wrapper {
       flex: 1;
       position: relative;
       overflow: hidden;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
     }
 
-    /* Custom darker theme overrides */
+    /* Enhanced darker theme overrides */
     .CodeMirror {
       height: 100%;
       font-size: 16px;
-      font-family: 'Consolas', 'Monaco', 'Source Code Pro', monospace;
-      background-color: #0f0f11 !important;
-      color: #e0e0e0 !important;
+      font-family: 'JetBrains Mono', 'Consolas', monospace;
+      background: rgb(13, 13, 23) !important;
+      background: linear-gradient(135deg, rgba(13, 13, 23, 1) 0%, rgba(16, 16, 32, 1) 100%) !important;
+      color: #eef0ff !important;
       border: none;
       padding: 0;
       line-height: 1.6;
+      letter-spacing: 0.3px;
     }
 
     /* Fix scrollbar visibility */
@@ -58,44 +65,57 @@
       overflow: scroll !important; /* Force scrollbars to show */
     }
 
-    /* Make cursor more visible */
+    /* Make cursor more visible with animation */
     .CodeMirror-cursor {
       border-left: 2px solid #80cbc4 !important;
-      transition: border-color 0.3s;
+      box-shadow: 0 0 3px #80cbc4;
+      animation: blink 1s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
     }
 
     /* Line number styling */
     .CodeMirror-gutters {
-      background-color: #0a0a0a !important;
-      border-right: 1px solid #1e1e24 !important;
+      background-color: rgba(10, 10, 18, 0.8) !important;
+      border-right: 1px solid rgba(65, 65, 95, 0.2) !important;
+      box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+      padding-right: 5px;
     }
 
     .CodeMirror-linenumber {
-      color: #4a4a57 !important;
+      color: #5d5d7a !important;
       font-size: 14px;
-      padding: 0 8px;
+      padding: 0 10px 0 8px;
+      opacity: 0.8;
     }
 
-    /* Syntax highlighting refinements */
+    /* Refined syntax highlighting */
     .cm-s-material-darker .cm-keyword {
-      color: #c792ea !important;
+      color: #c58fff !important;
       font-weight: bold;
+      text-shadow: 0 0 2px rgba(197, 143, 255, 0.2);
     }
 
     .cm-s-material-darker .cm-def {
       color: #82aaff !important;
+      text-shadow: 0 0 2px rgba(130, 170, 255, 0.2);
     }
 
     .cm-s-material-darker .cm-string {
       color: #c3e88d !important;
+      text-shadow: 0 0 2px rgba(195, 232, 141, 0.1);
     }
 
     .cm-s-material-darker .cm-number {
       color: #f78c6c !important;
+      text-shadow: 0 0 2px rgba(247, 140, 108, 0.1);
     }
 
     .cm-s-material-darker .cm-comment {
-      color: #546e7a !important;
+      color: #637777 !important;
       font-style: italic;
     }
 
@@ -105,16 +125,22 @@
 
     /* Active line highlighting */
     .CodeMirror-activeline-background {
-      background: rgba(40, 44, 53, 0.5) !important;
+      background: rgba(40, 44, 70, 0.5) !important;
+      border-radius: 2px;
+      transition: background 0.2s;
     }
 
     /* Matching brackets highlight */
     .CodeMirror-matchingbracket {
       color: #82aaff !important;
-      text-decoration: underline;
+      text-decoration: none;
+      border-bottom: 1px solid #82aaff;
+      text-shadow: 0 0 8px rgba(130, 170, 255, 0.4);
       background: rgba(130, 170, 255, 0.1);
       border-radius: 2px;
+      padding: 0 1px;
       font-weight: bold;
+      transition: all 0.2s ease;
     }
 
     /* Improve scrollbar styling */
@@ -126,32 +152,97 @@
 
     .CodeMirror-vscrollbar::-webkit-scrollbar-track,
     .CodeMirror-hscrollbar::-webkit-scrollbar-track {
-      background: #0f0f11;
+      background: rgba(15, 15, 25, 0.8);
+      border-radius: 8px;
     }
 
     .CodeMirror-vscrollbar::-webkit-scrollbar-thumb,
     .CodeMirror-hscrollbar::-webkit-scrollbar-thumb {
-      background: #2a2a33;
-      border-radius: 6px;
-      border: 3px solid #0f0f11;
+      background: #2a2a45;
+      border-radius: 8px;
+      border: 3px solid rgba(15, 15, 25, 0.8);
+      box-shadow: inset 0 0 5px rgba(130, 170, 255, 0.1);
     }
 
     .CodeMirror-vscrollbar::-webkit-scrollbar-thumb:hover,
     .CodeMirror-hscrollbar::-webkit-scrollbar-thumb:hover {
-      background: #3a3a46;
+      background: #3a3a60;
     }
 
-    /* Minimalist bottom bar */
+    /* Enhanced bottom bar */
     .bottom-bar {
-      background-color: #1a1a21;
-      color: #7f7f8c;
-      padding: 6px 12px;
-      font-size: 12px;
-      border-top: 1px solid #2c2c35;
+      background: rgb(23, 23, 38);
+      background: linear-gradient(90deg, rgba(23, 23, 38, 1) 0%, rgba(28, 28, 45, 1) 100%);
+      color: #8f8fa8;
+      padding: 8px 14px;
+      font-size: 13px;
+      border-top: 1px solid rgba(65, 65, 95, 0.2);
       display: flex;
       justify-content: space-between;
       position: relative;
       z-index: 10;
+      font-family: 'JetBrains Mono', monospace;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .bottom-bar .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo-icon {
+      width: 18px;
+      height: 18px;
+      background: #c58fff;
+      border-radius: 50%;
+      display: inline-block;
+      position: relative;
+      box-shadow: 0 0 8px rgba(197, 143, 255, 0.5);
+    }
+
+    .logo-icon:before {
+      content: "";
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #171726;
+      border-radius: 50%;
+      top: 4px;
+      left: 4px;
+    }
+
+    .logo-text {
+      font-weight: bold;
+      background: linear-gradient(90deg, #8f8fa8, #c58fff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 1px;
+    }
+
+    .line-counter {
+      color: #8f8fa8;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(45, 45, 70, 0.4);
+      border: 1px solid rgba(65, 65, 95, 0.2);
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+
+    .line-counter:hover {
+      background: rgba(55, 55, 85, 0.5);
+    }
+
+    /* Selection styling */
+    .CodeMirror-selected {
+      background: rgba(130, 170, 255, 0.15) !important;
+    }
+
+    /* Add subtle indent guides */
+    .cm-tab {
+      border-left: 1px solid rgba(100, 100, 150, 0.1);
+      position: relative;
     }
   </style>
 </head>
@@ -160,8 +251,11 @@
     <div id="editor-wrapper"></div>
 
     <div class="bottom-bar">
-      <div>Lua</div>
-      <div id="line-counter">Line 1/1</div>
+      <div class="logo">
+        <span class="logo-icon"></span>
+        <span class="logo-text">LUA</span>
+      </div>
+      <div id="line-counter" class="line-counter">Line 1/1</div>
     </div>
   </div>
 
@@ -205,7 +299,7 @@
     editor.setSize("100%", "100%");
 
     // Set initial content
-    editor.setValue(`-- Minimal Lua Editor
+    editor.setValue(`-- Enhanced Lua Editor
 -- Try typing 'if condition' and press Enter
 -- Even if you have a then or do already, it will still add an end
 
