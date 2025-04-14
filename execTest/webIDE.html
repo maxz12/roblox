@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Minimal Lua Editor</title>
+  <!-- CodeMirror core -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+
+  <!-- Lua language support -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/lua/lua.min.js"></script>
+
+  <!-- Dark theme base -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/material-darker.min.css">
+
+  <!-- Add-ons for code editing improvements -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/selection/active-line.js"></script>
+
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #0a0a0a;
+      color: #f0f0f0;
+      font-family: 'Consolas', 'Monaco', monospace;
+      overflow: hidden;
+    }
+
+    .editor-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #editor-wrapper {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Custom darker theme overrides */
+    .CodeMirror {
+      height: 100%;
+      font-size: 16px;
+      font-family: 'Consolas', 'Monaco', 'Source Code Pro', monospace;
+      background-color: #0f0f11 !important;
+      color: #e0e0e0 !important;
+      border: none;
+      padding: 0;
+      line-height: 1.6;
+    }
+
+    /* Fix scrollbar visibility */
+    .CodeMirror-scroll {
+      overflow: scroll !important; /* Force scrollbars to show */
+    }
+
+    /* Make cursor more visible */
+    .CodeMirror-cursor {
+      border-left: 2px solid #80cbc4 !important;
+      transition: border-color 0.3s;
+    }
+
+    /* Line number styling */
+    .CodeMirror-gutters {
+      background-color: #0a0a0a !important;
+      border-right: 1px solid #1e1e24 !important;
+    }
+
+    .CodeMirror-linenumber {
+      color: #4a4a57 !important;
+      font-size: 14px;
+      padding: 0 8px;
+    }
+
+    /* Syntax highlighting refinements */
+    .cm-s-material-darker .cm-keyword {
+      color: #c792ea !important;
+      font-weight: bold;
+    }
+
+    .cm-s-material-darker .cm-def {
+      color: #82aaff !important;
+    }
+
+    .cm-s-material-darker .cm-string {
+      color: #c3e88d !important;
+    }
+
+    .cm-s-material-darker .cm-number {
+      color: #f78c6c !important;
+    }
+
+    .cm-s-material-darker .cm-comment {
+      color: #546e7a !important;
+      font-style: italic;
+    }
+
+    .cm-s-material-darker .cm-variable {
+      color: #eeffff !important;
+    }
+
+    /* Active line highlighting */
+    .CodeMirror-activeline-background {
+      background: rgba(40, 44, 53, 0.5) !important;
+    }
+
+    /* Matching brackets highlight */
+    .CodeMirror-matchingbracket {
+      color: #82aaff !important;
+      text-decoration: underline;
+      background: rgba(130, 170, 255, 0.1);
+      border-radius: 2px;
+      font-weight: bold;
+    }
+
+    /* Improve scrollbar styling */
+    .CodeMirror-vscrollbar::-webkit-scrollbar,
+    .CodeMirror-hscrollbar::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    .CodeMirror-vscrollbar::-webkit-scrollbar-track,
+    .CodeMirror-hscrollbar::-webkit-scrollbar-track {
+      background: #0f0f11;
+    }
+
+    .CodeMirror-vscrollbar::-webkit-scrollbar-thumb,
+    .CodeMirror-hscrollbar::-webkit-scrollbar-thumb {
+      background: #2a2a33;
+      border-radius: 6px;
+      border: 3px solid #0f0f11;
+    }
+
+    .CodeMirror-vscrollbar::-webkit-scrollbar-thumb:hover,
+    .CodeMirror-hscrollbar::-webkit-scrollbar-thumb:hover {
+      background: #3a3a46;
+    }
+
+    /* Minimalist bottom bar */
+    .bottom-bar {
+      background-color: #1a1a21;
+      color: #7f7f8c;
+      padding: 6px 12px;
+      font-size: 12px;
+      border-top: 1px solid #2c2c35;
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div class="editor-container">
+    <div id="editor-wrapper"></div>
+
+    <div class="bottom-bar">
+      <div>Lua</div>
+      <div id="line-counter">Line 1/1</div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize editor
+    const editorWrapper = document.getElementById('editor-wrapper');
+
+    // Create a textarea for the editor
+    const textarea = document.createElement('textarea');
+    editorWrapper.appendChild(textarea);
+
+    // Initialize CodeMirror
+    const editor = CodeMirror.fromTextArea(textarea, {
+      mode: "lua",
+      theme: "material-darker",
+      lineNumbers: true,
+      indentUnit: 4,
+      smartIndent: true,
+      indentWithTabs: false,
+      lineWrapping: false,
+      matchBrackets: true,
+      autoCloseBrackets: true,
+      styleActiveLine: true,
+      scrollbarStyle: "native",
+      extraKeys: {
+        "Tab": function(cm) {
+          // Insert 4 spaces for indentation
+          if (cm.somethingSelected()) {
+            cm.indentSelection("add");
+          } else {
+            cm.replaceSelection("    ");
+          }
+        },
+        "Backspace": handleBackspace,
+        "Ctrl-Backspace": handleCtrlBackspace,
+        "Cmd-Backspace": handleCtrlBackspace
+      }
+    });
+
+    // Make it fill the container
+    editor.setSize("100%", "100%");
+
+    // Set initial content
+    editor.setValue(`-- Minimal Lua Editor
+-- Try typing 'if condition' and press Enter
+-- Even if you have a then or do already, it will still add an end
+
+local Players = game:GetService("Players")
+
+local function onPlayerJoin(player)
+    print(player.Name .. " has joined the game!")
+
+    -- Create leaderstats
+    local leaderstats = Instance.new("Folder")
+    leaderstats.Name = "leaderstats"
+    leaderstats.Parent = player
+
+    -- Add a coins value
+    local coins = Instance.new("IntValue")
+    coins.Name = "Coins"
+    coins.Value = 0
+    coins.Parent = leaderstats
+
+    -- Try typing an if statement below and press Enter:
+    -- if player.Name == "Admin" then
+end
+
+Players.PlayerAdded:Connect(onPlayerJoin)
+`);
+
+    // Line counter element
+    const lineCounter = document.getElementById('line-counter');
+
+    // Update line counter
+    function updateLineCounter() {
+      const totalLines = editor.lineCount();
+      const currentLine = editor.getCursor().line + 1;
+      lineCounter.textContent = `Line ${currentLine}/${totalLines}`;
+    }
+
+    // Special backspace handling to remove full indentation
+    function handleBackspace(cm) {
+      const cursor = cm.getCursor();
+      const line = cm.getLine(cursor.line);
+      const lineUpToCursor = line.substring(0, cursor.ch);
+
+      // If we're at the start of a line with only whitespace before cursor
+      if (cursor.ch > 0 && /^\s+$/.test(lineUpToCursor)) {
+        // Delete the entire indentation at once
+        cm.replaceRange("", {line: cursor.line, ch: 0}, {line: cursor.line, ch: cursor.ch});
+        return;
+      }
+
+      // Default backspace behavior
+      cm.deleteH(-1, "char");
+    }
+
+    // Handle Ctrl+Backspace to delete empty lines
+    function handleCtrlBackspace(cm) {
+      const cursor = cm.getCursor();
+      const line = cm.getLine(cursor.line);
+
+      // If line is empty or only whitespace, delete the whole line
+      if (!line || line.trim() === "") {
+        // Delete the entire line
+        cm.replaceRange("",
+          {line: cursor.line, ch: 0},
+          {line: cursor.line + 1, ch: 0}
+        );
+        return;
+      }
+
+      // Otherwise delete word
+      cm.deleteH(-1, "word");
+    }
+
+    // Check if a structure has a matching end
+    function needsEndStatement(cm, lineNum, structureType) {
+      // Get the indentation level of the current line
+      const line = cm.getLine(lineNum);
+      const indentLevel = line.search(/\S|$/);
+
+      // Look ahead for a matching end at the same indentation level
+      let openCount = 1;
+      for (let i = lineNum + 1; i < cm.lineCount(); i++) {
+        const checkLine = cm.getLine(i).trim();
+
+        // Check for nested structures that increase the depth
+        if (structureType === 'if' && /^\s*\bif\b/.test(checkLine)) {
+          openCount++;
+        } else if (structureType === 'for' && /^\s*\bfor\b/.test(checkLine)) {
+          openCount++;
+        } else if (structureType === 'while' && /^\s*\bwhile\b/.test(checkLine)) {
+          openCount++;
+        } else if (structureType === 'function' && /^\s*\bfunction\b/.test(checkLine)) {
+          openCount++;
+        }
+
+        // Check for end statements that decrease the depth
+        if (/^\s*\bend\b/.test(checkLine)) {
+          openCount--;
+          // If we've found a matching end, we don't need another one
+          if (openCount === 0) {
+            return false;
+          }
+        }
+      }
+
+      // If we get here, we need an end statement
+      return true;
+    }
+
+    // Handle keypresses for Enter key to perform auto-completion and add end statements
+    editor.on('keydown', function(cm, event) {
+      if (event.key === 'Enter') {
+        const cursor = cm.getCursor();
+        const line = cm.getLine(cursor.line);
+        const trimmedLine = line.trim();
+
+        // Auto-complete control structures when Enter is pressed
+        let addEnd = false;
+        let indentLevel = line.search(/\S|$/);
+
+        // Detect the type of structure to auto-complete
+        let structureType = null;
+
+        // Check for control structures
+        if (/\bif\b/.test(trimmedLine)) {
+          // Add 'then' if missing
+          if (!/(then)\b/.test(trimmedLine)) {
+            cm.replaceRange(" then", {line: cursor.line, ch: line.length});
+          }
+          structureType = "if";
+          addEnd = needsEndStatement(cm, cursor.line, structureType);
+        }
+        else if (/\bfor\b/.test(trimmedLine)) {
+          // Add 'do' if missing
+          if (!/(do)\b/.test(trimmedLine)) {
+            cm.replaceRange(" do", {line: cursor.line, ch: line.length});
+          }
+          structureType = "for";
+          addEnd = needsEndStatement(cm, cursor.line, structureType);
+        }
+        else if (/\bwhile\b/.test(trimmedLine)) {
+          // Add 'do' if missing
+          if (!/(do)\b/.test(trimmedLine)) {
+            cm.replaceRange(" do", {line: cursor.line, ch: line.length});
+          }
+          structureType = "while";
+          addEnd = needsEndStatement(cm, cursor.line, structureType);
+        }
+        else if (/\bfunction\b/.test(trimmedLine) && /\)/.test(trimmedLine)) {
+          structureType = "function";
+          addEnd = needsEndStatement(cm, cursor.line, structureType);
+        }
+
+        // If we need to add an end statement
+        if (addEnd) {
+          // Let the Enter key event complete first to create a new line
+          setTimeout(() => {
+            // Get the new cursor position after Enter
+            const newCursor = cm.getCursor();
+
+            // Add proper indentation for the end
+            const endIndentation = " ".repeat(indentLevel);
+
+            // Insert a newline and an 'end' statement with proper indentation
+            cm.replaceRange("\n" + endIndentation + "end", {line: newCursor.line, ch: newCursor.ch});
+
+            // Move cursor back to current position
+            cm.setCursor(newCursor);
+
+            // Update line counter after structure completion
+            updateLineCounter();
+          }, 0);
+        }
+      }
+    });
+
+    // Update line counter when cursor moves
+    editor.on('cursorActivity', function() {
+      updateLineCounter();
+    });
+
+    // Update line counter when content changes
+    editor.on('change', function() {
+      updateLineCounter();
+    });
+
+    // Initialize line counter
+    updateLineCounter();
+
+    // Get editor content
+    function getCode() {
+      return editor.getValue();
+    }
+
+    // Set editor content
+    function setCode(code) {
+      editor.setValue(code);
+    }
+
+    // Make the editor focus by default
+    setTimeout(() => {
+      editor.focus();
+    }, 100);
+  </script>
+</body>
+</html>
