@@ -453,72 +453,95 @@ Players.PlayerAdded:Connect(onPlayerJoin)
       return structureStack.length > 0;
     }
 
-    // Handle keypresses for Enter key to perform auto-completion and add end statements
+    // Fixed function to handle Enter key and auto-completion without cursor jumping
     editor.on('keydown', function(cm, event) {
       if (event.key === 'Enter') {
         const cursor = cm.getCursor();
         const line = cm.getLine(cursor.line);
         const trimmedLine = line.trim();
 
-        // Auto-complete control structures when Enter is pressed
-        let addEnd = false;
-        let indentLevel = line.search(/\S|$/);
-
-        // Detect the type of structure to auto-complete
+        // Track if we need to do special handling
+        let needsSpecialHandling = false;
+        let currentIndent = line.search(/\S|$/);
         let structureType = null;
+        let addEnd = false;
 
-        // Check for control structures
-        if (/\bif\b/.test(trimmedLine)) {
-          // Add 'then' if missing
-          if (!/(then)\b/.test(trimmedLine)) {
-            cm.replaceRange(" then", {line: cursor.line, ch: line.length});
-          }
+        // Check for control structures that need to be completed with 'then' or 'do'
+        if (/\bif\b/.test(trimmedLine) && !/(then)\b/.test(trimmedLine)) {
+          cm.replaceRange(" then", {line: cursor.line, ch: line.length});
           structureType = "if";
-          addEnd = needsEndStatement(cm, cursor.line, structureType);
+          needsSpecialHandling = true;
         }
-        else if (/\bfor\b/.test(trimmedLine)) {
-          // Add 'do' if missing
-          if (!/(do)\b/.test(trimmedLine)) {
-            cm.replaceRange(" do", {line: cursor.line, ch: line.length});
-          }
+        else if (/\bfor\b/.test(trimmedLine) && !/(do)\b/.test(trimmedLine)) {
+          cm.replaceRange(" do", {line: cursor.line, ch: line.length});
           structureType = "for";
-          addEnd = needsEndStatement(cm, cursor.line, structureType);
+          needsSpecialHandling = true;
         }
-        else if (/\bwhile\b/.test(trimmedLine)) {
-          // Add 'do' if missing
-          if (!/(do)\b/.test(trimmedLine)) {
-            cm.replaceRange(" do", {line: cursor.line, ch: line.length});
-          }
+        else if (/\bwhile\b/.test(trimmedLine) && !/(do)\b/.test(trimmedLine)) {
+          cm.replaceRange(" do", {line: cursor.line, ch: line.length});
           structureType = "while";
-          addEnd = needsEndStatement(cm, cursor.line, structureType);
+          needsSpecialHandling = true;
         }
-        else if (/\bfunction\b/.test(trimmedLine) && /\)/.test(trimmedLine)) {
+
+        // Detect structure type for end statement check
+        if (/\bif\b.*\bthen\b/.test(trimmedLine)) {
+          structureType = "if";
+          needsSpecialHandling = true;
+        }
+        else if (/\bfor\b.*\bdo\b/.test(trimmedLine)) {
+          structureType = "for";
+          needsSpecialHandling = true;
+        }
+        else if (/\bwhile\b.*\bdo\b/.test(trimmedLine)) {
+          structureType = "while";
+          needsSpecialHandling = true;
+        }
+        else if (/\bfunction\b.*\)/.test(trimmedLine)) {
           structureType = "function";
+          needsSpecialHandling = true;
+        }
+
+        // Check if we need to add an end statement
+        if (structureType) {
           addEnd = needsEndStatement(cm, cursor.line, structureType);
         }
 
-        // If we need to add an end statement
-        if (addEnd) {
-          // Let the Enter key event complete first to create a new line
-          setTimeout(() => {
-            // Get the new cursor position after Enter
-            const newCursor = cm.getCursor();
+        // If we need to do special handling, prevent default and do our own Enter handling
+        if (needsSpecialHandling) {
+          event.preventDefault();
 
-            // Add proper indentation for the end
-            const endIndentation = " ".repeat(indentLevel);
+          // Get next indent level - increase by one tab width if this is a block start
+          let nextIndent = currentIndent;
+          if (structureType) {
+            nextIndent = currentIndent + 4; // One tab width (4 spaces)
+          }
 
-            // Insert a newline and an 'end' statement with proper indentation
-            cm.replaceRange("\n" + endIndentation + "end", {line: newCursor.line, ch: newCursor.ch});
+          // Create the indentation string
+          const indentation = " ".repeat(nextIndent);
 
-            // Move cursor back to current position
-            cm.setCursor(newCursor);
+          // Insert a new line with proper indentation
+          cm.replaceRange("\n" + indentation, {line: cursor.line, ch: cm.getLine(cursor.line).length});
 
-            // Update visual guides
-            setTimeout(updateStructureGuides, 0);
+          // Set cursor to the properly indented position on the new line
+          cm.setCursor({line: cursor.line + 1, ch: indentation.length});
 
-            // Update line counter after structure completion
-            updateLineCounter();
-          }, 0);
+          // If we need to add an end statement
+          if (addEnd) {
+            // Add an end statement below the cursor with proper indentation
+            const endIndentation = " ".repeat(currentIndent);
+            cm.replaceRange("\n" + endIndentation + "end",
+                           {line: cursor.line + 1, ch: cm.getLine(cursor.line + 1).length});
+
+            // Leave cursor at current position (don't move it to the end statement)
+            // This explicit cursor setting ensures it stays at the right position
+            cm.setCursor({line: cursor.line + 1, ch: indentation.length});
+          }
+
+          // Update the structure guides
+          setTimeout(updateStructureGuides, 0);
+
+          // Update line counter
+          updateLineCounter();
         }
       }
     });
