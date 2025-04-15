@@ -1,0 +1,81 @@
+-- One-Time Bag Collector Script
+-- Created: 2025-04-15
+-- Author: maxz12
+
+local plr = game.Players.LocalPlayer
+local char = plr.Character or plr.CharacterAdded:Wait()
+local hrp = char:WaitForChild("HumanoidRootPart")
+
+-- Remote references
+local remotes = game:GetService("ReplicatedStorage"):WaitForChild("RS_Package"):WaitForChild("Remotes")
+local startInteraction = remotes:WaitForChild("StartInteraction")
+local completeInteraction = remotes:WaitForChild("CompleteInteraction")
+local throwBag = remotes:WaitForChild("ThrowBag")
+
+-- Drop-off location
+local dropArea = workspace.BagSecuredArea.FloorPart
+
+-- Process a single bag
+local function grabAndDeliverBag(bag)
+    local moneyBag = bag:FindFirstChild("MoneyBag")
+    if not moneyBag then return false end
+    
+    local prompt = moneyBag:FindFirstChild("ProximityPrompt")
+    if not prompt then return false end
+    
+    -- 1. Go to bag
+    hrp.CFrame = CFrame.new(moneyBag.Position + Vector3.new(0, 3, 0))
+    task.wait(0.2)
+    
+    -- 2. Pick up bag
+    startInteraction:FireServer(prompt)
+    task.wait(0.2)
+    completeInteraction:FireServer(prompt)
+    task.wait(0.2)
+    
+    -- 3. Go to drop-off
+    hrp.CFrame = CFrame.new(dropArea.Position + Vector3.new(0, 3, 0))
+    task.wait(0.2)
+    
+    -- 4. Drop bag
+    throwBag:FireServer(Vector3.new(0, -1, 0))
+    task.wait(0.3)
+    
+    return true
+end
+
+-- Main function - one-time execution
+local function collectAllBagsOnce()
+    print("Starting one-time bag collection")
+    
+    local bagsFolder = workspace:FindFirstChild("Bags")
+    if not bagsFolder then
+        print("No bags folder found!")
+        return
+    end
+    
+    local bagList = bagsFolder:GetChildren()
+    local totalBags = #bagList
+    local delivered = 0
+    
+    print("Found " .. totalBags .. " potential bags")
+    
+    for i, bag in ipairs(bagList) do
+        if bag.Name == "Bag" then
+            print("Processing bag " .. i .. "/" .. totalBags)
+            local success = grabAndDeliverBag(bag)
+            
+            if success then
+                delivered = delivered + 1
+                print("Successfully delivered bag " .. delivered)
+            else
+                print("Failed to process a bag")
+            end
+        end
+    end
+    
+    print("Collection complete! Delivered " .. delivered .. " bags total")
+end
+
+-- Run the one-time collection
+collectAllBagsOnce()
