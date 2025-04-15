@@ -158,29 +158,12 @@
       z-index: 10;
     }
 
-    /* Custom styles for structure markers */
+    /* Simplified structure line styling - just minimal vertical lines */
     .structure-line {
       position: absolute;
-      border-left: 1px dashed rgba(130, 170, 255, 0.4);
+      border-left: 1px solid rgba(255, 255, 255, 0.25);
       z-index: 1;
     }
-
-    .structure-start {
-      background-color: rgba(130, 170, 255, 0.1);
-      border-left: 2px solid rgba(130, 170, 255, 0.6);
-    }
-
-    .structure-end {
-      background-color: rgba(130, 170, 255, 0.1);
-      border-left: 2px solid rgba(130, 170, 255, 0.6);
-    }
-
-    /* Different colors for different levels of nesting */
-    .level-0 { border-left-color: rgba(199, 146, 234, 0.6); background-color: rgba(199, 146, 234, 0.1); }
-    .level-1 { border-left-color: rgba(130, 170, 255, 0.6); background-color: rgba(130, 170, 255, 0.1); }
-    .level-2 { border-left-color: rgba(195, 232, 141, 0.6); background-color: rgba(195, 232, 141, 0.1); }
-    .level-3 { border-left-color: rgba(247, 140, 108, 0.6); background-color: rgba(247, 140, 108, 0.1); }
-    .level-4 { border-left-color: rgba(128, 203, 196, 0.6); background-color: rgba(128, 203, 196, 0.1); }
   </style>
 </head>
 <body>
@@ -325,7 +308,7 @@ Players.PlayerAdded:Connect(onPlayerJoin)
       structureMarkers = [];
     }
 
-    // Draw structure guides to show matching pairs
+    // Draw structure guides - simplified to just minimal vertical lines
     function updateStructureGuides() {
       clearStructureMarkers();
 
@@ -349,17 +332,8 @@ Players.PlayerAdded:Connect(onPlayerJoin)
             line: i,
             indent: indentLevel,
             text: trimmedLine.replace(/\s+/g, ' ').substring(0, 30),
-            type: trimmedLine.match(/^\s*\b(if|for|while|function)\b/)[1],
-            level: structureStack.length % 5 // For color cycling
+            type: trimmedLine.match(/^\s*\b(if|for|while|function)\b/)[1]
           });
-
-          // Mark the structure start
-          const marker = editor.markText(
-            {line: i, ch: 0},
-            {line: i, ch: line.length},
-            {className: `structure-start level-${structureStack.length % 5}`}
-          );
-          structureMarkers.push(marker);
         }
 
         // Check for end statements
@@ -379,21 +353,14 @@ Players.PlayerAdded:Connect(onPlayerJoin)
           if (matchIndex >= 0) {
             const matchingStructure = structureStack[matchIndex];
 
-            // Mark the end statement
-            const endMarker = editor.markText(
-              {line: i, ch: 0},
-              {line: i, ch: line.length},
-              {className: `structure-end level-${matchingStructure.level}`}
-            );
-            structureMarkers.push(endMarker);
-
-            // Draw connecting line
+            // Draw minimal connecting lines - only at the indentation position
             if (i > matchingStructure.line + 1) {
               for (let lineNum = matchingStructure.line + 1; lineNum < i; lineNum++) {
+                // Create a single-character marker at the indentation position
                 const lineMark = editor.markText(
                   {line: lineNum, ch: matchingStructure.indent},
                   {line: lineNum, ch: matchingStructure.indent + 1},
-                  {className: `structure-line level-${matchingStructure.level}`}
+                  {className: 'structure-line'}
                 );
                 structureMarkers.push(lineMark);
               }
