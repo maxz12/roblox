@@ -1,7 +1,3 @@
--- One-Time Bag Collector Script
--- Created: 2025-04-15
--- Author: maxz12
-
 local plr = game.Players.LocalPlayer
 local char = plr.Character or plr.CharacterAdded:Wait()
 local hrp = char:WaitForChild("HumanoidRootPart")

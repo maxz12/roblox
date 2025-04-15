@@ -1,7 +1,3 @@
--- Script to teleport Police in front of player
--- Created: 2025-04-15
--- Author: maxz12
-
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
