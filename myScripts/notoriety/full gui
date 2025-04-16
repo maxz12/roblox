@@ -1,0 +1,579 @@
+local Bracket = loadstring(game:HttpGet("https://raw.githubusercontent.com/AlexR32/Bracket/main/BracketV32.lua"))()
+
+-- Show initial notifications
+Bracket:Notification({
+    Title = "Prison Life GUI Loaded",
+    Description = "Created by maxz12",
+    Duration = 3
+})
+
+-- Create main window
+local Window = Bracket:Window({
+    Name = "Prison Life GUI",
+    Enabled = true,
+    Color = Color3.new(0.4, 0.4, 0.8),
+    Size = UDim2.new(0, 496, 0, 300),
+    Position = UDim2.new(0.5, -248, 0.5, -300)
+})
+
+-- Reference services and player
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+-- Store connections to clean up later
+local connections = {}
+
+-- Connect to character respawn
+table.insert(connections, Players.LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    hrp = character:WaitForChild("HumanoidRootPart")
+end))
+
+-- Create a single tab with all features
+local MainTab = Window:Tab({Name = "Prison Life GUI"})
+
+-- POLICE CONTROLS SECTION
+local PoliceSection = MainTab:Section({Name = "Police Controls", Side = "Left"})
+
+-- Police teleport feature
+local policeTeleportConnection = nil
+local PoliceTeleport = PoliceSection:Toggle({
+    Name = "Teleport Police In Front",
+    Value = false,
+    Callback = function(enabled)
+        if enabled then
+            -- Create a new connection when enabled
+            policeTeleportConnection = RunService.Heartbeat:Connect(function()
+                -- Get player's position and forward direction
+                local position = hrp.Position
+                local lookDirection = hrp.CFrame.LookVector
+                
+                -- Position to place officers (5 studs in front)
+                local targetPosition = position + (lookDirection * 5)
+                
+                -- Teleport all police officers to this position
+                for _, officer in pairs(workspace.Police:GetChildren()) do
+                    local officerHRP = officer:FindFirstChild("HumanoidRootPart")
+                    if officerHRP then
+                        -- Face the player
+                        local lookAt = CFrame.lookAt(targetPosition, position)
+                        officerHRP.CFrame = lookAt
+                    end
+                end
+            end)
+            table.insert(connections, policeTeleportConnection)
+        else
+            -- Disconnect when disabled
+            if policeTeleportConnection then
+                policeTeleportConnection:Disconnect()
+                policeTeleportConnection = nil
+            end
+        end
+    end
+})
+PoliceTeleport:ToolTip("Teleports police officers 5 studs in front of you, facing you")
+
+-- Police far away teleport feature
+local policeRemoveConnection = nil
+local PoliceRemove = PoliceSection:Toggle({
+    Name = "Remove Police (9999,9999,9999)",
+    Value = false,
+    Callback = function(enabled)
+        if enabled then
+            -- Create a new connection when enabled
+            policeRemoveConnection = RunService.Heartbeat:Connect(function()
+                -- Far away position
+                local farPosition = Vector3.new(9999, 9999, 9999)
+                
+                -- Teleport all police officers to this far away position
+                for _, officer in pairs(workspace.Police:GetChildren()) do
+                    local officerHRP = officer:FindFirstChild("HumanoidRootPart")
+                    if officerHRP then
+                        officerHRP.CFrame = CFrame.new(farPosition)
+                    end
+                end
+            end)
+            table.insert(connections, policeRemoveConnection)
+            
+            Bracket:Notification({
+                Title = "Police Removed",
+                Description = "Police teleported far away",
+                Duration = 2
+            })
+        else
+            -- Disconnect when disabled
+            if policeRemoveConnection then
+                policeRemoveConnection:Disconnect()
+                policeRemoveConnection = nil
+            end
+            
+            Bracket:Notification({
+                Title = "Police Remove Disabled",
+                Description = "Police will spawn normally now",
+                Duration = 2
+            })
+        end
+    end
+})
+PoliceRemove:ToolTip("Teleports all police to 9999,9999,9999 (effectively removing them)")
+
+-- Police highlight feature (now with red color)
+local policeHighlights = {}
+local policeHighlightConnection = nil
+local policeChildRemovedConnection = nil
+local PoliceHighlight = PoliceSection:Toggle({
+    Name = "Highlight Police (Red)",
+    Value = false,
+    Callback = function(enabled)
+        -- Function to apply highlight
+        local function addHighlight(officer)
+            if not enabled then 
+                if policeHighlights[officer] then
+                    policeHighlights[officer]:Destroy()
+                    policeHighlights[officer] = nil
+                end
+                return 
+            end
+            
+            if not policeHighlights[officer] then
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Red
+                highlight.OutlineColor = Color3.fromRGB(180, 0, 0) -- Darker red
+                highlight.FillTransparency = 0.7
+                highlight.Parent = officer
+                policeHighlights[officer] = highlight
+                
+                -- Remove on death
+                local humanoid = officer:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.Died:Connect(function()
+                        if policeHighlights[officer] then
+                            policeHighlights[officer]:Destroy()
+                            policeHighlights[officer] = nil
+                        end
+                    end)
+                end
+            end
+        end
+        
+        -- Apply to existing officers
+        for _, officer in pairs(workspace.Police:GetChildren()) do
+            if enabled then
+                addHighlight(officer)
+            else
+                if policeHighlights[officer] then
+                    policeHighlights[officer]:Destroy()
+                    policeHighlights[officer] = nil
+                end
+            end
+        end
+        
+        -- Connect to future officers
+        if enabled then
+            policeHighlightConnection = workspace.Police.ChildAdded:Connect(addHighlight)
+            table.insert(connections, policeHighlightConnection)
+            
+            policeChildRemovedConnection = workspace.Police.ChildRemoved:Connect(function(officer)
+                if policeHighlights[officer] then
+                    policeHighlights[officer]:Destroy()
+                    policeHighlights[officer] = nil
+                end
+            end)
+            table.insert(connections, policeChildRemovedConnection)
+        else
+            if policeHighlightConnection then
+                policeHighlightConnection:Disconnect()
+                policeHighlightConnection = nil
+            end
+            
+            if policeChildRemovedConnection then
+                policeChildRemovedConnection:Disconnect()
+                policeChildRemovedConnection = nil
+            end
+            
+            -- Remove all highlights
+            for officer, highlight in pairs(policeHighlights) do
+                highlight:Destroy()
+            end
+            policeHighlights = {}
+        end
+    end
+})
+PoliceHighlight:ToolTip("Adds red highlights to all police officers")
+
+-- Citizens highlight feature (green)
+local citizenHighlights = {}
+local citizenHighlightConnection = nil
+local citizenChildRemovedConnection = nil
+local CitizenHighlight = PoliceSection:Toggle({
+    Name = "Highlight Citizens (Green)",
+    Value = false,
+    Callback = function(enabled)
+        -- Function to apply highlight
+        local function addHighlight(citizen)
+            if not enabled then 
+                if citizenHighlights[citizen] then
+                    citizenHighlights[citizen]:Destroy()
+                    citizenHighlights[citizen] = nil
+                end
+                return 
+            end
+            
+            if not citizenHighlights[citizen] then
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Green
+                highlight.OutlineColor = Color3.fromRGB(0, 180, 0) -- Darker green
+                highlight.FillTransparency = 0.7
+                highlight.Parent = citizen
+                citizenHighlights[citizen] = highlight
+                
+                -- Remove on death
+                local humanoid = citizen:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.Died:Connect(function()
+                        if citizenHighlights[citizen] then
+                            citizenHighlights[citizen]:Destroy()
+                            citizenHighlights[citizen] = nil
+                        end
+                    end)
+                end
+            end
+        end
+        
+        -- Apply to existing citizens
+        if workspace:FindFirstChild("Citizens") then
+            for _, citizen in pairs(workspace.Citizens:GetChildren()) do
+                if enabled then
+                    addHighlight(citizen)
+                else
+                    if citizenHighlights[citizen] then
+                        citizenHighlights[citizen]:Destroy()
+                        citizenHighlights[citizen] = nil
+                    end
+                end
+            end
+            
+            -- Connect to future citizens
+            if enabled then
+                citizenHighlightConnection = workspace.Citizens.ChildAdded:Connect(addHighlight)
+                table.insert(connections, citizenHighlightConnection)
+                
+                citizenChildRemovedConnection = workspace.Citizens.ChildRemoved:Connect(function(citizen)
+                    if citizenHighlights[citizen] then
+                        citizenHighlights[citizen]:Destroy()
+                        citizenHighlights[citizen] = nil
+                    end
+                end)
+                table.insert(connections, citizenChildRemovedConnection)
+            else
+                if citizenHighlightConnection then
+                    citizenHighlightConnection:Disconnect()
+                    citizenHighlightConnection = nil
+                end
+                
+                if citizenChildRemovedConnection then
+                    citizenChildRemovedConnection:Disconnect()
+                    citizenChildRemovedConnection = nil
+                end
+                
+                -- Remove all highlights
+                for citizen, highlight in pairs(citizenHighlights) do
+                    highlight:Destroy()
+                end
+                citizenHighlights = {}
+            end
+        else
+            Bracket:Notification({
+                Title = "Error",
+                Description = "Citizens folder not found!",
+                Duration = 2
+            })
+        end
+    end
+})
+CitizenHighlight:ToolTip("Adds green highlights to all citizens")
+
+-- Police head size controls
+local headSizeMultiplier = 3
+local policeHeadConnection = nil
+
+local HeadSizeSlider = PoliceSection:Slider({
+    Name = "Head Size Multiplier",
+    Min = 1,
+    Max = 10,
+    Value = 3,
+    Precise = 1,
+    Unit = "x",
+    Callback = function(value)
+        headSizeMultiplier = value
+    end
+})
+HeadSizeSlider:ToolTip("Sets the size multiplier for police heads")
+
+local ResizeHeadsButton = PoliceSection:Button({
+    Name = "Resize Police Heads",
+    Callback = function()
+        for _, officer in pairs(workspace.Police:GetChildren()) do
+            local head = officer:FindFirstChild("Head")
+            if head and head:IsA("MeshPart") then
+                head.Size = head.Size.Unit * headSizeMultiplier
+            end
+        end
+        
+        -- Apply to new officers
+        if policeHeadConnection then
+            policeHeadConnection:Disconnect()
+        end
+        
+        policeHeadConnection = workspace.Police.ChildAdded:Connect(function(officer)
+            task.wait(0.1) -- Small wait to ensure the Head is loaded
+            local head = officer:FindFirstChild("Head")
+            if head and head:IsA("MeshPart") then
+                head.Size = head.Size.Unit * headSizeMultiplier
+            end
+        end)
+        table.insert(connections, policeHeadConnection)
+        
+        Bracket:Notification({
+            Title = "Head Resize",
+            Description = "Applied size " .. headSizeMultiplier .. "x to all police heads",
+            Duration = 2
+        })
+    end
+})
+ResizeHeadsButton:ToolTip("Applies the current size multiplier to all police heads")
+
+-- AMMO COLLECTION SECTION
+local AmmoSection = MainTab:Section({Name = "Ammo Collection", Side = "Right"})
+
+local ammoConnection = nil
+local AmmoCollect = AmmoSection:Toggle({
+    Name = "Auto-Collect Ammo Drops",
+    Value = false,
+    Callback = function(enabled)
+        if enabled then
+            local plr = game.Players.LocalPlayer
+            local hrp = game.Workspace.Criminals[plr.Name].HumanoidRootPart
+            local currentAmmo = workspace.Criminals[plr.Name].PrimaryAmmoMax
+            local Drops = game.Workspace.AmmoDrops
+            
+            ammoConnection = currentAmmo.Changed:Connect(function()
+                for _, thing in ipairs(Drops:GetDescendants()) do
+                    if thing:IsA("BasePart") then
+                        thing.Position = hrp.Position + Vector3.new(0, 0, 0)
+                    end
+                end
+            end)
+            table.insert(connections, ammoConnection)
+            
+            Bracket:Notification({
+                Title = "Ammo Collection",
+                Description = "Auto-collect activated. Reload to collect ammo.",
+                Duration = 2
+            })
+        else
+            if ammoConnection then
+                ammoConnection:Disconnect()
+                ammoConnection = nil
+            end
+        end
+    end
+})
+AmmoCollect:ToolTip("Automatically collects all ammo drops when you reload")
+
+-- MONEY BAGS SECTION
+local BagsSection = MainTab:Section({Name = "Money Bags", Side = "Right"})
+
+local CollectBagsButton = BagsSection:Button({
+    Name = "Collect All Money Bags",
+    Callback = function()
+        local plr = game.Players.LocalPlayer
+        local char = plr.Character or plr.CharacterAdded:Wait()
+        local hrp = char:WaitForChild("HumanoidRootPart")
+    
+        -- Remote references
+        local remotes = game:GetService("ReplicatedStorage"):WaitForChild("RS_Package"):WaitForChild("Remotes")
+        local startInteraction = remotes:WaitForChild("StartInteraction")
+        local completeInteraction = remotes:WaitForChild("CompleteInteraction")
+        local throwBag = remotes:WaitForChild("ThrowBag")
+    
+        -- Drop-off location
+        local dropArea = workspace.BagSecuredArea.FloorPart
+    
+        -- Process a single bag
+        local function grabAndDeliverBag(bag)
+            local moneyBag = bag:FindFirstChild("MoneyBag")
+            if not moneyBag then return false end
+            
+            local prompt = moneyBag:FindFirstChild("ProximityPrompt")
+            if not prompt then return false end
+            
+            -- 1. Go to bag
+            hrp.CFrame = CFrame.new(moneyBag.Position + Vector3.new(0, 3, 0))
+            task.wait(0.2)
+            
+            -- 2. Pick up bag
+            startInteraction:FireServer(prompt)
+            task.wait(0.2)
+            completeInteraction:FireServer(prompt)
+            task.wait(0.2)
+            
+            -- 3. Go to drop-off
+            hrp.CFrame = CFrame.new(dropArea.Position + Vector3.new(0, 3, 0))
+            task.wait(0.2)
+            
+            -- 4. Drop bag
+            throwBag:FireServer(Vector3.new(0, -1, 0))
+            task.wait(0.3)
+            
+            return true
+        end
+    
+        -- Main function - one-time execution
+        local function collectAllBagsOnce()
+            Bracket:Notification({
+                Title = "Money Bags",
+                Description = "Starting collection...",
+                Duration = 2
+            })
+            
+            local bagsFolder = workspace:FindFirstChild("Bags")
+            if not bagsFolder then
+                Bracket:Notification({
+                    Title = "Error",
+                    Description = "No bags folder found!",
+                    Duration = 2
+                })
+                return
+            end
+            
+            local bagList = bagsFolder:GetChildren()
+            local totalBags = #bagList
+            local delivered = 0
+            
+            for i, bag in ipairs(bagList) do
+                if bag.Name == "Bag" then
+                    local success = grabAndDeliverBag(bag)
+                    if success then
+                        delivered = delivered + 1
+                    end
+                end
+            end
+            
+            Bracket:Notification({
+                Title = "Collection Complete",
+                Description = "Delivered " .. delivered .. " bags",
+                Duration = 3
+            })
+        end
+    
+        -- Run the one-time collection
+        collectAllBagsOnce()
+    end
+})
+CollectBagsButton:ToolTip("Collects and delivers all money bags in the game")
+
+-- SETTINGS SECTION
+local SettingsSection = MainTab:Section({Name = "Settings", Side = "Right"})
+
+-- Information
+SettingsSection:Label({Text = "Prison Life GUI v1.0"})
+SettingsSection:Label({Text = "Created by maxz12"})
+SettingsSection:Label({Text = "Last updated: 2025-04-16 18:56:55"})
+
+-- Manual implementation of UI toggle
+local guiVisible = true
+local toggleKey = Enum.KeyCode.RightShift -- Default key
+
+-- Create a textbox to show the current keybind
+local KeybindLabel = SettingsSection:Label({Text = "Toggle UI Key: RightShift"})
+
+-- Listen for key presses globally
+local keyConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if gameProcessed then return end -- Ignore if game processed the input
+    
+    if input.KeyCode == toggleKey then
+        guiVisible = not guiVisible
+        Window:Toggle(guiVisible)
+        
+        Bracket:Notification({
+            Title = guiVisible and "GUI Visible" or "GUI Hidden",
+            Description = "Press " .. toggleKey.Name .. " to " .. (guiVisible and "hide" or "show"),
+            Duration = 1.5
+        })
+    end
+end)
+table.insert(connections, keyConnection)
+
+-- Button to change the keybind
+local ChangeKeybindButton = SettingsSection:Button({
+    Name = "Change Toggle Key",
+    Callback = function()
+        KeybindLabel:ChangeText("Press any key...")
+        
+        -- Wait for next key press
+        local tempConnection
+        tempConnection = UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Keyboard and 
+               input.KeyCode ~= Enum.KeyCode.Unknown then
+                
+                -- Update the toggle key
+                toggleKey = input.KeyCode
+                KeybindLabel:ChangeText("Toggle UI Key: " .. toggleKey.Name)
+                
+                Bracket:Notification({
+                    Title = "Keybind Changed",
+                    Description = "UI toggle key set to " .. toggleKey.Name,
+                    Duration = 2
+                })
+                
+                tempConnection:Disconnect()
+            end
+        end)
+    end
+})
+ChangeKeybindButton:ToolTip("Click to set a new key for toggling GUI visibility")
+
+-- Destroy UI button
+local DestroyButton = SettingsSection:Button({
+    Name = "Destroy GUI",
+    Callback = function()
+        -- Clean up all connections
+        for _, connection in pairs(connections) do
+            if connection and typeof(connection) == "RBXScriptConnection" and connection.Connected then
+                connection:Disconnect()
+            end
+        end
+        connections = {}
+        
+        -- Clean up highlight objects
+        for officer, highlight in pairs(policeHighlights) do
+            if highlight then
+                highlight:Destroy()
+            end
+        end
+        policeHighlights = {}
+        
+        for citizen, highlight in pairs(citizenHighlights) do
+            if highlight then
+                highlight:Destroy()
+            end
+        end
+        citizenHighlights = {}
+        
+        -- Notification before destroying
+        Bracket:Notification({
+            Title = "GUI Destroyed",
+            Description = "Thanks for using Prison Life GUI!",
+            Duration = 2
+        })
+        
+        -- Destroy the UI
+        Window:Remove()
+    end
+})
+DestroyButton:ToolTip("Completely removes the GUI and cleans up all connections")
