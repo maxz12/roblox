@@ -1,0 +1,304 @@
+local BlekLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/laderite/bleklib/main/library.lua"))()
+
+local win = BlekLib:Create({
+    Name = "Prison Life GUI",
+    StartupSound = {
+        Toggle = false,
+        SoundID = "rbxassetid://6958727243",
+        TimePosition = 1
+    }
+})
+
+-- Create tabs
+local policeTab = win:Tab('Police')
+local ammoTab = win:Tab('Ammo')
+local bagTab = win:Tab('Money Bags')
+local settingsTab = win:Tab('Settings')
+
+-- Variables to store toggle states
+local teleportPoliceEnabled = false
+local ammoCollectEnabled = false
+local policeHighlightEnabled = false
+local headSizeMultiplier = 3 -- Default size multiplier
+
+-- Reference services and player
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+-- Connect to character respawn
+Players.LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    hrp = character:WaitForChild("HumanoidRootPart")
+end)
+
+-- POLICE CONTROLS TAB
+policeTab:Toggle('Teleport Police In Front', function(v)
+    teleportPoliceEnabled = v
+    
+    if teleportPoliceEnabled then
+        -- Create a new connection when enabled
+        if not policeTeleportConnection then
+            policeTeleportConnection = RunService.Heartbeat:Connect(function()
+                if not teleportPoliceEnabled then return end
+                
+                -- Get player's position and forward direction
+                local position = hrp.Position
+                local lookDirection = hrp.CFrame.LookVector
+                
+                -- Position to place officers (5 studs in front)
+                local targetPosition = position + (lookDirection * 5)
+                
+                -- Teleport all police officers to this position
+                for _, officer in pairs(workspace.Police:GetChildren()) do
+                    local officerHRP = officer:FindFirstChild("HumanoidRootPart")
+                    if officerHRP then
+                        -- Face the player
+                        local lookAt = CFrame.lookAt(targetPosition, position)
+                        officerHRP.CFrame = lookAt
+                    end
+                end
+            end)
+        end
+    else
+        -- Disconnect when disabled
+        if policeTeleportConnection then
+            policeTeleportConnection:Disconnect()
+            policeTeleportConnection = nil
+        end
+    end
+end)
+
+policeTab:Toggle('Highlight Police', function(v)
+    policeHighlightEnabled = v
+    
+    local highlights = {}
+    
+    -- Function to apply highlight
+    local function addHighlight(officer)
+        if not policeHighlightEnabled then 
+            if highlights[officer] then
+                highlights[officer]:Destroy()
+                highlights[officer] = nil
+            end
+            return 
+        end
+        
+        if not highlights[officer] then
+            local highlight = Instance.new("Highlight")
+            highlight.FillColor = Color3.fromRGB(0, 100, 255)
+            highlight.OutlineColor = Color3.fromRGB(0, 0, 255)
+            highlight.FillTransparency = 0.7
+            highlight.Parent = officer
+            highlights[officer] = highlight
+            
+            -- Remove on death
+            local humanoid = officer:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.Died:Connect(function()
+                    if highlights[officer] then
+                        highlights[officer]:Destroy()
+                        highlights[officer] = nil
+                    end
+                end)
+            end
+        end
+    end
+    
+    -- Apply to existing officers
+    for _, officer in pairs(workspace.Police:GetChildren()) do
+        if policeHighlightEnabled then
+            addHighlight(officer)
+        else
+            if highlights[officer] then
+                highlights[officer]:Destroy()
+                highlights[officer] = nil
+            end
+        end
+    end
+    
+    -- Connect to future officers
+    if policeHighlightEnabled and not policeHighlightConnection then
+        policeHighlightConnection = workspace.Police.ChildAdded:Connect(addHighlight)
+        
+        policeChildRemovedConnection = workspace.Police.ChildRemoved:Connect(function(officer)
+            if highlights[officer] then
+                highlights[officer]:Destroy()
+                highlights[officer] = nil
+            end
+        end)
+    elseif not policeHighlightEnabled and policeHighlightConnection then
+        policeHighlightConnection:Disconnect()
+        policeHighlightConnection = nil
+        
+        if policeChildRemovedConnection then
+            policeChildRemovedConnection:Disconnect()
+            policeChildRemovedConnection = nil
+        end
+        
+        -- Remove all highlights
+        for officer, highlight in pairs(highlights) do
+            highlight:Destroy()
+        end
+        highlights = {}
+    end
+end)
+
+policeTab:Textbox('Police Head Size Multiplier', function(v)
+    local size = tonumber(v)
+    if size then
+        headSizeMultiplier = size
+        
+        -- Apply to existing officers
+        for _, officer in pairs(workspace.Police:GetChildren()) do
+            local head = officer:FindFirstChild("Head")
+            if head and head:IsA("MeshPart") then
+                head.Size = head.Size.Unit * headSizeMultiplier
+            end
+        end
+    end
+end)
+
+policeTab:Button('Resize Police Heads Now', function()
+    for _, officer in pairs(workspace.Police:GetChildren()) do
+        local head = officer:FindFirstChild("Head")
+        if head and head:IsA("MeshPart") then
+            head.Size = head.Size.Unit * headSizeMultiplier
+        end
+    end
+    
+    -- Apply to new officers
+    if not policeHeadConnection then
+        policeHeadConnection = workspace.Police.ChildAdded:Connect(function(officer)
+            task.wait(0.1) -- Small wait to ensure the Head is loaded
+            local head = officer:FindFirstChild("Head")
+            if head and head:IsA("MeshPart") then
+                head.Size = head.Size.Unit * headSizeMultiplier
+            end
+        end)
+    end
+end)
+
+-- AMMO TAB
+ammoTab:Toggle('Auto-Collect Ammo Drops', function(v)
+    ammoCollectEnabled = v
+    
+    if ammoCollectEnabled then
+        if not ammoConnection then
+            local plr = game.Players.LocalPlayer
+            local hrp = game.Workspace.Criminals[plr.Name].HumanoidRootPart
+            local currentAmmo = workspace.Criminals[plr.Name].PrimaryAmmoMax
+            local Drops = game.Workspace.AmmoDrops
+            
+            ammoConnection = currentAmmo.Changed:Connect(function()
+                if not ammoCollectEnabled then return end
+                
+                for _, thing in ipairs(Drops:GetDescendants()) do
+                    if thing:IsA("BasePart") then
+                        thing.Position = hrp.Position + Vector3.new(0, 0, 0)
+                    end
+                end
+            end)
+        end
+    else
+        if ammoConnection then
+            ammoConnection:Disconnect()
+            ammoConnection = nil
+        end
+    end
+end)
+
+-- MONEY BAGS TAB
+bagTab:Button('Collect All Money Bags', function()
+    local plr = game.Players.LocalPlayer
+    local char = plr.Character or plr.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+
+    -- Remote references
+    local remotes = game:GetService("ReplicatedStorage"):WaitForChild("RS_Package"):WaitForChild("Remotes")
+    local startInteraction = remotes:WaitForChild("StartInteraction")
+    local completeInteraction = remotes:WaitForChild("CompleteInteraction")
+    local throwBag = remotes:WaitForChild("ThrowBag")
+
+    -- Drop-off location
+    local dropArea = workspace.BagSecuredArea.FloorPart
+
+    -- Process a single bag
+    local function grabAndDeliverBag(bag)
+        local moneyBag = bag:FindFirstChild("MoneyBag")
+        if not moneyBag then return false end
+        
+        local prompt = moneyBag:FindFirstChild("ProximityPrompt")
+        if not prompt then return false end
+        
+        -- 1. Go to bag
+        hrp.CFrame = CFrame.new(moneyBag.Position + Vector3.new(0, 3, 0))
+        task.wait(0.2)
+        
+        -- 2. Pick up bag
+        startInteraction:FireServer(prompt)
+        task.wait(0.2)
+        completeInteraction:FireServer(prompt)
+        task.wait(0.2)
+        
+        -- 3. Go to drop-off
+        hrp.CFrame = CFrame.new(dropArea.Position + Vector3.new(0, 3, 0))
+        task.wait(0.2)
+        
+        -- 4. Drop bag
+        throwBag:FireServer(Vector3.new(0, -1, 0))
+        task.wait(0.3)
+        
+        return true
+    end
+
+    -- Main function - one-time execution
+    local function collectAllBagsOnce()
+        local bagsFolder = workspace:FindFirstChild("Bags")
+        if not bagsFolder then
+            return
+        end
+        
+        local bagList = bagsFolder:GetChildren()
+        
+        for _, bag in ipairs(bagList) do
+            if bag.Name == "Bag" then
+                grabAndDeliverBag(bag)
+            end
+        end
+    end
+
+    -- Run the one-time collection
+    collectAllBagsOnce()
+end)
+
+-- SETTINGS TAB
+settingsTab:Button('Destroy GUI', function()
+    -- Clean up connections before destroying
+    if policeTeleportConnection then
+        policeTeleportConnection:Disconnect()
+    end
+    
+    if ammoConnection then
+        ammoConnection:Disconnect()
+    end
+    
+    if policeHighlightConnection then
+        policeHighlightConnection:Disconnect()
+    end
+    
+    if policeChildRemovedConnection then
+        policeChildRemovedConnection:Disconnect()
+    end
+    
+    if policeHeadConnection then
+        policeHeadConnection:Disconnect()
+    end
+    
+    win:Exit()
+end)
+
+settingsTab:Label('Prison Life GUI v1.0')
+settingsTab:Label('Made by maxz12')
