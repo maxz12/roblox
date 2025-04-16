@@ -13,7 +13,7 @@ local Window = Bracket:Window({
     Enabled = true,
     Color = Color3.new(0.4, 0.4, 0.8),
     Size = UDim2.new(0, 496, 0, 300),
-    Position = UDim2.new(0.5, -248, 0.5, -300)
+    Position = UDim2.new(0.5, -248, 0.5, -150)
 })
 
 -- Reference services and player
@@ -76,6 +76,14 @@ local PoliceTeleport = PoliceSection:Toggle({
     end
 })
 PoliceTeleport:ToolTip("Teleports police officers 5 studs in front of you, facing you")
+PoliceTeleport:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"},
+    Callback = function(_, _)
+        -- This will be called when the keybind is pressed
+    end
+})
 
 -- Police far away teleport feature
 local policeRemoveConnection = nil
@@ -120,6 +128,14 @@ local PoliceRemove = PoliceSection:Toggle({
     end
 })
 PoliceRemove:ToolTip("Teleports all police to 9999,9999,9999 (effectively removing them)")
+PoliceRemove:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"},
+    Callback = function(_, _)
+        -- This will be called when the keybind is pressed
+    end
+})
 
 -- Police highlight feature (now with red color)
 local policeHighlights = {}
@@ -204,12 +220,23 @@ local PoliceHighlight = PoliceSection:Toggle({
     end
 })
 PoliceHighlight:ToolTip("Adds red highlights to all police officers")
+PoliceHighlight:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"},
+    Callback = function(_, _)
+        -- This will be called when the keybind is pressed
+    end
+})
+
+-- Citizens section
+local CitizenSection = MainTab:Section({Name = "Citizen Controls", Side = "Left"})
 
 -- Citizens highlight feature (green)
 local citizenHighlights = {}
 local citizenHighlightConnection = nil
 local citizenChildRemovedConnection = nil
-local CitizenHighlight = PoliceSection:Toggle({
+local CitizenHighlight = CitizenSection:Toggle({
     Name = "Highlight Citizens (Green)",
     Value = false,
     Callback = function(enabled)
@@ -296,6 +323,74 @@ local CitizenHighlight = PoliceSection:Toggle({
     end
 })
 CitizenHighlight:ToolTip("Adds green highlights to all citizens")
+CitizenHighlight:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"},
+    Callback = function(_, _)
+        -- This will be called when the keybind is pressed
+    end
+})
+
+-- Citizens remove feature
+local citizenRemoveConnection = nil
+local CitizenRemove = CitizenSection:Toggle({
+    Name = "Remove Citizens (9999,9999,9999)",
+    Value = false,
+    Callback = function(enabled)
+        if workspace:FindFirstChild("Citizens") then
+            if enabled then
+                -- Create a new connection when enabled
+                citizenRemoveConnection = RunService.Heartbeat:Connect(function()
+                    -- Far away position
+                    local farPosition = Vector3.new(9999, 9999, 9999)
+                    
+                    -- Teleport all citizens to this far away position
+                    for _, citizen in pairs(workspace.Citizens:GetChildren()) do
+                        local citizenHRP = citizen:FindFirstChild("HumanoidRootPart")
+                        if citizenHRP then
+                            citizenHRP.CFrame = CFrame.new(farPosition)
+                        end
+                    end
+                end)
+                table.insert(connections, citizenRemoveConnection)
+                
+                Bracket:Notification({
+                    Title = "Citizens Removed",
+                    Description = "Citizens teleported far away",
+                    Duration = 2
+                })
+            else
+                -- Disconnect when disabled
+                if citizenRemoveConnection then
+                    citizenRemoveConnection:Disconnect()
+                    citizenRemoveConnection = nil
+                end
+                
+                Bracket:Notification({
+                    Title = "Citizens Remove Disabled",
+                    Description = "Citizens will spawn normally now",
+                    Duration = 2
+                })
+            end
+        else
+            Bracket:Notification({
+                Title = "Error",
+                Description = "Citizens folder not found!",
+                Duration = 2
+            })
+        end
+    end
+})
+CitizenRemove:ToolTip("Teleports all citizens to 9999,9999,9999 (effectively removing them)")
+CitizenRemove:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"},
+    Callback = function(_, _)
+        -- This will be called when the keybind is pressed
+    end
+})
 
 -- Police head size controls
 local headSizeMultiplier = 3
@@ -347,6 +442,36 @@ local ResizeHeadsButton = PoliceSection:Button({
 })
 ResizeHeadsButton:ToolTip("Applies the current size multiplier to all police heads")
 
+-- BREAK GLASS SECTION
+local GlassSection = MainTab:Section({Name = "Environment", Side = "Left"})
+
+local BreakGlassButton = GlassSection:Button({
+    Name = "Break All Glass",
+    Callback = function()
+        if workspace:FindFirstChild("Glass") then
+            -- Count number of glass objects
+            local count = 0
+            for _, glass in pairs(workspace.Glass:GetChildren()) do
+                glass:Destroy()
+                count = count + 1
+            end
+            
+            Bracket:Notification({
+                Title = "Glass Broken",
+                Description = "Destroyed " .. count .. " glass objects",
+                Duration = 2
+            })
+        else
+            Bracket:Notification({
+                Title = "Error",
+                Description = "No glass found in workspace",
+                Duration = 2
+            })
+        end
+    end
+})
+BreakGlassButton:ToolTip("Destroys all glass in the prison (one-time action)")
+
 -- AMMO COLLECTION SECTION
 local AmmoSection = MainTab:Section({Name = "Ammo Collection", Side = "Right"})
 
@@ -384,6 +509,14 @@ local AmmoCollect = AmmoSection:Toggle({
     end
 })
 AmmoCollect:ToolTip("Automatically collects all ammo drops when you reload")
+AmmoCollect:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"},
+    Callback = function(_, _)
+        -- This will be called when the keybind is pressed
+    end
+})
 
 -- MONEY BAGS SECTION
 local BagsSection = MainTab:Section({Name = "Money Bags", Side = "Right"})
@@ -483,14 +616,12 @@ local SettingsSection = MainTab:Section({Name = "Settings", Side = "Right"})
 -- Information
 SettingsSection:Label({Text = "Prison Life GUI v1.0"})
 SettingsSection:Label({Text = "Created by maxz12"})
-SettingsSection:Label({Text = "Last updated: 2025-04-16 18:56:55"})
+SettingsSection:Label({Text = "Last updated: 2025-04-16 19:22:08"})
+SettingsSection:Label({Text = "Toggle UI: RightShift (fixed)"})
 
--- Manual implementation of UI toggle
+-- Manual implementation of UI toggle with fixed RightShift keybind
 local guiVisible = true
-local toggleKey = Enum.KeyCode.RightShift -- Default key
-
--- Create a textbox to show the current keybind
-local KeybindLabel = SettingsSection:Label({Text = "Toggle UI Key: RightShift"})
+local toggleKey = Enum.KeyCode.RightShift -- Fixed RightShift key
 
 -- Listen for key presses globally
 local keyConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed)
@@ -502,41 +633,12 @@ local keyConnection = UserInputService.InputEnded:Connect(function(input, gamePr
         
         Bracket:Notification({
             Title = guiVisible and "GUI Visible" or "GUI Hidden",
-            Description = "Press " .. toggleKey.Name .. " to " .. (guiVisible and "hide" or "show"),
+            Description = "Press RightShift to " .. (guiVisible and "hide" or "show"),
             Duration = 1.5
         })
     end
 end)
 table.insert(connections, keyConnection)
-
--- Button to change the keybind
-local ChangeKeybindButton = SettingsSection:Button({
-    Name = "Change Toggle Key",
-    Callback = function()
-        KeybindLabel:ChangeText("Press any key...")
-        
-        -- Wait for next key press
-        local tempConnection
-        tempConnection = UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Keyboard and 
-               input.KeyCode ~= Enum.KeyCode.Unknown then
-                
-                -- Update the toggle key
-                toggleKey = input.KeyCode
-                KeybindLabel:ChangeText("Toggle UI Key: " .. toggleKey.Name)
-                
-                Bracket:Notification({
-                    Title = "Keybind Changed",
-                    Description = "UI toggle key set to " .. toggleKey.Name,
-                    Duration = 2
-                })
-                
-                tempConnection:Disconnect()
-            end
-        end)
-    end
-})
-ChangeKeybindButton:ToolTip("Click to set a new key for toggling GUI visibility")
 
 -- Destroy UI button
 local DestroyButton = SettingsSection:Button({
