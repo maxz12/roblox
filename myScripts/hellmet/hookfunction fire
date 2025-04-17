@@ -1,0 +1,61 @@
+-- Save the original fireWeapon function
+local originalFireWeapon = nil
+
+-- Find the fireWeapon function using getgc
+for _, func in next, getgc() do
+    if type(func) == "function" and not is_synapse_function(func) and islclosure(func) then
+        local info = debug.getinfo(func)
+        -- Get the upvalues to check if this is the fireWeapon function
+        local upvalues = debug.getupvalues(func)
+        
+        -- Check if this function has the characteristic upvalues of fireWeapon
+        local isFireWeapon = false
+        for i, v in pairs(upvalues) do
+            if type(v) == "boolean" and (tostring(i):find("isReloading") or tostring(i):find("isMagChecking")) then
+                isFireWeapon = true
+            end
+        end
+        
+        if isFireWeapon then
+            originalFireWeapon = func
+            break
+        end
+    end
+end
+
+-- Hook the fireWeapon function
+if originalFireWeapon then
+    hookfunction(originalFireWeapon, function(...)
+        -- Get all the upvalues so we can preserve functionality
+        local upvalues = debug.getupvalues(originalFireWeapon)
+        
+        -- Store original values to restore later
+        local originalYRecoil = upvalues.yRecoil
+        local originalXRecoil = upvalues.xRecoil
+        local weaponTool = upvalues.weaponTool
+        
+        -- Get current ammo to restore it after the function call
+        local currentAmmo = weaponTool:GetAttribute("Ammo")
+        
+        -- Call the original function
+        local result = originalFireWeapon(...)
+        
+        -- Restore the ammo (undoing the decrease)
+        weaponTool:SetAttribute("Ammo", currentAmmo)
+        
+        -- Reset the recoil values back to what they were before the shot
+        for i, v in pairs(debug.getupvalues(originalFireWeapon)) do
+            if tostring(i) == "yRecoil" then
+                debug.setupvalue(originalFireWeapon, i, originalYRecoil)
+            elseif tostring(i) == "xRecoil" then
+                debug.setupvalue(originalFireWeapon, i, originalXRecoil)
+            end
+        end
+        
+        return result
+    end)
+    
+    print("Successfully hooked fireWeapon! No ammo consumption and no recoil.")
+else
+    warn("Could not find the fireWeapon function!")
+end
