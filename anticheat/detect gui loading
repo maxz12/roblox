@@ -1,0 +1,34 @@
+--[[
+  This script monitors for any new ScreenGui objects added to PlayerGui and, if accessible, CoreGui.
+  It prints out the full path of the new GUI and checks if its name contains "infiniteyield".
+  You can extend this functionality (e.g., logging, alerting the server, kicking the player, etc.)
+  for your anticheat purposes.
+--]]
+
+-- Function to handle new GUI objects
+local function onGuiAdded(guiObject)
+    if guiObject:IsA("ScreenGui") then
+        print("New ScreenGui detected: " .. guiObject:GetFullName())
+        -- Convert the name to lowercase and check for "infiniteyield"
+        if guiObject.Name:lower():find("infiniteyield") then
+            print("Infinite Yield GUI detected! (ID: " .. guiObject:GetFullName() .. ")")
+            -- Additional actions (e.g., log, notify, kick) can be placed here.
+        end
+    end
+end
+
+-- Get the local player and their PlayerGui
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Connect to descendant added events in PlayerGui
+playerGui.DescendantAdded:Connect(onGuiAdded)
+
+-- Optionally, attempt to monitor CoreGui (this may require elevated permissions)
+local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
+if success and coreGui then
+    coreGui.DescendantAdded:Connect(onGuiAdded)
+else
+    print("Unable to access CoreGui for monitoring.")
+end

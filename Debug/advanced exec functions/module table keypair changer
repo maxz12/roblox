@@ -1,0 +1,35 @@
+-- Ultra simple approach
+local success, result = pcall(function()
+    -- Find the module
+    local data = workspace.Criminals.littletimmy2017a.M16.Data
+    if not data then error("Could not find M16 data") end
+    
+    -- Get the module table
+    local module = require(data)
+    if not module then error("Failed to require module") end
+    
+    -- Check if we got the right module
+    if type(module) ~= "table" or not module.MagazineSize then
+        error("Module doesn't have expected fields")
+    end
+    
+    -- Modify values
+    module.MagazineSize = 999
+    module.ReloadTime = 11
+    module.LongerReloadTime = 0.1
+    
+    -- Try to force an update
+    for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("M16") then
+            -- This might trigger the weapon to refresh its stats
+            local gun = player.Character.M16
+            if gun:FindFirstChild("EquipEvent") then
+                gun.EquipEvent:FireServer()
+            end
+        end
+    end
+    
+    return "Successfully modified M16 stats"
+end)
+
+print(success and result or "Error: " .. tostring(result))

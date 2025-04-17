@@ -1,0 +1,30 @@
+--[[
+    EncryptionRemoteSetup
+    Creates a RemoteFunction named "EncryptionRF" in ReplicatedStorage.
+    When invoked by a client, it calls the secure encryption/decryption functions from EncryptionModule.
+]]--
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local EncryptionModule = require(game:GetService("ServerScriptService"):WaitForChild("EncryptionModule"))
+
+local remoteName = "EncryptionRF"
+local encryptionRF = ReplicatedStorage:FindFirstChild(remoteName)
+if not encryptionRF then
+	encryptionRF = Instance.new("RemoteFunction")
+	encryptionRF.Name = remoteName
+	encryptionRF.Parent = ReplicatedStorage
+end
+
+encryptionRF.OnServerInvoke = function(player, action, data)
+	if type(action) ~= "string" or type(data) ~= "string" then
+		return "Error: Invalid input types."
+	end
+	action = action:lower()
+	if action == "encrypt" then
+		return EncryptionModule.encrypt(data)
+	elseif action == "decrypt" then
+		return EncryptionModule.decrypt(data)
+	else
+		return "Error: Unknown action '" .. action .. "'."
+	end
+end

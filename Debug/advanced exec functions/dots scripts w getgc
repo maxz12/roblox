@@ -1,0 +1,86 @@
+--script 1
+  for _, v in next, getgc(true) do
+    if type(v) == "table" then
+        for key, value in pairs(v) do
+            if type(key) == "string" and string.lower(key):find("recoil") then
+                local name = rawget(v, "Name") or rawget(v, "ClassName") or "Unnamed"
+                print("Found table with key containing 'recoil': " .. key .. " in " .. name)
+                wait(0.01)
+            end
+        end
+    end
+end
+
+--script 2 
+  for _, v in next, getgc(true) do
+    if type(v) == "table" and rawget(v, "BaseRecoil") then
+        print("Found table with BaseRecoil:")
+        for key, value in pairs(v) do
+            print(key, value)
+        end
+        wait(0.01)
+    end
+end
+--script 3
+for _,v in next, getgc(true) do
+    if type(v) == "table" and rawget(v, "BaseRecoil") then
+
+        v.ReloadSpeed = 1 
+        v.LoadSpeed = 1
+        v.LoadEndSpeed = 1
+
+
+        v.FanAccuracy = 1
+        v.ProjectileAccuracy = 1
+
+        v.BaseRecoil = 0
+    end
+end
+
+
+
+  
+--script 4
+  local useTargetItemName = false
+local targetItemName = "M16"
+
+if isfolder and makefolder then
+    if not isfolder("GarbageCollection") then
+        makefolder("GarbageCollection")
+    end
+end
+
+for _, v in next, getgc(true) do
+    if type(v) == "table" and rawget(v, "BaseRecoil") then
+        if useTargetItemName and rawget(v, "ItemName") ~= targetItemName then
+        else
+            local output = "Properties of " .. (useTargetItemName and targetItemName or rawget(v, "ItemName")) .. "\n\n"
+
+            for key, value in pairs(v) do
+                if key == "ValidActions" then
+                    output = output .. "\n\"" .. key .. "\" = \"" .. tostring(value) .. "\"\n"
+                    if type(value) == "table" then
+                        for actionKey, actionValue in pairs(value) do
+                            output = output .. " - \"" .. tostring(actionKey) .. "\" = \"" .. tostring(actionValue) .. "\"\n"
+                        end
+                    end
+                    output = output .. "\n"
+                elseif key == "FalloffModifier" then
+                    output = output .. "\n\"" .. key .. "\" = \"" .. tostring(value) .. "\"\n"
+                    if type(value) == "table" then
+                        for modifierKey, modifierValue in pairs(value) do
+                            output = output .. " - \"" .. modifierKey .. "\" = \"" .. tostring(modifierValue) .. "\"\n"
+                        end
+                    end
+                    output = output .. "\n"
+                else
+                    output = output .. "\"" .. key .. "\" = \"" .. tostring(value) .. "\"\n"
+                end
+            end
+
+            local itemName = useTargetItemName and targetItemName or rawget(v, "ItemName")
+            writefile("GarbageCollection/" .. itemName .. "Data.txt", output)
+            print("Data saved to GarbageCollection/" .. itemName .. "Data.txt")
+        end
+    end
+end

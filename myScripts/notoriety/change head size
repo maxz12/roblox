@@ -1,0 +1,16 @@
+-- Simple script to make all Police heads 3x bigger
+for _, officer in pairs(workspace.Police:GetChildren()) do
+    local head = officer:FindFirstChild("Head")
+    if head and head:IsA("MeshPart") then
+        head.Size = head.Size * 3
+    end
+end
+
+-- Apply to new officers too
+workspace.Police.ChildAdded:Connect(function(officer)
+    task.wait(0.1) -- Small wait to ensure the Head is loaded
+    local head = officer:FindFirstChild("Head")
+    if head and head:IsA("MeshPart") then
+        head.Size = head.Size * 4
+    end
+end)

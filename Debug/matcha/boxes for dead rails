@@ -1,0 +1,61 @@
+local runtimeItemsFolder = workspace:FindFirstChild("RuntimeItems")
+if not runtimeItemsFolder then
+    print("RuntimeItems folder not found")
+    return
+end
+
+local prevItemsTable = {}  -- {model, reference, squareESP}
+
+while true do
+    -- Remove previous squares
+    for _, entry in pairs(prevItemsTable) do
+        if entry[3] then
+            pcall(function() entry[3]:Remove() end)
+        end
+    end
+
+    local newItemsTable = {}
+
+    for _, item in pairs(runtimeItemsFolder:GetChildren()) do
+        if item:IsA("Model") then
+            local reference = item.PrimaryPart
+            if not reference then
+                for _, part in pairs(item:GetChildren()) do
+                    if part:IsA("MeshPart") or part:IsA("Part") then
+                        reference = part
+                        break
+                    end
+                end
+            end
+
+            if reference then
+                local square = Drawing.new("Square")
+                square.Color = Color3(1, 1, 0)    -- Yellow
+                square.Thickness = 2
+                square.Size = Vector2(8, 8)       -- Use function call, not Vector2.new
+                square.Filled = true
+                square.Visible = true
+
+                table.insert(newItemsTable, {item, reference, square})
+                print("Added Square ESP for: " .. item.Name)
+            else
+                print("No reference part found for: " .. item.Name)
+            end
+        end
+    end
+
+    -- Update position
+    for _, entry in pairs(newItemsTable) do
+        local model, reference, square = entry[1], entry[2], entry[3]
+        local pos, onScreen = WorldToScreen(reference.Position + Vector3(0, 0.2, 0))
+        if pos and onScreen then
+            square.Position = pos
+            square.Visible = true
+        else
+            square.Visible = false
+        end
+    end
+
+    prevItemsTable = newItemsTable
+    wait(0.05)
+end

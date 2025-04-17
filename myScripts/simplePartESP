@@ -1,0 +1,24 @@
+local workspace = game:GetService("Workspace")
+local ex = {"SniperRifle_01", "Noob1"}
+
+
+for i,v in pairs(workspace:GetDescendants()) do
+	if table.find(ex, v.Name) then
+		print(v.Name .. "is in exclutions list. breaking")
+	else
+		local obj = v
+		print(obj)
+		local highlight = Instance.new("Highlight")
+		highlight.FillColor = Color3.new(0,1)
+		highlight.Parent = obj
+
+	end
+		
+		
+	
+	--print(v.name)
+	
+	
+	
+end
+

@@ -1,0 +1,561 @@
+-- Ultra-Simple Memory Scanner with GUARANTEED Type Selection
+-- Created for maxz12 on 2025-04-05 06:14:45
+-- Uses buttons instead of dropdown for foolproof type selection
+
+-- Services
+local Players = game:GetService("Players")
+
+-- Create GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SimpleScanner"
+ScreenGui.Parent = game:GetService("CoreGui")
+
+-- Main Frame
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 300, 0, 400)
+Main.Position = UDim2.new(0.5, -150, 0.5, -200)
+Main.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Main.Parent = ScreenGui
+
+-- Title Bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 25)
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = Main
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, -25, 1, 0)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 14
+Title.Text = "Memory Scanner"
+Title.TextXAlignment = Enum.TextXAlignment.Center
+Title.Parent = TitleBar
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "Close"
+CloseButton.Size = UDim2.new(0, 25, 0, 25)
+CloseButton.Position = UDim2.new(1, -25, 0, 0)
+CloseButton.BackgroundTransparency = 1
+CloseButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.TextSize = 14
+CloseButton.Text = "X"
+CloseButton.Parent = TitleBar
+
+-- Search Section (REDESIGNED with buttons instead of dropdown)
+local SearchSection = Instance.new("Frame")
+SearchSection.Name = "Search"
+SearchSection.Size = UDim2.new(1, 0, 0, 95) -- Increased height for buttons
+SearchSection.Position = UDim2.new(0, 0, 0, 25)
+SearchSection.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+SearchSection.BorderSizePixel = 0
+SearchSection.Parent = Main
+
+-- Type selection label
+local TypeLabel = Instance.new("TextLabel")
+TypeLabel.Size = UDim2.new(0, 80, 0, 25)
+TypeLabel.Position = UDim2.new(0, 10, 0, 5)
+TypeLabel.BackgroundTransparency = 1
+TypeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TypeLabel.Font = Enum.Font.SourceSans
+TypeLabel.TextSize = 14
+TypeLabel.Text = "Value Type:"
+TypeLabel.Parent = SearchSection
+
+-- Type selection buttons (replacing dropdown)
+local selectedType = "Number" -- Default type
+
+-- Create type buttons
+local typeButtons = {}
+local typeOptions = {"Number", "String", "Bool"}
+
+for i, typeName in ipairs(typeOptions) do
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 80, 0, 25)
+    button.Position = UDim2.new(0, 10 + (i-1) * 90, 0, 30)
+    button.BackgroundColor3 = typeName == selectedType and Color3.fromRGB(70, 130, 180) or Color3.fromRGB(35, 35, 40)
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Font = Enum.Font.SourceSans
+    button.TextSize = 14
+    button.Text = typeName
+    button.Parent = SearchSection
+    
+    typeButtons[typeName] = button
+    
+    -- Button click handler
+    button.MouseButton1Click:Connect(function()
+        -- Update selected type
+        selectedType = typeName
+        
+        -- Update button appearance
+        for _, btn in pairs(typeButtons) do
+            btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        end
+        button.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+    end)
+end
+
+-- Value Input
+local ValueLabel = Instance.new("TextLabel")
+ValueLabel.Size = UDim2.new(0, 70, 0, 25)
+ValueLabel.Position = UDim2.new(0, 10, 0, 65)
+ValueLabel.BackgroundTransparency = 1
+ValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ValueLabel.Font = Enum.Font.SourceSans
+ValueLabel.TextSize = 14
+ValueLabel.Text = "Value:"
+ValueLabel.Parent = SearchSection
+
+local ValueInput = Instance.new("TextBox")
+ValueInput.Size = UDim2.new(0, 130, 0, 25)
+ValueInput.Position = UDim2.new(0, 85, 0, 65)
+ValueInput.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+ValueInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+ValueInput.Font = Enum.Font.SourceSans
+ValueInput.TextSize = 14
+ValueInput.Text = ""
+ValueInput.PlaceholderText = "Enter value..."
+ValueInput.ClearTextOnFocus = false
+ValueInput.Parent = SearchSection
+
+-- Scan Button
+local ScanButton = Instance.new("TextButton")
+ScanButton.Size = UDim2.new(0, 65, 0, 25)
+ScanButton.Position = UDim2.new(1, -75, 0, 65)
+ScanButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225)
+ScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScanButton.Font = Enum.Font.SourceSansBold
+ScanButton.TextSize = 14
+ScanButton.Text = "Scan"
+ScanButton.Parent = SearchSection
+
+-- Status Bar
+local StatusBar = Instance.new("Frame")
+StatusBar.Name = "Status"
+StatusBar.Size = UDim2.new(1, 0, 0, 20)
+StatusBar.Position = UDim2.new(0, 0, 1, -20)
+StatusBar.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+StatusBar.BorderSizePixel = 0
+StatusBar.Parent = Main
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, -10, 1, 0)
+StatusLabel.Position = UDim2.new(0, 5, 0, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.TextSize = 12
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.Text = "Ready"
+StatusLabel.Parent = StatusBar
+
+-- Results Frame
+local ResultsFrame = Instance.new("Frame")
+ResultsFrame.Name = "Results"
+ResultsFrame.Size = UDim2.new(1, 0, 1, -140) -- Adjusted for the larger search section
+ResultsFrame.Position = UDim2.new(0, 0, 0, 120)
+ResultsFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+ResultsFrame.BorderSizePixel = 0
+ResultsFrame.Parent = Main
+
+-- Results List
+local ResultsList = Instance.new("ScrollingFrame")
+ResultsList.Name = "List"
+ResultsList.Size = UDim2.new(1, -10, 1, -10)
+ResultsList.Position = UDim2.new(0, 5, 0, 5)
+ResultsList.BackgroundTransparency = 1
+ResultsList.BorderSizePixel = 0
+ResultsList.ScrollBarThickness = 4
+ResultsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+ResultsList.Parent = ResultsFrame
+
+-- Variables
+local lockedValues = {}
+local scanInProgress = false
+
+-- Format value for display
+local function formatValue(value)
+    if value == nil then return "nil" end
+    
+    local valueType = typeof(value)
+    if valueType == "number" then
+        return string.format("%.2f", value)
+    elseif valueType == "string" then
+        if #value > 20 then
+            return string.sub(value, 1, 17) .. "..."
+        else
+            return value
+        end
+    else
+        return tostring(value)
+    end
+end
+
+-- Update status bar
+local function updateStatus(text)
+    StatusLabel.Text = text
+end
+
+-- Create result row
+local function createResultItem(path, value, setter, index)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, -10, 0, 25)
+    row.Position = UDim2.new(0, 5, 0, (index-1) * 27)
+    row.BackgroundColor3 = index % 2 == 0 and Color3.fromRGB(40, 40, 45) or Color3.fromRGB(35, 35, 40)
+    row.Parent = ResultsList
+    
+    local pathLabel = Instance.new("TextLabel")
+    pathLabel.Size = UDim2.new(0.6, -5, 1, 0)
+    pathLabel.Position = UDim2.new(0, 5, 0, 0)
+    pathLabel.BackgroundTransparency = 1
+    pathLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    pathLabel.Font = Enum.Font.SourceSans
+    pathLabel.TextSize = 13
+    pathLabel.Text = path
+    pathLabel.TextXAlignment = Enum.TextXAlignment.Left
+    pathLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    pathLabel.Parent = row
+    
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size = UDim2.new(0.2, -5, 1, 0)
+    valueLabel.Position = UDim2.new(0.6, 0, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    valueLabel.Font = Enum.Font.SourceSans
+    valueLabel.TextSize = 13
+    valueLabel.Text = formatValue(value)
+    valueLabel.Parent = row
+    
+    local editButton = Instance.new("TextButton")
+    editButton.Size = UDim2.new(0.1, -2, 1, -4)
+    editButton.Position = UDim2.new(0.8, 0, 0, 2)
+    editButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225)
+    editButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    editButton.Font = Enum.Font.SourceSansBold
+    editButton.TextSize = 12
+    editButton.Text = "Edit"
+    editButton.Parent = row
+    
+    local isLocked = lockedValues[path] ~= nil
+    local lockButton = Instance.new("TextButton")
+    lockButton.Size = UDim2.new(0.1, -2, 1, -4)
+    lockButton.Position = UDim2.new(0.9, 0, 0, 2)
+    lockButton.BackgroundColor3 = isLocked and Color3.fromRGB(200, 60, 60) or Color3.fromRGB(60, 180, 60)
+    lockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lockButton.Font = Enum.Font.SourceSansBold
+    lockButton.TextSize = 12
+    lockButton.Text = isLocked and "Unlock" or "Lock"
+    lockButton.Parent = row
+    
+    -- Edit functionality
+    editButton.MouseButton1Click:Connect(function()
+        if not setter then
+            updateStatus("Cannot edit this value - no setter found")
+            return
+        end
+        
+        local editBox = Instance.new("TextBox")
+        editBox.Size = UDim2.new(0.2, -5, 1, -4)
+        editBox.Position = UDim2.new(0.6, 0, 0, 2)
+        editBox.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+        editBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        editBox.Font = Enum.Font.SourceSans
+        editBox.TextSize = 13
+        editBox.Text = tostring(value)
+        editBox.Parent = row
+        
+        valueLabel.Visible = false
+        
+        editBox.FocusLost:Connect(function(enterPressed)
+            if enterPressed then
+                local newValue = editBox.Text
+                
+                -- Convert to appropriate type
+                if typeof(value) == "number" then
+                    newValue = tonumber(newValue)
+                elseif typeof(value) == "boolean" then
+                    newValue = newValue:lower() == "true"
+                end
+                
+                if newValue ~= nil then
+                    local success = pcall(function()
+                        setter(newValue)
+                    end)
+                    
+                    if success then
+                        valueLabel.Text = formatValue(newValue)
+                        updateStatus("Value changed successfully")
+                    else
+                        updateStatus("Failed to set value")
+                    end
+                else
+                    updateStatus("Invalid value format")
+                end
+            end
+            
+            valueLabel.Visible = true
+            editBox:Destroy()
+        end)
+        
+        editBox:CaptureFocus()
+    end)
+    
+    -- Lock functionality
+    lockButton.MouseButton1Click:Connect(function()
+        if not setter then
+            updateStatus("Cannot lock this value - no setter found")
+            return
+        end
+        
+        if lockedValues[path] then
+            -- Unlock
+            lockedValues[path] = nil
+            lockButton.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+            lockButton.Text = "Lock"
+            updateStatus("Value unlocked: " .. path)
+        else
+            -- Lock
+            lockedValues[path] = {
+                value = value,
+                setter = setter
+            }
+            lockButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+            lockButton.Text = "Unlock"
+            updateStatus("Value locked: " .. path)
+        end
+    end)
+    
+    return row
+end
+
+-- Scan for values
+local function scanForValues()
+    -- Don't start multiple scans
+    if scanInProgress then return end
+    scanInProgress = true
+    
+    -- Get target value based on type
+    local targetValue = ValueInput.Text
+    local target
+    
+    if selectedType == "Number" then
+        target = tonumber(targetValue)
+        if target == nil then
+            updateStatus("Invalid number format")
+            scanInProgress = false
+            return
+        end
+    elseif selectedType == "String" then
+        target = targetValue
+    elseif selectedType == "Bool" then
+        if targetValue:lower() == "true" then
+            target = true
+        elseif targetValue:lower() == "false" then
+            target = false
+        else
+            updateStatus("Boolean must be 'true' or 'false'")
+            scanInProgress = false
+            return
+        end
+    end
+    
+    -- Clear existing results
+    for _, child in pairs(ResultsList:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    -- Update status
+    ScanButton.Text = "Scanning..."
+    updateStatus("Scanning for " .. selectedType .. " value: " .. tostring(target))
+    
+    -- Start scan in a separate thread
+    spawn(function()
+        local results = {}
+        local startTime = tick()
+        
+        -- Function to check if values match
+        local function valueMatches(value)
+            if selectedType == "Number" and typeof(value) == "number" then
+                return value == target
+            elseif selectedType == "String" and typeof(value) == "string" then
+                return value:find(target, 1, true) ~= nil
+            elseif selectedType == "Bool" and typeof(value) == "boolean" then
+                return value == target
+            end
+            return false
+        end
+        
+        -- Add to results
+        local function addResult(path, value, setter)
+            table.insert(results, {
+                path = path,
+                value = value,
+                setter = setter
+            })
+        end
+        
+        -- GC Scanning - Upvalue Scan
+        if getgc and debug and debug.getupvalue then
+            local functions = getgc()
+            
+            for i, func in ipairs(functions) do
+                if typeof(func) == "function" and islclosure and islclosure(func) then
+                    pcall(function()
+                        local info = debug.getinfo(func)
+                        local funcName = info.name or "anonymous"
+                        
+                        for j = 1, 10 do -- Limit to first 10 upvalues for performance
+                            local name, value = pcall(function() return debug.getupvalue(func, j) end)
+                            
+                            if not name or not value then break end
+                            
+                            if valueMatches(value) then
+                                local setter = function(newValue)
+                                    debug.setupvalue(func, j, newValue)
+                                end
+                                
+                                addResult("Function " .. funcName .. " upvalue " .. tostring(j), value, setter)
+                            end
+                        end
+                    end)
+                    
+                    -- Periodically update status
+                    if i % 500 == 0 then
+                        updateStatus("Scanning functions: " .. i .. " checked, " .. #results .. " found")
+                        wait() -- Yield to prevent freezing
+                    end
+                end
+            end
+        end
+        
+        -- GC Scanning - Table scan
+        if getgc then
+            local tables = {}
+            
+            -- Collect tables first
+            for _, v in pairs(getgc(true)) do
+                if typeof(v) == "table" then
+                    table.insert(tables, v)
+                end
+            end
+            
+            updateStatus("Scanning " .. #tables .. " tables...")
+            
+            for i, tbl in ipairs(tables) do
+                pcall(function()
+                    local tableName = "Table_" .. i
+                    
+                    -- Try to get a nice name for the table
+                    if tbl.Name and typeof(tbl.Name) == "string" then
+                        tableName = tbl.Name
+                    elseif tbl.ClassName and typeof(tbl.ClassName) == "string" then
+                        tableName = tbl.ClassName
+                    end
+                    
+                    -- Scan table keys
+                    local keyCount = 0
+                    for k, v in pairs(tbl) do
+                        keyCount = keyCount + 1
+                        if keyCount > 100 then break end -- Limit keys to prevent freezing
+                        
+                        if valueMatches(v) then
+                            local setter = function(newValue)
+                                tbl[k] = newValue
+                            end
+                            
+                            addResult(tableName .. "." .. tostring(k), v, setter)
+                        end
+                    end
+                end)
+                
+                -- Periodically update status
+                if i % 200 == 0 then
+                    updateStatus("Scanning tables: " .. i .. "/" .. #tables .. ", " .. #results .. " found")
+                    wait() -- Yield to prevent freezing
+                end
+            end
+        end
+        
+        -- Direct scan of current player values
+        pcall(function()
+            local player = game.Players.LocalPlayer
+            if player and player.Character then
+                if player.Character:FindFirstChild("Humanoid") then
+                    local humanoid = player.Character.Humanoid
+                    
+                    -- Try common properties
+                    local props = {"WalkSpeed", "JumpPower", "Health", "MaxHealth"}
+                    for _, prop in ipairs(props) do
+                        pcall(function()
+                            local value = humanoid[prop]
+                            if valueMatches(value) then
+                                local setter = function(newValue)
+                                    humanoid[prop] = newValue
+                                end
+                                
+                                addResult("Player.Character.Humanoid." .. prop, value, setter)
+                            end
+                        end)
+                    end
+                end
+            end
+        end)
+        
+        -- Display results
+        local maxResults = math.min(200, #results)
+        for i = 1, maxResults do
+            local result = results[i]
+            createResultItem(result.path, result.value, result.setter, i)
+        end
+        
+        -- Update canvas size
+        ResultsList.CanvasSize = UDim2.new(0, 0, 0, maxResults * 27)
+        
+        -- Finish up
+        local elapsedTime = tick() - startTime
+        updateStatus("Found " .. #results .. " matches in " .. string.format("%.2f", elapsedTime) .. " seconds")
+        ScanButton.Text = "Scan"
+        scanInProgress = false
+    end)
+end
+
+-- Set up lock update loop
+spawn(function()
+    while wait(0.1) do
+        for _, info in pairs(lockedValues) do
+            pcall(function()
+                info.setter(info.value)
+            end)
+        end
+    end
+end)
+
+-- Connect buttons
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+ScanButton.MouseButton1Click:Connect(function()
+    if not scanInProgress then
+        scanForValues()
+    end
+end)
+
+ValueInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed and not scanInProgress then
+        scanForValues()
+    end
+end)
+
+updateStatus("Ready - Select type and enter a value to search")

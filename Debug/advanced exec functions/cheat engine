@@ -1,0 +1,1346 @@
+-- Enhanced Memory Scanner
+-- Created for maxz12 on 2025-04-05 07:09:24
+-- Fixed layout with all requested features
+
+-- Clear any previous instances
+if game:GetService("CoreGui"):FindFirstChild("SimpleMemScanner") then
+    game:GetService("CoreGui").SimpleMemScanner:Destroy()
+end
+
+-- Services
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Create ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SimpleMemScanner"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Try different methods to parent the GUI
+local guiParented = false
+
+-- Method 1: Direct CoreGui parenting
+pcall(function()
+    ScreenGui.Parent = CoreGui
+    guiParented = ScreenGui.Parent == CoreGui
+end)
+
+-- Method 2: PlayerGui fallback
+if not guiParented and LocalPlayer then
+    pcall(function()
+        ScreenGui.Parent = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        guiParented = ScreenGui.Parent ~= nil
+    end)
+end
+
+-- Method 3: Exploit-specific methods
+if not guiParented then
+    if syn and syn.protect_gui then
+        pcall(function()
+            syn.protect_gui(ScreenGui)
+            ScreenGui.Parent = CoreGui
+            guiParented = true
+        end)
+    elseif gethui then
+        pcall(function()
+            ScreenGui.Parent = gethui()
+            guiParented = true
+        end)
+    end
+end
+
+if not guiParented then
+    warn("Failed to parent GUI!")
+    return
+end
+
+-- MAIN WINDOW --
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 500, 0, 450)
+MainFrame.Position = UDim2.new(0.5, -250, 0.5, -225)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+-- Title Bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Name = "Title"
+TitleText.Size = UDim2.new(1, -30, 1, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleText.Font = Enum.Font.SourceSansBold
+TitleText.TextSize = 16
+TitleText.Text = "Memory Scanner"
+TitleText.TextXAlignment = Enum.TextXAlignment.Center
+TitleText.Parent = TitleBar
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "Close"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -30, 0, 0)
+CloseButton.BackgroundTransparency = 1
+CloseButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.TextSize = 16
+CloseButton.Text = "X"
+CloseButton.Parent = TitleBar
+
+-- Variables
+local selectedValueType = "Number"
+local selectedScanType = "New Scan"
+local allValues = {}
+local currentResults = {}
+local lockedValues = {}
+local hasFirstScan = false
+local scanInProgress = false
+local realTimeEnabled = true
+local updateTimer = nil
+local scanCount = 0
+local currentScanSession = 0
+
+-- CONTROLS SECTION --
+-- Value Type selector
+local TypeLabel = Instance.new("TextLabel")
+TypeLabel.Name = "TypeLabel"
+TypeLabel.Size = UDim2.new(0, 80, 0, 20)
+TypeLabel.Position = UDim2.new(0, 10, 0, 40)
+TypeLabel.BackgroundTransparency = 1
+TypeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TypeLabel.Font = Enum.Font.SourceSansBold
+TypeLabel.TextSize = 14
+TypeLabel.Text = "Value Type:"
+TypeLabel.Parent = MainFrame
+
+-- Number Type Button
+local NumberButton = Instance.new("TextButton")
+NumberButton.Name = "NumberButton"
+NumberButton.Size = UDim2.new(0, 80, 0, 25)
+NumberButton.Position = UDim2.new(0, 100, 0, 40)
+NumberButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+NumberButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+NumberButton.Font = Enum.Font.SourceSans
+NumberButton.TextSize = 14
+NumberButton.Text = "Number"
+NumberButton.Parent = MainFrame
+
+-- String Type Button
+local StringButton = Instance.new("TextButton")
+StringButton.Name = "StringButton"
+StringButton.Size = UDim2.new(0, 80, 0, 25)
+StringButton.Position = UDim2.new(0, 190, 0, 40)
+StringButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+StringButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+StringButton.Font = Enum.Font.SourceSans
+StringButton.TextSize = 14
+StringButton.Text = "String"
+StringButton.Parent = MainFrame
+
+-- Bool Type Button
+local BoolButton = Instance.new("TextButton")
+BoolButton.Name = "BoolButton"
+BoolButton.Size = UDim2.new(0, 80, 0, 25)
+BoolButton.Position = UDim2.new(0, 280, 0, 40)
+BoolButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+BoolButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+BoolButton.Font = Enum.Font.SourceSans
+BoolButton.TextSize = 14
+BoolButton.Text = "Bool"
+BoolButton.Parent = MainFrame
+
+-- Scan Type selector
+local ScanTypeLabel = Instance.new("TextLabel")
+ScanTypeLabel.Name = "ScanTypeLabel"
+ScanTypeLabel.Size = UDim2.new(0, 80, 0, 20)
+ScanTypeLabel.Position = UDim2.new(0, 10, 0, 75)
+ScanTypeLabel.BackgroundTransparency = 1
+ScanTypeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScanTypeLabel.Font = Enum.Font.SourceSansBold
+ScanTypeLabel.TextSize = 14
+ScanTypeLabel.Text = "Scan Type:"
+ScanTypeLabel.Parent = MainFrame
+
+-- New Scan Button
+local NewScanButton = Instance.new("TextButton")
+NewScanButton.Name = "NewScanButton"
+NewScanButton.Size = UDim2.new(0, 120, 0, 25)
+NewScanButton.Position = UDim2.new(0, 100, 0, 75)
+NewScanButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+NewScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+NewScanButton.Font = Enum.Font.SourceSans
+NewScanButton.TextSize = 14
+NewScanButton.Text = "New Scan"
+NewScanButton.Parent = MainFrame
+
+-- Changed Button
+local ChangedButton = Instance.new("TextButton")
+ChangedButton.Name = "ChangedButton"
+ChangedButton.Size = UDim2.new(0, 120, 0, 25)
+ChangedButton.Position = UDim2.new(0, 240, 0, 75)
+ChangedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+ChangedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChangedButton.Font = Enum.Font.SourceSans
+ChangedButton.TextSize = 14
+ChangedButton.Text = "Changed"
+ChangedButton.Parent = MainFrame
+
+-- Unchanged Button (second row)
+local UnchangedButton = Instance.new("TextButton")
+UnchangedButton.Name = "UnchangedButton"
+UnchangedButton.Size = UDim2.new(0, 120, 0, 25)
+UnchangedButton.Position = UDim2.new(0, 100, 0, 105)
+UnchangedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+UnchangedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+UnchangedButton.Font = Enum.Font.SourceSans
+UnchangedButton.TextSize = 14
+UnchangedButton.Text = "Unchanged"
+UnchangedButton.Parent = MainFrame
+
+-- Increased Button (second row)
+local IncreasedButton = Instance.new("TextButton")
+IncreasedButton.Name = "IncreasedButton"
+IncreasedButton.Size = UDim2.new(0, 120, 0, 25)
+IncreasedButton.Position = UDim2.new(0, 240, 0, 105)
+IncreasedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+IncreasedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+IncreasedButton.Font = Enum.Font.SourceSans
+IncreasedButton.TextSize = 14
+IncreasedButton.Text = "Increased"
+IncreasedButton.Parent = MainFrame
+
+-- Real-Time Updates Toggle
+local RealTimeLabel = Instance.new("TextLabel")
+RealTimeLabel.Name = "RealTimeLabel"
+RealTimeLabel.Size = UDim2.new(0, 120, 0, 20)
+RealTimeLabel.Position = UDim2.new(0, 370, 0, 40)
+RealTimeLabel.BackgroundTransparency = 1
+RealTimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+RealTimeLabel.Font = Enum.Font.SourceSansBold
+RealTimeLabel.TextSize = 14
+RealTimeLabel.Text = "Real-time updates:"
+RealTimeLabel.Parent = MainFrame
+
+local RealTimeToggle = Instance.new("TextButton")
+RealTimeToggle.Name = "RealTimeToggle"
+RealTimeToggle.Size = UDim2.new(0, 50, 0, 25)
+RealTimeToggle.Position = UDim2.new(0, 380, 0, 65)
+RealTimeToggle.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+RealTimeToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+RealTimeToggle.Font = Enum.Font.SourceSansBold
+RealTimeToggle.TextSize = 12
+RealTimeToggle.Text = "ON"
+RealTimeToggle.Parent = MainFrame
+
+-- Scan Counter
+local ScanCountLabel = Instance.new("TextLabel")
+ScanCountLabel.Name = "ScanCountLabel"
+ScanCountLabel.Size = UDim2.new(0, 120, 0, 20)
+ScanCountLabel.Position = UDim2.new(0, 370, 0, 95)
+ScanCountLabel.BackgroundTransparency = 1
+ScanCountLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScanCountLabel.Font = Enum.Font.SourceSans
+ScanCountLabel.TextSize = 14
+ScanCountLabel.Text = "Scans in session: 0"
+ScanCountLabel.Parent = MainFrame
+
+-- Value Input
+local ValueLabel = Instance.new("TextLabel")
+ValueLabel.Name = "ValueLabel"
+ValueLabel.Size = UDim2.new(0, 80, 0, 20)
+ValueLabel.Position = UDim2.new(0, 10, 0, 140)
+ValueLabel.BackgroundTransparency = 1
+ValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ValueLabel.Font = Enum.Font.SourceSansBold
+ValueLabel.TextSize = 14
+ValueLabel.Text = "Value:"
+ValueLabel.Parent = MainFrame
+
+local ValueInput = Instance.new("TextBox")
+ValueInput.Name = "ValueInput"
+ValueInput.Size = UDim2.new(0, 180, 0, 25)
+ValueInput.Position = UDim2.new(0, 100, 0, 140)
+ValueInput.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+ValueInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+ValueInput.Font = Enum.Font.SourceSans
+ValueInput.TextSize = 14
+ValueInput.Text = ""
+ValueInput.PlaceholderText = "Enter value..."
+ValueInput.ClearTextOnFocus = false
+ValueInput.Parent = MainFrame
+
+-- Scan Button
+local ScanButton = Instance.new("TextButton")
+ScanButton.Name = "ScanButton"
+ScanButton.Size = UDim2.new(0, 80, 0, 25)
+ScanButton.Position = UDim2.new(0, 290, 0, 140)
+ScanButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225)
+ScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScanButton.Font = Enum.Font.SourceSansBold
+ScanButton.TextSize = 14
+ScanButton.Text = "Scan"
+ScanButton.Parent = MainFrame
+
+-- Restart Scan Button (completely new scan)
+local RestartButton = Instance.new("TextButton")
+RestartButton.Name = "RestartButton"
+RestartButton.Size = UDim2.new(0, 80, 0, 25)
+RestartButton.Position = UDim2.new(0, 380, 0, 140)
+RestartButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+RestartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+RestartButton.Font = Enum.Font.SourceSansBold
+RestartButton.TextSize = 14
+RestartButton.Text = "New Scan"
+RestartButton.Parent = MainFrame
+
+-- Lock/Unlock All Buttons
+local LockAllButton = Instance.new("TextButton")
+LockAllButton.Name = "LockAllButton"
+LockAllButton.Size = UDim2.new(0, 100, 0, 25)
+LockAllButton.Position = UDim2.new(0, 20, 0, 175)
+LockAllButton.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+LockAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+LockAllButton.Font = Enum.Font.SourceSansBold
+LockAllButton.TextSize = 12
+LockAllButton.Text = "Lock All"
+LockAllButton.Visible = false
+LockAllButton.Parent = MainFrame
+
+local UnlockAllButton = Instance.new("TextButton")
+UnlockAllButton.Name = "UnlockAllButton"
+UnlockAllButton.Size = UDim2.new(0, 100, 0, 25)
+UnlockAllButton.Position = UDim2.new(0, 130, 0, 175)
+UnlockAllButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+UnlockAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+UnlockAllButton.Font = Enum.Font.SourceSansBold
+UnlockAllButton.TextSize = 12
+UnlockAllButton.Text = "Unlock All"
+UnlockAllButton.Visible = false
+UnlockAllButton.Parent = MainFrame
+
+-- Results Header
+local ResultsHeader = Instance.new("Frame")
+ResultsHeader.Name = "ResultsHeader"
+ResultsHeader.Size = UDim2.new(1, -20, 0, 25)
+ResultsHeader.Position = UDim2.new(0, 10, 0, 210)
+ResultsHeader.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+ResultsHeader.BorderSizePixel = 0
+ResultsHeader.Parent = MainFrame
+
+-- Header columns
+local PathHeader = Instance.new("TextLabel")
+PathHeader.Size = UDim2.new(0.45, 0, 1, 0)
+PathHeader.BackgroundTransparency = 1
+PathHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+PathHeader.Font = Enum.Font.SourceSansBold
+PathHeader.TextSize = 14
+PathHeader.Text = "  Path"
+PathHeader.TextXAlignment = Enum.TextXAlignment.Left
+PathHeader.Parent = ResultsHeader
+
+local ValueHeader = Instance.new("TextLabel")
+ValueHeader.Size = UDim2.new(0.2, 0, 1, 0)
+ValueHeader.Position = UDim2.new(0.45, 0, 0, 0)
+ValueHeader.BackgroundTransparency = 1
+ValueHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+ValueHeader.Font = Enum.Font.SourceSansBold
+ValueHeader.TextSize = 14
+ValueHeader.Text = "Value"
+ValueHeader.Parent = ResultsHeader
+
+local ActionsHeader = Instance.new("TextLabel")
+ActionsHeader.Size = UDim2.new(0.35, 0, 1, 0)
+ActionsHeader.Position = UDim2.new(0.65, 0, 0, 0)
+ActionsHeader.BackgroundTransparency = 1
+ActionsHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+ActionsHeader.Font = Enum.Font.SourceSansBold
+ActionsHeader.TextSize = 14
+ActionsHeader.Text = "Actions"
+ActionsHeader.Parent = ResultsHeader
+
+-- Results List
+local ResultsList = Instance.new("ScrollingFrame")
+ResultsList.Name = "ResultsList"
+ResultsList.Size = UDim2.new(1, -20, 0, 185)
+ResultsList.Position = UDim2.new(0, 10, 0, 235)
+ResultsList.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+ResultsList.BorderSizePixel = 1
+ResultsList.BorderColor3 = Color3.fromRGB(50, 50, 55)
+ResultsList.ScrollBarThickness = 6
+ResultsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+ResultsList.Parent = MainFrame
+
+-- Status Bar
+local StatusBar = Instance.new("Frame")
+StatusBar.Name = "StatusBar"
+StatusBar.Size = UDim2.new(1, 0, 0, 25)
+StatusBar.Position = UDim2.new(0, 0, 1, -25)
+StatusBar.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+StatusBar.BorderSizePixel = 0
+StatusBar.Parent = MainFrame
+
+local StatusText = Instance.new("TextLabel")
+StatusText.Name = "StatusText"
+StatusText.Size = UDim2.new(1, -10, 1, 0)
+StatusText.Position = UDim2.new(0, 5, 0, 0)
+StatusText.BackgroundTransparency = 1
+StatusText.TextColor3 = Color3.fromRGB(255, 255, 255)
+StatusText.Font = Enum.Font.SourceSans
+StatusText.TextSize = 14
+StatusText.TextXAlignment = Enum.TextXAlignment.Left
+StatusText.Text = "Ready"
+StatusText.Parent = StatusBar
+
+-- Details Panel (for info button)
+local DetailsPanel = Instance.new("Frame")
+DetailsPanel.Name = "DetailsPanel"
+DetailsPanel.Size = UDim2.new(0, 350, 0, 300)
+DetailsPanel.Position = UDim2.new(0.5, -175, 0.5, -150)
+DetailsPanel.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+DetailsPanel.BorderSizePixel = 1
+DetailsPanel.BorderColor3 = Color3.fromRGB(60, 60, 65)
+DetailsPanel.Visible = false
+DetailsPanel.ZIndex = 10
+DetailsPanel.Parent = ScreenGui
+
+-- Details Title Bar
+local DetailsTitleBar = Instance.new("Frame")
+DetailsTitleBar.Size = UDim2.new(1, 0, 0, 25)
+DetailsTitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+DetailsTitleBar.BorderSizePixel = 0
+DetailsTitleBar.ZIndex = 10
+DetailsTitleBar.Parent = DetailsPanel
+
+local DetailsTitle = Instance.new("TextLabel")
+DetailsTitle.Size = UDim2.new(1, -25, 1, 0)
+DetailsTitle.BackgroundTransparency = 1
+DetailsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+DetailsTitle.Font = Enum.Font.SourceSansBold
+DetailsTitle.TextSize = 14
+DetailsTitle.Text = "Value Details"
+DetailsTitle.ZIndex = 10
+DetailsTitle.Parent = DetailsTitleBar
+
+local DetailsCloseButton = Instance.new("TextButton")
+DetailsCloseButton.Size = UDim2.new(0, 25, 0, 25)
+DetailsCloseButton.Position = UDim2.new(1, -25, 0, 0)
+DetailsCloseButton.BackgroundTransparency = 1
+DetailsCloseButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+DetailsCloseButton.Font = Enum.Font.SourceSansBold
+DetailsCloseButton.TextSize = 14
+DetailsCloseButton.Text = "X"
+DetailsCloseButton.ZIndex = 10
+DetailsCloseButton.Parent = DetailsTitleBar
+
+-- Details Content
+local DetailsContent = Instance.new("ScrollingFrame")
+DetailsContent.Size = UDim2.new(1, -10, 1, -35)
+DetailsContent.Position = UDim2.new(0, 5, 0, 30)
+DetailsContent.BackgroundTransparency = 1
+DetailsContent.BorderSizePixel = 0
+DetailsContent.ScrollBarThickness = 4
+DetailsContent.CanvasSize = UDim2.new(0, 0, 0, 0)
+DetailsContent.ZIndex = 10
+DetailsContent.Parent = DetailsPanel
+
+-- Close Details Panel button
+DetailsCloseButton.MouseButton1Click:Connect(function()
+    DetailsPanel.Visible = false
+end)
+
+-- Helper Functions
+local function updateStatus(text)
+    StatusText.Text = text
+end
+
+-- Update scan counter
+local function updateScanCounter()
+    scanCount = scanCount + 1
+    ScanCountLabel.Text = "Scans in session: " .. scanCount
+end
+
+-- Reset scan counter for new session
+local function resetScanCounter()
+    scanCount = 0
+    currentScanSession = currentScanSession + 1
+    ScanCountLabel.Text = "Scans in session: 0"
+end
+
+-- Toggle real-time updates
+local function toggleRealTimeUpdates()
+    realTimeEnabled = not realTimeEnabled
+    
+    if realTimeEnabled then
+        RealTimeToggle.Text = "ON"
+        RealTimeToggle.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+        
+        -- Start real-time updates if we have results
+        if #currentResults > 0 and not updateTimer then
+            startRealTimeUpdates()
+        end
+    else
+        RealTimeToggle.Text = "OFF"
+        RealTimeToggle.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        
+        -- Stop real-time updates
+        if updateTimer then
+            updateTimer:Disconnect()
+            updateTimer = nil
+        end
+    end
+end
+
+-- Format value for display
+local function formatValue(value)
+    if value == nil then return "nil" end
+    
+    local valueType = typeof(value)
+    if valueType == "number" then
+        return string.format("%.2f", value)
+    elseif valueType == "string" then
+        if #value > 15 then
+            return string.sub(value, 1, 12) .. "..."
+        else
+            return value
+        end
+    else
+        return tostring(value)
+    end
+end
+
+-- Convert input to appropriate type
+local function convertToType(text, valueType)
+    if valueType == "number" then
+        return tonumber(text)
+    elseif valueType == "boolean" then
+        return text:lower() == "true"
+    else
+        return text
+    end
+end
+
+-- Show value details
+local function showValueDetails(resultData)
+    -- Clear previous content
+    for _, child in pairs(DetailsContent:GetChildren()) do
+        child:Destroy()
+    end
+    
+    local details = {}
+    
+    -- Basic details
+    table.insert(details, {name = "Path", value = resultData.path})
+    table.insert(details, {name = "Type", value = typeof(resultData.value)})
+    table.insert(details, {name = "Current Value", value = tostring(resultData.value)})
+    
+    if resultData.previousValue ~= nil then
+        table.insert(details, {name = "Previous Value", value = tostring(resultData.previousValue)})
+    end
+    
+    -- Function/Script info
+    if resultData.object and typeof(resultData.object) == "function" then
+        pcall(function()
+            local info = debug.getinfo(resultData.object)
+            if info then
+                if info.source then
+                    table.insert(details, {name = "Source", value = info.source})
+                end
+                if info.linedefined then
+                    table.insert(details, {name = "Line", value = tostring(info.linedefined)})
+                end
+                if info.what then
+                    table.insert(details, {name = "Type", value = info.what})
+                end
+            end
+        end)
+    end
+    
+    -- Table info
+    if resultData.object and typeof(resultData.object) == "table" then
+        -- Show table keys
+        local keyList = ""
+        local count = 0
+        pcall(function()
+            for k, _ in pairs(resultData.object) do
+                if count < 10 then -- Limit to 10 keys
+                    keyList = keyList .. tostring(k) .. ", "
+                    count = count + 1
+                else
+                    keyList = keyList .. "..."
+                    break
+                end
+            end
+        end)
+        if keyList ~= "" then
+            table.insert(details, {name = "Table Keys", value = keyList})
+        end
+    end
+    
+    -- Display the details
+    for i, detail in ipairs(details) do
+        -- Label
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.3, -10, 0, 20)
+        label.Position = UDim2.new(0, 5, 0, (i-1) * 25 + 5)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.Font = Enum.Font.SourceSansBold
+        label.TextSize = 14
+        label.Text = detail.name .. ":"
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.ZIndex = 10
+        label.Parent = DetailsContent
+        
+        -- Value
+        local valueLabel = Instance.new("TextLabel")
+        valueLabel.Size = UDim2.new(0.7, -10, 0, 20)
+        valueLabel.Position = UDim2.new(0.3, 5, 0, (i-1) * 25 + 5)
+        valueLabel.BackgroundTransparency = 1
+        valueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        valueLabel.Font = Enum.Font.SourceSans
+        valueLabel.TextSize = 14
+        valueLabel.Text = detail.value
+        valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+        valueLabel.TextWrapped = true
+        valueLabel.ZIndex = 10
+        valueLabel.Parent = DetailsContent
+    end
+    
+    -- Update canvas size
+    DetailsContent.CanvasSize = UDim2.new(0, 0, 0, #details * 25 + 10)
+    
+    -- Show the panel
+    DetailsPanel.Visible = true
+end
+
+-- Update displayed values in real-time
+local function updateDisplayedValues()
+    for _, child in pairs(ResultsList:GetChildren()) do
+        if child:IsA("Frame") then
+            local index = tonumber(string.match(child.Name, "Row_(%d+)"))
+            if index and currentResults[index] then
+                local resultData = currentResults[index]
+                
+                -- Skip locked values
+                if lockedValues[resultData.path] then continue end
+                
+                -- Update current value if possible
+                pcall(function()
+                    local newValue = nil
+                    
+                    if resultData.valueGetter then
+                        newValue = resultData.valueGetter()
+                    elseif resultData.object and resultData.key then
+                        newValue = resultData.object[resultData.key]
+                    end
+                    
+                    if newValue ~= nil and newValue ~= resultData.value then
+                        -- Update the stored value
+                        resultData.value = newValue
+                        
+                        -- Update the display
+                        for _, child in pairs(child:GetChildren()) do
+                            if child:IsA("TextBox") then
+                                child.Text = formatValue(newValue)
+                                -- Flash to show changed value
+                                child.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+                                delay(0.3, function()
+                                    child.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+                                end)
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end
+end
+
+-- Start real-time updates
+local function startRealTimeUpdates()
+    if realTimeEnabled and #currentResults > 0 and not updateTimer then
+        updateTimer = RunService.Heartbeat:Connect(function()
+            updateDisplayedValues()
+        end)
+    end
+end
+
+-- Create result row
+local function createResultRow(resultData, index)
+    local row = Instance.new("Frame")
+    row.Name = "Row_" .. index
+    row.Size = UDim2.new(1, -10, 0, 25)
+    row.Position = UDim2.new(0, 5, 0, (index-1) * 27)
+    row.BackgroundColor3 = index % 2 == 0 and Color3.fromRGB(40, 40, 45) or Color3.fromRGB(35, 35, 40)
+    row.Parent = ResultsList
+    
+    -- Path label
+    local pathLabel = Instance.new("TextLabel")
+    pathLabel.Size = UDim2.new(0.45, -5, 1, 0)
+    pathLabel.Position = UDim2.new(0, 5, 0, 0)
+    pathLabel.BackgroundTransparency = 1
+    pathLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    pathLabel.Font = Enum.Font.SourceSans
+    pathLabel.TextSize = 13
+    pathLabel.Text = resultData.path
+    pathLabel.TextXAlignment = Enum.TextXAlignment.Left
+    pathLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    pathLabel.Parent = row
+    
+    -- Value box (editable)
+    local valueBox = Instance.new("TextBox")
+    valueBox.Size = UDim2.new(0.2, -5, 1, -4)
+    valueBox.Position = UDim2.new(0.45, 0, 0, 2)
+    valueBox.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    valueBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    valueBox.Font = Enum.Font.SourceSans
+    valueBox.TextSize = 13
+    valueBox.Text = formatValue(resultData.value)
+    valueBox.ClearTextOnFocus = false
+    valueBox.Parent = row
+    
+    -- Handle value editing
+    valueBox.FocusLost:Connect(function(enterPressed)
+        if not resultData.setter then
+            updateStatus("Cannot edit this value - no setter available")
+            valueBox.Text = formatValue(resultData.value)
+            return
+        end
+        
+        local newValue = convertToType(valueBox.Text, typeof(resultData.value))
+        if newValue ~= nil then
+            local success = pcall(function()
+                resultData.setter(newValue)
+                resultData.value = newValue
+            end)
+            
+            if success then
+                updateStatus("Value updated successfully")
+            else
+                updateStatus("Failed to update value")
+                valueBox.Text = formatValue(resultData.value)
+            end
+        else
+            updateStatus("Invalid value format")
+            valueBox.Text = formatValue(resultData.value)
+        end
+    end)
+    
+    -- Button container
+    local buttonContainer = Instance.new("Frame")
+    buttonContainer.Size = UDim2.new(0.35, -5, 1, 0)
+    buttonContainer.Position = UDim2.new(0.65, 0, 0, 0)
+    buttonContainer.BackgroundTransparency = 1
+    buttonContainer.Parent = row
+    
+    -- Info button
+    local infoButton = Instance.new("TextButton")
+    infoButton.Size = UDim2.new(0.33, -2, 1, -4)
+    infoButton.Position = UDim2.new(0, 0, 0, 2)
+    infoButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+    infoButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    infoButton.Font = Enum.Font.SourceSansBold
+    infoButton.TextSize = 12
+    infoButton.Text = "Info"
+    infoButton.Parent = buttonContainer
+    
+    -- Lock button
+    local isLocked = lockedValues[resultData.path] ~= nil
+    local lockButton = Instance.new("TextButton")
+    lockButton.Size = UDim2.new(0.67, -2, 1, -4)
+    lockButton.Position = UDim2.new(0.33, 2, 0, 2)
+    lockButton.BackgroundColor3 = isLocked and Color3.fromRGB(180, 60, 60) or Color3.fromRGB(60, 180, 60)
+    lockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lockButton.Font = Enum.Font.SourceSansBold
+    lockButton.TextSize = 12
+    lockButton.Text = isLocked and "Unlock" or "Lock"
+    lockButton.Parent = buttonContainer
+    
+    -- Info button click
+    infoButton.MouseButton1Click:Connect(function()
+        showValueDetails(resultData)
+    end)
+    
+    -- Lock button behavior
+    lockButton.MouseButton1Click:Connect(function()
+        if not resultData.setter then
+            updateStatus("Cannot lock this value - no setter available")
+            return
+        end
+        
+        if lockedValues[resultData.path] then
+            -- Unlock
+            lockedValues[resultData.path] = nil
+            lockButton.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+            lockButton.Text = "Lock"
+            updateStatus("Value unlocked: " .. resultData.path)
+        else
+            -- Lock
+            lockedValues[resultData.path] = {
+                value = resultData.value,
+                setter = resultData.setter
+            }
+            lockButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+            lockButton.Text = "Unlock"
+            updateStatus("Value locked: " .. resultData.path)
+        end
+    end)
+    
+    return row
+end
+
+-- Update all values for sequential scanning
+local function updateAllValues()
+    for _, resultData in ipairs(allValues) do
+        -- Store previous value
+        resultData.previousValue = resultData.value
+        
+        -- Get current value
+        pcall(function()
+            local currentValue = nil
+            
+            if resultData.valueGetter then
+                currentValue = resultData.valueGetter()
+            elseif resultData.object and resultData.key then
+                currentValue = resultData.object[resultData.key]
+            end
+            
+            if currentValue ~= nil then
+                resultData.value = currentValue
+            end
+        end)
+    end
+end
+
+-- Filter results based on scan type
+local function filterResults(scanType, targetValue)
+    local filtered = {}
+    
+    for _, resultData in ipairs(allValues) do
+        local shouldInclude = false
+        
+        if scanType == "New Scan" then
+            shouldInclude = true -- For new scans, include everything
+        elseif scanType == "Changed" then
+            shouldInclude = resultData.value ~= resultData.previousValue
+        elseif scanType == "Unchanged" then
+            shouldInclude = resultData.value == resultData.previousValue
+        elseif scanType == "Increased" then
+            if typeof(resultData.value) == "number" and typeof(resultData.previousValue) == "number" then
+                shouldInclude = resultData.value > resultData.previousValue
+            end
+        elseif scanType == "Decreased" then
+            if typeof(resultData.value) == "number" and typeof(resultData.previousValue) == "number" then
+                shouldInclude = resultData.value < resultData.previousValue
+            end
+        end
+        
+        -- For exact value matching
+        if targetValue ~= nil then
+            if typeof(resultData.value) == typeof(targetValue) then
+                shouldInclude = shouldInclude and resultData.value == targetValue
+            else
+                shouldInclude = false
+            end
+        end
+        
+        if shouldInclude then
+            table.insert(filtered, resultData)
+        end
+    end
+    
+    return filtered
+end
+
+-- Lock all displayed values
+local function lockAllValues()
+    for _, resultData in ipairs(currentResults) do
+        if resultData.setter then
+            lockedValues[resultData.path] = {
+                value = resultData.value,
+                setter = resultData.setter
+            }
+        end
+    end
+    
+    -- Update UI
+    for _, child in pairs(ResultsList:GetChildren()) do
+        if child:IsA("Frame") then
+            for _, obj in pairs(child:GetDescendants()) do
+                if obj:IsA("TextButton") and (obj.Text == "Lock" or obj.Text == "Unlock") then
+                    obj.Text = "Unlock"
+                    obj.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+                end
+            end
+        end
+    end
+    
+    updateStatus("All displayed values locked")
+end
+
+-- Unlock all values
+local function unlockAllValues()
+    lockedValues = {}
+    
+    -- Update UI
+    for _, child in pairs(ResultsList:GetChildren()) do
+        if child:IsA("Frame") then
+            for _, obj in pairs(child:GetDescendants()) do
+                if obj:IsA("TextButton") and (obj.Text == "Lock" or obj.Text == "Unlock") then
+                    obj.Text = "Lock"
+                    obj.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+                end
+            end
+        end
+    end
+    
+    updateStatus("All values unlocked")
+end
+
+-- Start a completely new scan session
+local function startNewScan()
+    -- Reset all data
+    allValues = {}
+    currentResults = {}
+    hasFirstScan = false
+    selectedScanType = "New Scan"
+    
+    -- Update UI
+    for _, child in pairs(ResultsList:GetChildren()) do
+        child:Destroy()
+    end
+    
+    -- Reset scan buttons
+    NewScanButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+    ChangedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    UnchangedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    IncreasedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    
+    -- Hide lock/unlock buttons
+    LockAllButton.Visible = false
+    UnlockAllButton.Visible = false
+    
+    -- Reset scan counter
+    resetScanCounter()
+    
+    -- Update status
+    updateStatus("Ready for new scan session")
+    
+    -- Stop real-time updates
+    if updateTimer then
+        updateTimer:Disconnect()
+        updateTimer = nil
+    end
+end
+
+-- Perform scan
+local function performScan()
+    if scanInProgress then return end
+    scanInProgress = true
+    
+    -- Clear existing results
+    for _, child in pairs(ResultsList:GetChildren()) do
+        child:Destroy()
+    end
+    
+    -- Stop real-time updates during scan
+    if updateTimer then
+        updateTimer:Disconnect()
+        updateTimer = nil
+    end
+    
+    -- Parse target value based on type
+    local targetValue = nil
+    local targetText = ValueInput.Text
+    
+    if targetText ~= "" then
+        if selectedValueType == "Number" then
+            targetValue = tonumber(targetText)
+            if targetValue == nil then
+                updateStatus("Invalid number format")
+                scanInProgress = false
+                return
+            end
+        elseif selectedValueType == "String" then
+            targetValue = targetText
+        elseif selectedValueType == "Bool" then
+            if targetText:lower() == "true" then
+                targetValue = true
+            elseif targetText:lower() == "false" then
+                targetValue = false
+            else
+                updateStatus("Boolean must be true or false")
+                scanInProgress = false
+                return
+            end
+        end
+    end
+    
+    -- Update UI
+    ScanButton.Text = "Scanning..."
+    updateStatus("Scanning in progress...")
+    
+    -- Increment scan counter
+    updateScanCounter()
+    
+    -- Start scan in separate thread
+    spawn(function()
+        -- For sequential scans (not new scan)
+        if selectedScanType ~= "New Scan" and hasFirstScan then
+            -- Update current values
+            updateAllValues()
+            
+            -- Filter based on scan type
+            local filtered = filterResults(selectedScanType, targetValue)
+            currentResults = filtered
+            
+            -- Display results
+            local maxResults = math.min(200, #filtered)
+            for i = 1, maxResults do
+                createResultRow(filtered[i], i)
+            end
+            
+            -- Update canvas size
+            ResultsList.CanvasSize = UDim2.new(0, 0, 0, maxResults * 27)
+            
+            -- Show lock/unlock buttons
+            LockAllButton.Visible = #filtered > 0
+            UnlockAllButton.Visible = #filtered > 0
+            
+            -- Finish up
+            updateStatus("Found " .. #filtered .. " results after filtering")
+            ScanButton.Text = "Scan"
+            scanInProgress = false
+            
+            -- Restart real-time updates if enabled
+            if realTimeEnabled then
+                startRealTimeUpdates()
+            end
+            
+            return
+        end
+        
+        -- For new scans
+        local startTime = tick()
+        local results = {}
+        
+        -- Function to check if value matches
+        local function valueMatches(value)
+            if targetValue == nil then return false end
+            
+            if selectedValueType == "Number" and typeof(value) == "number" then
+                return value == targetValue
+            elseif selectedValueType == "String" and typeof(value) == "string" then
+                return value:find(targetValue, 1, true) ~= nil
+            elseif selectedValueType == "Bool" and typeof(value) == "boolean" then
+                return value == targetValue
+            end
+            return false
+        end
+        
+        -- Scan 1: Player Properties
+        pcall(function()
+            updateStatus("Checking player properties...")
+            
+            local player = Players.LocalPlayer
+            if player and player.Character then
+                if player.Character:FindFirstChild("Humanoid") then
+                    local humanoid = player.Character.Humanoid
+                    local props = {"WalkSpeed", "JumpPower", "Health", "MaxHealth"}
+                    
+                    for _, prop in ipairs(props) do
+                        pcall(function()
+                            local value = humanoid[prop]
+                            if valueMatches(value) then
+                                table.insert(results, {
+                                    path = "Player.Character.Humanoid." .. prop,
+                                    value = value,
+                                    previousValue = nil,
+                                    object = humanoid,
+                                    key = prop,
+                                    setter = function(newValue) humanoid[prop] = newValue end,
+                                    valueGetter = function() return humanoid[prop] end
+                                })
+                            end
+                        end)
+                    end
+                end
+                
+                -- Check leaderstats
+                if player:FindFirstChild("leaderstats") then
+                    for _, stat in pairs(player.leaderstats:GetChildren()) do
+                        pcall(function()
+                            if stat:IsA("IntValue") or stat:IsA("NumberValue") or stat:IsA("StringValue") then
+                                if valueMatches(stat.Value) then
+                                    table.insert(results, {
+                                        path = "Player.leaderstats." .. stat.Name,
+                                        value = stat.Value,
+                                        previousValue = nil,
+                                        object = stat,
+                                        key = "Value",
+                                        setter = function(newValue) stat.Value = newValue end,
+                                        valueGetter = function() return stat.Value end
+                                    })
+                                end
+                            end
+                        end)
+                    end
+                end
+            end
+        end)
+        
+        -- Scan 2: Function Upvalues
+        if getgc and debug and debug.getupvalue then
+            updateStatus("Scanning function upvalues...")
+            
+            local functions = getgc()
+            local count = 0
+            
+            for _, func in ipairs(functions) do
+                if type(func) == "function" and islclosure and islclosure(func) then
+                    count = count + 1
+                    
+                    pcall(function()
+                        local info = debug.getinfo(func)
+                        local funcName = info.name or "anonymous"
+                        
+                        for j = 1, 10 do -- Limit to 10 upvalues for speed
+                            local success, name, value = pcall(function()
+                                return debug.getupvalue(func, j)
+                            end)
+                            
+                            if not success or not name then break end
+                            
+                            if valueMatches(value) then
+                                table.insert(results, {
+                                    path = "Function " .. funcName .. " upvalue '" .. tostring(name) .. "'",
+                                    value = value,
+                                    previousValue = nil,
+                                    object = func,
+                                    upvalueIndex = j,
+                                    setter = function(newValue) debug.setupvalue(func, j, newValue) end,
+                                    valueGetter = function()
+                                        local _, val = debug.getupvalue(func, j)
+                                        return val
+                                    end
+                                })
+                            end
+                        end
+                    end)
+                    
+                    -- Update status periodically
+                    if count % 500 == 0 then
+                        updateStatus("Scanning functions: " .. count .. " checked")
+                        wait() -- Prevent freezing
+                    end
+                end
+            end
+        end
+        
+        -- Scan 3: Tables from GC
+        if getgc then
+            updateStatus("Scanning tables...")
+            
+            local tables = {}
+            pcall(function()
+                for _, v in pairs(getgc(true)) do
+                    if type(v) == "table" then
+                        table.insert(tables, v)
+                    end
+                end
+            end)
+            
+            local count = 0
+            
+            for _, tbl in ipairs(tables) do
+                count = count + 1
+                
+                pcall(function()
+                    local tableName = "Table_" .. count
+                    
+                    if tbl.Name and type(tbl.Name) == "string" then
+                        tableName = tbl.Name
+                    elseif tbl.ClassName and type(tbl.ClassName) == "string" then
+                        tableName = tbl.ClassName
+                    end
+                    
+                    local keyCount = 0
+                    for k, v in pairs(tbl) do
+                        keyCount = keyCount + 1
+                        if keyCount > 100 then break end -- Limit keys to prevent freezing
+                        
+                        if valueMatches(v) then
+                            table.insert(results, {
+                                path = tableName .. "." .. tostring(k),
+                                value = v,
+                                previousValue = nil,
+                                object = tbl,
+                                key = k,
+                                setter = function(newValue) tbl[k] = newValue end,
+                                valueGetter = function() return tbl[k] end
+                            })
+                        end
+                    end
+                end)
+                
+                -- Update status periodically
+                if count % 200 == 0 then
+                    updateStatus("Scanning tables: " .. count .. "/" .. #tables)
+                    wait() -- Prevent freezing
+                end
+            end
+        end
+        
+        -- Store results
+        allValues = results
+        currentResults = results
+        
+        -- Display results
+        local maxResults = math.min(200, #results)
+        for i = 1, maxResults do
+            createResultRow(results[i], i)
+        end
+        
+        -- Update canvas size
+        ResultsList.CanvasSize = UDim2.new(0, 0, 0, maxResults * 27)
+        
+        -- Show lock/unlock buttons if we have results
+        LockAllButton.Visible = #results > 0
+        UnlockAllButton.Visible = #results > 0
+        
+        -- Finish up
+        local elapsedTime = tick() - startTime
+        updateStatus("Found " .. #results .. " matches in " .. string.format("%.2f", elapsedTime) .. " seconds")
+        ScanButton.Text = "Scan"
+        scanInProgress = false
+        
+        -- Enable sequential scanning if we found results
+        hasFirstScan = #results > 0
+        
+        -- Update scan type button states
+        if hasFirstScan then
+            ChangedButton.BackgroundColor3 = ChangedButton == selectedScanType and Color3.fromRGB(70, 130, 180) or Color3.fromRGB(35, 35, 40)
+            UnchangedButton.BackgroundColor3 = UnchangedButton == selectedScanType and Color3.fromRGB(70, 130, 180) or Color3.fromRGB(35, 35, 40)
+            IncreasedButton.BackgroundColor3 = IncreasedButton == selectedScanType and Color3.fromRGB(70, 130, 180) or Color3.fromRGB(35, 35, 40)
+        end
+        
+        -- Start real-time updates if enabled
+        if realTimeEnabled then
+            startRealTimeUpdates()
+        end
+    end)
+end
+
+-- Set up value locking loop
+spawn(function()
+    while wait(0.1) do
+        for _, info in pairs(lockedValues) do
+            pcall(function()
+                info.setter(info.value)
+            end)
+        end
+    end
+end)
+
+-- BUTTON CONNECTIONS --
+
+-- Type selector buttons
+NumberButton.MouseButton1Click:Connect(function()
+    selectedValueType = "Number"
+    NumberButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+    StringButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    BoolButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+end)
+
+StringButton.MouseButton1Click:Connect(function()
+    selectedValueType = "String"
+    NumberButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    StringButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+    BoolButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+end)
+
+BoolButton.MouseButton1Click:Connect(function()
+    selectedValueType = "Bool"
+    NumberButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    StringButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    BoolButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+end)
+
+-- Scan type buttons
+NewScanButton.MouseButton1Click:Connect(function()
+    selectedScanType = "New Scan"
+    NewScanButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+    ChangedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    UnchangedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    IncreasedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+end)
+
+ChangedButton.MouseButton1Click:Connect(function()
+    if hasFirstScan then
+        selectedScanType = "Changed"
+        NewScanButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        ChangedButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+        UnchangedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        IncreasedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    end
+end)
+
+UnchangedButton.MouseButton1Click:Connect(function()
+    if hasFirstScan then
+        selectedScanType = "Unchanged"
+        NewScanButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        ChangedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        UnchangedButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+        IncreasedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    end
+end)
+
+IncreasedButton.MouseButton1Click:Connect(function()
+    if hasFirstScan then
+        selectedScanType = "Increased"
+        NewScanButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        ChangedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        UnchangedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        IncreasedButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+    end
+end)
+
+-- Toggle Real-Time Updates button
+RealTimeToggle.MouseButton1Click:Connect(toggleRealTimeUpdates)
+
+-- Scan button
+ScanButton.MouseButton1Click:Connect(function()
+    if not scanInProgress then
+        performScan()
+    end
+end)
+
+-- New Scan button (completely restart)
+RestartButton.MouseButton1Click:Connect(startNewScan)
+
+-- Lock/Unlock All buttons
+LockAllButton.MouseButton1Click:Connect(lockAllValues)
+UnlockAllButton.MouseButton1Click:Connect(unlockAllValues)
+
+-- Close button
+CloseButton.MouseButton1Click:Connect(function()
+    -- Stop real-time updates before destroying
+    if updateTimer then
+        updateTimer:Disconnect()
+    end
+    ScreenGui:Destroy()
+end)
+
+-- Initial state
+updateStatus("Select type and enter value, then click Scan")

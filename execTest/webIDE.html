@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Improved Lua Editor</title>
+  <!-- CodeMirror core -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+
+  <!-- Lua language support -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/lua/lua.min.js"></script>
+
+  <!-- Dark theme base -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/material-darker.min.css">
+
+  <!-- Add-ons for code editing improvements -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/selection/active-line.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/foldcode.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/foldgutter.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/brace-fold.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/comment-fold.js"></script>
+
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #0a0a0a;
+      color: #f0f0f0;
+      font-family: 'Consolas', 'Monaco', monospace;
+      overflow: hidden;
+    }
+
+    .editor-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #editor-wrapper {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Custom darker theme overrides */
+    .CodeMirror {
+      height: 100%;
+      font-size: 16px;
+      font-family: 'Consolas', 'Monaco', 'Source Code Pro', monospace;
+      background-color: #0f0f11 !important;
+      color: #e0e0e0 !important;
+      border: none;
+      padding: 0;
+      line-height: 1.6;
+    }
+
+    /* Fix scrollbar visibility */
+    .CodeMirror-scroll {
+      overflow: scroll !important; /* Force scrollbars to show */
+    }
+
+    /* Make cursor more visible */
+    .CodeMirror-cursor {
+      border-left: 2px solid #80cbc4 !important;
+      transition: border-color 0.3s;
+    }
+
+    /* Line number styling */
+    .CodeMirror-gutters {
+      background-color: #0a0a0a !important;
+      border-right: 1px solid #1e1e24 !important;
+    }
+
+    .CodeMirror-linenumber {
+      color: #4a4a57 !important;
+      font-size: 14px;
+      padding: 0 8px;
+    }
+
+    /* Syntax highlighting refinements */
+    .cm-s-material-darker .cm-keyword {
+      color: #c792ea !important;
+      font-weight: bold;
+    }
+
+    .cm-s-material-darker .cm-def {
+      color: #82aaff !important;
+    }
+
+    .cm-s-material-darker .cm-string {
+      color: #c3e88d !important;
+    }
+
+    .cm-s-material-darker .cm-number {
+      color: #f78c6c !important;
+    }
+
+    .cm-s-material-darker .cm-comment {
+      color: #546e7a !important;
+      font-style: italic;
+    }
+
+    .cm-s-material-darker .cm-variable {
+      color: #eeffff !important;
+    }
+
+    /* Active line highlighting */
+    .CodeMirror-activeline-background {
+      background: rgba(40, 44, 53, 0.5) !important;
+    }
+
+    /* Matching brackets highlight */
+    .CodeMirror-matchingbracket {
+      color: #82aaff !important;
+      text-decoration: underline;
+      background: rgba(130, 170, 255, 0.1);
+      border-radius: 2px;
+      font-weight: bold;
+    }
+
+    /* Improve scrollbar styling */
+    .CodeMirror-vscrollbar::-webkit-scrollbar,
+    .CodeMirror-hscrollbar::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    .CodeMirror-vscrollbar::-webkit-scrollbar-track,
+    .CodeMirror-hscrollbar::-webkit-scrollbar-track {
+      background: #0f0f11;
+    }
+
+    .CodeMirror-vscrollbar::-webkit-scrollbar-thumb,
+    .CodeMirror-hscrollbar::-webkit-scrollbar-thumb {
+      background: #2a2a33;
+      border-radius: 6px;
+      border: 3px solid #0f0f11;
+    }
+
+    .CodeMirror-vscrollbar::-webkit-scrollbar-thumb:hover,
+    .CodeMirror-hscrollbar::-webkit-scrollbar-thumb:hover {
+      background: #3a3a46;
+    }
+
+    /* Minimalist bottom bar */
+    .bottom-bar {
+      background-color: #1a1a21;
+      color: #7f7f8c;
+      padding: 6px 12px;
+      font-size: 12px;
+      border-top: 1px solid #2c2c35;
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      z-index: 10;
+    }
+
+    /* Simplified structure line styling - just minimal vertical lines */
+    .structure-line {
+      position: absolute;
+      border-left: 1px solid rgba(255, 255, 255, 0.25);
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="editor-container">
+    <div id="editor-wrapper"></div>
+
+    <div class="bottom-bar">
+      <div>Lua</div>
+      <div id="line-counter">Line 1/1</div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize editor
+    const editorWrapper = document.getElementById('editor-wrapper');
+
+    // Create a textarea for the editor
+    const textarea = document.createElement('textarea');
+    editorWrapper.appendChild(textarea);
+
+    // Initialize CodeMirror
+    const editor = CodeMirror.fromTextArea(textarea, {
+      mode: "lua",
+      theme: "material-darker",
+      lineNumbers: true,
+      indentUnit: 4,
+      smartIndent: true,
+      indentWithTabs: false,
+      lineWrapping: false,
+      matchBrackets: true,
+      autoCloseBrackets: true,
+      styleActiveLine: true,
+      scrollbarStyle: "native",
+      extraKeys: {
+        "Tab": function(cm) {
+          // Insert 4 spaces for indentation
+          if (cm.somethingSelected()) {
+            cm.indentSelection("add");
+          } else {
+            cm.replaceSelection("    ");
+          }
+        },
+        "Backspace": handleBackspace,
+        "Ctrl-Backspace": handleCtrlBackspace,
+        "Cmd-Backspace": handleCtrlBackspace
+      }
+    });
+
+    // Make it fill the container
+    editor.setSize("100%", "100%");
+
+    // Set initial content
+    editor.setValue(`-- Improved Lua Editor
+-- Try typing 'if condition' and press Enter
+-- Now supports nested structures and visual guides
+
+local Players = game:GetService("Players")
+
+local function onPlayerJoin(player)
+    print(player.Name .. " has joined the game!")
+
+    -- Create leaderstats
+    local leaderstats = Instance.new("Folder")
+    leaderstats.Name = "leaderstats"
+    leaderstats.Parent = player
+
+    -- Add a coins value
+    local coins = Instance.new("IntValue")
+    coins.Name = "Coins"
+    coins.Value = 0
+    coins.Parent = leaderstats
+
+    -- Try a nested if statement:
+    if player.Name == "Admin" then
+        print("Admin joined!")
+
+        if player.AccountAge > 100 then
+            print("Experienced admin!")
+
+            if game.PlaceId == 12345 then
+                print("In the correct game!")
+            end
+        end
+    end
+end
+
+Players.PlayerAdded:Connect(onPlayerJoin)
+`);
+
+    // Line counter element
+    const lineCounter = document.getElementById('line-counter');
+
+    // Storage for structure markers
+    let structureMarkers = [];
+
+    // Update line counter
+    function updateLineCounter() {
+      const totalLines = editor.lineCount();
+      const currentLine = editor.getCursor().line + 1;
+      lineCounter.textContent = `Line ${currentLine}/${totalLines}`;
+    }
+
+    // Special backspace handling to remove full indentation
+    function handleBackspace(cm) {
+      const cursor = cm.getCursor();
+      const line = cm.getLine(cursor.line);
+      const lineUpToCursor = line.substring(0, cursor.ch);
+
+      // If we're at the start of a line with only whitespace before cursor
+      if (cursor.ch > 0 && /^\s+$/.test(lineUpToCursor)) {
+        // Delete the entire indentation at once
+        cm.replaceRange("", {line: cursor.line, ch: 0}, {line: cursor.line, ch: cursor.ch});
+        return;
+      }
+
+      // Default backspace behavior
+      cm.deleteH(-1, "char");
+    }
+
+    // Handle Ctrl+Backspace to delete empty lines
+    function handleCtrlBackspace(cm) {
+      const cursor = cm.getCursor();
+      const line = cm.getLine(cursor.line);
+
+      // If line is empty or only whitespace, delete the whole line
+      if (!line || line.trim() === "") {
+        // Delete the entire line
+        cm.replaceRange("",
+          {line: cursor.line, ch: 0},
+          {line: cursor.line + 1, ch: 0}
+        );
+        return;
+      }
+
+      // Otherwise delete word
+      cm.deleteH(-1, "word");
+    }
+
+    // Clear all structure markers
+    function clearStructureMarkers() {
+      structureMarkers.forEach(marker => marker.clear());
+      structureMarkers = [];
+    }
+
+    // Draw structure guides - simplified to just minimal vertical lines
+    function updateStructureGuides() {
+      clearStructureMarkers();
+
+      // Structure stack to keep track of open structures
+      const structureStack = [];
+
+      // Scan the entire document
+      for (let i = 0; i < editor.lineCount(); i++) {
+        const line = editor.getLine(i);
+        const trimmedLine = line.trim();
+        const indentLevel = line.search(/\S|$/);
+
+        // Check for structure start (if, for, while, function)
+        if (/^\s*\bif\b.*\bthen\b/.test(trimmedLine) ||
+            /^\s*\bfor\b.*\bdo\b/.test(trimmedLine) ||
+            /^\s*\bwhile\b.*\bdo\b/.test(trimmedLine) ||
+            /^\s*\bfunction\b.*\)/.test(trimmedLine)) {
+
+          // Store the structure info
+          structureStack.push({
+            line: i,
+            indent: indentLevel,
+            text: trimmedLine.replace(/\s+/g, ' ').substring(0, 30),
+            type: trimmedLine.match(/^\s*\b(if|for|while|function)\b/)[1]
+          });
+        }
+
+        // Check for end statements
+        if (/^\s*\bend\b/.test(trimmedLine) && structureStack.length > 0) {
+          // Find the matching structure start
+          // We want to match with the most recent structure that has the same indentation
+          let matchIndex = -1;
+
+          for (let j = structureStack.length - 1; j >= 0; j--) {
+            if (structureStack[j].indent === indentLevel) {
+              matchIndex = j;
+              break;
+            }
+          }
+
+          // If we found a match
+          if (matchIndex >= 0) {
+            const matchingStructure = structureStack[matchIndex];
+
+            // Draw minimal connecting lines - only at the indentation position
+            if (i > matchingStructure.line + 1) {
+              for (let lineNum = matchingStructure.line + 1; lineNum < i; lineNum++) {
+                // Create a single-character marker at the indentation position
+                const lineMark = editor.markText(
+                  {line: lineNum, ch: matchingStructure.indent},
+                  {line: lineNum, ch: matchingStructure.indent + 1},
+                  {className: 'structure-line'}
+                );
+                structureMarkers.push(lineMark);
+              }
+            }
+
+            // Remove the matched structure and all structures after it in the stack
+            structureStack.splice(matchIndex);
+          }
+        }
+      }
+
+      // Add end statements for any remaining open structures
+      if (structureStack.length > 0) {
+        const cursorPos = editor.getCursor();
+        const lastLine = editor.lineCount() - 1;
+        let insertPos = lastLine;
+        let insertText = "";
+
+        // Sort structures by indentation level (deepest first)
+        structureStack.sort((a, b) => b.indent - a.indent);
+
+        // Add end statements for each open structure
+        for (const structure of structureStack) {
+          insertText += " ".repeat(structure.indent) + "end\n";
+        }
+
+        // Insert all the end statements
+        if (insertText.length > 0) {
+          editor.replaceRange("\n" + insertText, {line: insertPos, ch: editor.getLine(insertPos).length});
+          // Restore cursor position
+          editor.setCursor(cursorPos);
+
+          // Update the structure guides after adding end statements
+          setTimeout(updateStructureGuides, 0);
+        }
+      }
+    }
+
+    // Improved function to check if a structure needs an end statement
+    function needsEndStatement(cm, lineNum, structureType) {
+      // Get the indentation level of the current line
+      const line = cm.getLine(lineNum);
+      const indentLevel = line.search(/\S|$/);
+
+      // Structure stack to track nesting
+      const structureStack = [{
+        type: structureType,
+        indent: indentLevel,
+        line: lineNum
+      }];
+
+      // Look ahead for matching end statements
+      for (let i = lineNum + 1; i < cm.lineCount(); i++) {
+        const checkLine = cm.getLine(i);
+        const checkTrimmed = checkLine.trim();
+        const checkIndent = checkLine.search(/\S|$/);
+
+        // Check for nested structures that increase the stack
+        if (/^\s*\bif\b.*\bthen\b/.test(checkTrimmed)) {
+          structureStack.push({ type: 'if', indent: checkIndent, line: i });
+        }
+        else if (/^\s*\bfor\b.*\bdo\b/.test(checkTrimmed)) {
+          structureStack.push({ type: 'for', indent: checkIndent, line: i });
+        }
+        else if (/^\s*\bwhile\b.*\bdo\b/.test(checkTrimmed)) {
+          structureStack.push({ type: 'while', indent: checkIndent, line: i });
+        }
+        else if (/^\s*\bfunction\b.*\)/.test(checkTrimmed)) {
+          structureStack.push({ type: 'function', indent: checkIndent, line: i });
+        }
+        // Check for end statements
+        else if (/^\s*\bend\b/.test(checkTrimmed)) {
+          // Find the most recent structure with matching or greater indentation
+          for (let j = structureStack.length - 1; j >= 0; j--) {
+            if (structureStack[j].indent <= checkIndent) {
+              // Pop the matched structure
+              structureStack.splice(j, 1);
+              break;
+            }
+          }
+        }
+
+        // If our original structure has been matched, we don't need an end
+        if (structureStack.length === 0) {
+          return false;
+        }
+      }
+
+      // If we get here and our original structure is still in the stack, we need an end
+      return structureStack.length > 0;
+    }
+
+    // Fixed function to handle Enter key and auto-completion without cursor jumping
+    editor.on('keydown', function(cm, event) {
+      if (event.key === 'Enter') {
+        const cursor = cm.getCursor();
+        const line = cm.getLine(cursor.line);
+        const trimmedLine = line.trim();
+
+        // Track if we need to do special handling
+        let needsSpecialHandling = false;
+        let currentIndent = line.search(/\S|$/);
+        let structureType = null;
+        let addEnd = false;
+
+        // Check for control structures that need to be completed with 'then' or 'do'
+        if (/\bif\b/.test(trimmedLine) && !/(then)\b/.test(trimmedLine)) {
+          cm.replaceRange(" then", {line: cursor.line, ch: line.length});
+          structureType = "if";
+          needsSpecialHandling = true;
+        }
+        else if (/\bfor\b/.test(trimmedLine) && !/(do)\b/.test(trimmedLine)) {
+          cm.replaceRange(" do", {line: cursor.line, ch: line.length});
+          structureType = "for";
+          needsSpecialHandling = true;
+        }
+        else if (/\bwhile\b/.test(trimmedLine) && !/(do)\b/.test(trimmedLine)) {
+          cm.replaceRange(" do", {line: cursor.line, ch: line.length});
+          structureType = "while";
+          needsSpecialHandling = true;
+        }
+
+        // Detect structure type for end statement check
+        if (/\bif\b.*\bthen\b/.test(trimmedLine)) {
+          structureType = "if";
+          needsSpecialHandling = true;
+        }
+        else if (/\bfor\b.*\bdo\b/.test(trimmedLine)) {
+          structureType = "for";
+          needsSpecialHandling = true;
+        }
+        else if (/\bwhile\b.*\bdo\b/.test(trimmedLine)) {
+          structureType = "while";
+          needsSpecialHandling = true;
+        }
+        else if (/\bfunction\b.*\)/.test(trimmedLine)) {
+          structureType = "function";
+          needsSpecialHandling = true;
+        }
+
+        // Check if we need to add an end statement
+        if (structureType) {
+          addEnd = needsEndStatement(cm, cursor.line, structureType);
+        }
+
+        // If we need to do special handling, prevent default and do our own Enter handling
+        if (needsSpecialHandling) {
+          event.preventDefault();
+
+          // Get next indent level - increase by one tab width if this is a block start
+          let nextIndent = currentIndent;
+          if (structureType) {
+            nextIndent = currentIndent + 4; // One tab width (4 spaces)
+          }
+
+          // Create the indentation string
+          const indentation = " ".repeat(nextIndent);
+
+          // Insert a new line with proper indentation
+          cm.replaceRange("\n" + indentation, {line: cursor.line, ch: cm.getLine(cursor.line).length});
+
+          // Set cursor to the properly indented position on the new line
+          cm.setCursor({line: cursor.line + 1, ch: indentation.length});
+
+          // If we need to add an end statement
+          if (addEnd) {
+            // Add an end statement below the cursor with proper indentation
+            const endIndentation = " ".repeat(currentIndent);
+            cm.replaceRange("\n" + endIndentation + "end",
+                           {line: cursor.line + 1, ch: cm.getLine(cursor.line + 1).length});
+
+            // Leave cursor at current position (don't move it to the end statement)
+            // This explicit cursor setting ensures it stays at the right position
+            cm.setCursor({line: cursor.line + 1, ch: indentation.length});
+          }
+
+          // Update the structure guides
+          setTimeout(updateStructureGuides, 0);
+
+          // Update line counter
+          updateLineCounter();
+        }
+      }
+    });
+
+    // Update line counter when cursor moves
+    editor.on('cursorActivity', function() {
+      updateLineCounter();
+    });
+
+    // Update line counter and structure guides when content changes
+    editor.on('change', function() {
+      updateLineCounter();
+
+      // Debounce the structure guide updates for better performance
+      clearTimeout(window.updateGuidesTimer);
+      window.updateGuidesTimer = setTimeout(updateStructureGuides, 300);
+    });
+
+    // Initialize line counter and structure guides
+    updateLineCounter();
+    setTimeout(updateStructureGuides, 300);
+
+    // Add keyboard shortcut to check for missing end statements
+    editor.setOption('extraKeys', Object.assign(editor.getOption('extraKeys') || {}, {
+      'Ctrl-E': function(cm) {
+        updateStructureGuides();
+      },
+      'Cmd-E': function(cm) {
+        updateStructureGuides();
+      }
+    }));
+
+    // Get editor content
+    function getCode() {
+      return editor.getValue();
+    }
+
+    // Set editor content
+    function setCode(code) {
+      editor.setValue(code);
+      setTimeout(updateStructureGuides, 300);
+    }
+
+    // Make the editor focus by default
+    setTimeout(() => {
+      editor.focus();
+    }, 100);
+  </script>
+</body>
+</html>

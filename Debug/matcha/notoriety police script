@@ -1,0 +1,103 @@
+printl("POLICE ESP STARTING")
+local espList = {}
+local count = 0
+
+-- Find all police models with HumanoidRootPart
+for _, model in pairs(workspace.Police:GetDescendants()) do
+    if model:IsA("Model") then
+        -- Look for HumanoidRootPart in this model
+        for _, part in pairs(model:GetDescendants()) do
+            if part.Name == "HumanoidRootPart" then
+                -- Found a police character with HumanoidRootPart
+                count = count + 1
+                local text = Drawing.new("Text")
+                text.Text = model.Name
+                text.Color = Color3(0, 0.5, 1) -- Blue for police
+                text.Visible = true
+                table.insert(espList, {model=model, root=part, text=text})
+                printl("Added police: " .. model.Name)
+                
+                -- We found the HRP for this model, no need to check other parts
+                break
+            end
+        end
+    end
+end
+
+printl("Found " .. count .. " police models")
+
+-- Counter for cleanup
+local cleanupCounter = 0
+
+-- Main ESP loop
+while true do
+    -- Update ESP positions
+    for _, esp in pairs(espList) do
+        if esp.model and esp.root then
+            pcall(function()
+                local pos, onScreen = WorldToScreen(esp.root.Position + Vector3(0, 3, 0))
+                if pos and onScreen then
+                    esp.text.Position = pos
+                    esp.text.Visible = true
+                else
+                    esp.text.Visible = false
+                end
+            end)
+        else
+            esp.text.Visible = false
+        end
+    end
+    
+    -- Cleanup and refresh police list periodically
+    cleanupCounter = cleanupCounter + 1
+    if cleanupCounter >= 500 then
+        cleanupCounter = 0
+        
+        -- Remove ESP for models that no longer exist
+        for i = #espList, 1, -1 do
+            local esp = espList[i]
+            if not esp.model or not esp.model.Parent then
+                -- Police officer gone - remove ESP
+                if esp.text then
+                    esp.text:Remove()
+                end
+                table.remove(espList, i)
+                printl("Removed ESP for police that left")
+            end
+        end
+        
+        -- Add ESP for new police models
+        for _, model in pairs(workspace.Police:GetDescendants()) do
+            if model:IsA("Model") then
+                -- Check for HumanoidRootPart
+                for _, part in pairs(model:GetDescendants()) do
+                    if part.Name == "HumanoidRootPart" then
+                        -- Check if already in our list
+                        local found = false
+                        for _, esp in pairs(espList) do
+                            if esp.model == model then
+                                found = true
+                                break
+                            end
+                        end
+                        
+                        -- Add if new
+                        if not found then
+                            local text = Drawing.new("Text")
+                            text.Text = "police bad guy"
+                            text.Color = Color3(0, 1, 0) -- Blue for police
+                            text.Visible = true
+                            table.insert(espList, {model=model, root=part, text=text})
+                            printl("Added new police: " .. model.Name)
+                        end
+                        
+                        -- Found HRP for this model, move to next
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    wait(0.0001)
+end

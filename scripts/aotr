@@ -1,0 +1,67 @@
+-- Ensure the game is loaded
+if game:IsLoaded() then
+    print("Game is already loaded, executing script.")
+else
+    game.Loaded:Wait()
+end
+
+local GameP = game.PlaceId
+
+-- Function to send notifications
+local function sendNotification(title, text)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Icon = "rbxassetid://13264701341"
+    })
+end
+
+-- Initial notifications
+sendNotification("Notification", "Checking")
+wait(0.1)
+sendNotification("Notification", "Check Place Id..")
+wait(0.1)
+
+-- Game specific logic
+local url
+
+if game.PlaceId == 12137249458 then  -- Gun Grounds
+    sendNotification("Notification", "Gun Grounds [" .. GameP .. "]")
+    url = "https://raw.githubusercontent.com/zerunquist/TekkitAotr/main/gungroundsffa"
+
+elseif game.PlaceId == 5094651510 or game.PlaceId == 4855457388 then 
+    sendNotification("Notification", "Demon Fall [" .. GameP .. "]")
+    url = "https://raw.githubusercontent.com/JD-04/Tekkit/main/Demon%20Fall"
+
+elseif game.PlaceId == 13772394625 or game.PlaceId == 17757592456 or game.PlaceId == 16456370330 or game.PlaceId == 16281300371 or game.PlaceId == 15144787112 or game.PlaceId == 16581648071 or game.PlaceId == 15234596844 or game.PlaceId == 14915220621 or game.PlaceId == 15264892126 or game.PlaceId == 14732610803 then  -- BladeBall
+    sendNotification("Notification", "Blade Ball [" .. GameP .. "]")
+    url = "https://raw.githubusercontent.com/JD-04/Tekkit/main/BladeBall"
+
+elseif game.PlaceId == 2753915549 or game.PlaceId == 4442272183 or game.PlaceId == 7449423635 then
+    sendNotification("Notification", "Blox Fruits [" .. GameP .. "]")
+    url = "https://raw.githubusercontent.com/JD-04/Tekkit/refs/heads/main/Blox%20obf.txt"
+
+elseif game.PlaceId == 286090429 then
+    sendNotification("Notification", "Arsenal [" .. GameP .. "]")
+    url = "https://raw.githubusercontent.com/JD-04/Tekkit/refs/heads/main/Arsenal"
+-- Add other games here as needed
+
+else
+    sendNotification("Notification", "Loading Aot:R Hub [" .. GameP .. "]")
+    url = "https://api.luarmor.net/files/v3/loaders/705e7fe7aa288f0fe86900cedb1119b1.lua"
+end
+
+-- Load and execute the script from the URL
+if url then
+    local success, response = pcall(function()
+        return game:HttpGet(url)
+    end)
+
+    if success then
+        loadstring(response)()
+    else
+        sendNotification("Error", "Failed to load script from URL: " .. url)
+    end
+else
+    sendNotification("Error", "No URL found for the current game.") -- h
+end

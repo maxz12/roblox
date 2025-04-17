@@ -1,0 +1,62 @@
+local charactersFolder = workspace:FindFirstChild("characters")
+if not charactersFolder then
+    printl("characters folder not found")
+    return
+end
+
+local prevItemsTable = {}  -- {character, reference, squareESP}
+
+while true do
+    -- Remove previous squares
+    for _, entry in pairs(prevItemsTable) do
+        if entry[3] then
+            pcall(function() entry[3]:Remove() end)
+        end
+    end
+
+    local newItemsTable = {}
+
+    for _, character in pairs(charactersFolder:GetChildren()) do
+        if character:IsA("Model") then
+            local reference = character.PrimaryPart
+            if not reference then
+                for _, part in pairs(character:GetChildren()) do
+                    if part:IsA("MeshPart") or part:IsA("Part") then
+                        reference = part
+                        break
+                    end
+                end
+            end
+
+            if reference then
+                -- Create a square
+                local square = Drawing.new("Square")
+                square.Color = Color3(1, 0, 0)    
+                square.Thickness = 2
+                square.Size = Vector2(8, 5)    
+                square.Filled = true
+                square.Visible = true
+
+                table.insert(newItemsTable, {character, reference, square})
+                printl("Added Square ESP for: " .. character.Name)
+            else
+                printl("No reference part found for: " .. character.Name)
+            end
+        end
+    end
+
+    -- Update Position
+    for _, entry in pairs(newItemsTable) do
+        local character, reference, square = entry[1], entry[2], entry[3]
+        local pos, onScreen = WorldToScreen(reference.Position + Vector3(0, 0.2, 0))
+        if pos and onScreen then
+            square.Position = pos
+            square.Visible = true
+        else
+            square.Visible = false
+        end
+    end
+
+    prevItemsTable = newItemsTable
+    wait(0.01)
+end

@@ -1,0 +1,464 @@
+--[[
+    CombinedAutoActions.lua
+
+    This LocalScript creates a draggable GUI with two sections:
+      SECTION 1: Auto Actions
+        • Auto Click (Tap)
+        • Auto Merge (TakeBlock)
+        • Auto Claim Frenzy – Every minute, it saves your position, teleports to workspace.Obby.Finish,
+          simulates a touch on it, waits a bit longer, and then returns.
+        • Auto Rebirth – Fires the Rebirth function every 10 seconds.
+      
+      SECTION 2: Auto Buy Upgrades
+        • Spawnrate
+        • Max Blocks
+        • Spawn Tier
+      
+    Place this LocalScript in StarterPlayerScripts.
+--]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local localPlayer = Players.LocalPlayer
+local plrName = localPlayer.Name
+
+-- Wait for character and HumanoidRootPart (for teleportation)
+local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+hrp.CanCollide = false
+
+-- Create main ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CombinedAutoActionsGui"
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+-- Main frame sized to hold two sections
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 250, 0, 330)
+mainFrame.Position = UDim2.new(0.5, -125, 0.5, -165)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+------------------------------------------
+-- SECTION 1: AUTO ACTIONS
+------------------------------------------
+
+-- Title for Auto Actions
+local autoActionsTitle = Instance.new("TextLabel")
+autoActionsTitle.Size = UDim2.new(0, 230, 0, 20)
+autoActionsTitle.Position = UDim2.new(0, 10, 0, 10)
+autoActionsTitle.BackgroundTransparency = 1
+autoActionsTitle.TextColor3 = Color3.new(1,1,1)
+autoActionsTitle.Text = "Auto Actions"
+autoActionsTitle.TextScaled = true
+autoActionsTitle.Parent = mainFrame
+
+-- Auto Click
+local autoTapActive = false
+local currentBestBlock = nil
+local tapToggle = Instance.new("TextButton")
+tapToggle.Size = UDim2.new(0, 230, 0, 30)
+tapToggle.Position = UDim2.new(0, 10, 0, 35)
+tapToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+tapToggle.TextColor3 = Color3.new(1, 1, 1)
+tapToggle.Text = "Auto Click: OFF"
+tapToggle.Parent = mainFrame
+
+-- Auto Merge
+local autoMergeActive = false
+local mergeToggle = Instance.new("TextButton")
+mergeToggle.Size = UDim2.new(0, 230, 0, 30)
+mergeToggle.Position = UDim2.new(0, 10, 0, 70)
+mergeToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+mergeToggle.TextColor3 = Color3.new(1, 1, 1)
+mergeToggle.Text = "Auto Merge: OFF"
+mergeToggle.Parent = mainFrame
+
+-- Auto Claim Frenzy
+local autoClaimFrenzyActive = false
+local claimFrenzyToggle = Instance.new("TextButton")
+claimFrenzyToggle.Size = UDim2.new(0, 230, 0, 30)
+claimFrenzyToggle.Position = UDim2.new(0, 10, 0, 105)
+claimFrenzyToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+claimFrenzyToggle.TextColor3 = Color3.new(1, 1, 1)
+claimFrenzyToggle.Text = "Auto Claim Frenzy: OFF"
+claimFrenzyToggle.Parent = mainFrame
+
+-- Auto Rebirth
+local autoRebirthActive = false
+local rebirthToggle = Instance.new("TextButton")
+rebirthToggle.Size = UDim2.new(0, 230, 0, 30)
+rebirthToggle.Position = UDim2.new(0, 10, 0, 140)
+rebirthToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+rebirthToggle.TextColor3 = Color3.new(1, 1, 1)
+rebirthToggle.Text = "Auto Rebirth: OFF"
+rebirthToggle.Parent = mainFrame
+
+------------------------------------------
+-- SECTION 2: AUTO BUY UPGRADES
+------------------------------------------
+
+-- Title for Auto Buy Upgrades
+local upgradesTitle = Instance.new("TextLabel")
+upgradesTitle.Size = UDim2.new(0, 230, 0, 20)
+upgradesTitle.Position = UDim2.new(0, 10, 0, 180)
+upgradesTitle.BackgroundTransparency = 1
+upgradesTitle.TextColor3 = Color3.new(1,1,1)
+upgradesTitle.Text = "Auto Buy Upgrades"
+upgradesTitle.TextScaled = true
+upgradesTitle.Parent = mainFrame
+
+local autoBuySpawnrateActive = false
+local autoBuyMaxBlocksActive = false
+local autoBuySpawnTierActive = false
+
+local spawnrateToggle = Instance.new("TextButton")
+spawnrateToggle.Size = UDim2.new(0, 230, 0, 30)
+spawnrateToggle.Position = UDim2.new(0, 10, 0, 205)
+spawnrateToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+spawnrateToggle.TextColor3 = Color3.new(1,1,1)
+spawnrateToggle.Text = "Spawnrate: OFF"
+spawnrateToggle.Parent = mainFrame
+
+local maxBlocksToggle = Instance.new("TextButton")
+maxBlocksToggle.Size = UDim2.new(0, 230, 0, 30)
+maxBlocksToggle.Position = UDim2.new(0, 10, 0, 240)
+maxBlocksToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+maxBlocksToggle.TextColor3 = Color3.new(1,1,1)
+maxBlocksToggle.Text = "Max Blocks: OFF"
+maxBlocksToggle.Parent = mainFrame
+
+local spawnTierToggle = Instance.new("TextButton")
+spawnTierToggle.Size = UDim2.new(0, 230, 0, 30)
+spawnTierToggle.Position = UDim2.new(0, 10, 0, 275)
+spawnTierToggle.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+spawnTierToggle.TextColor3 = Color3.new(1,1,1)
+spawnTierToggle.Text = "Spawn Tier: OFF"
+spawnTierToggle.Parent = mainFrame
+
+------------------------------------------
+-- Remote Events and Blocks Folder
+------------------------------------------
+local blocksFolder = workspace:WaitForChild("Plots"):WaitForChild(plrName):WaitForChild("Blocks")
+local TapEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("Tap")
+local TakeBlockEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("TakeBlock")
+local BuyUpgradeEvent = ReplicatedStorage:WaitForChild("Functions"):WaitForChild("BuyUpgrade")
+
+------------------------------------------
+-- Helper: Parse values like "10" or "10k" into a number.
+------------------------------------------
+local function parseValue(txt)
+    txt = txt or ""
+    if txt:lower():find("k") then
+        local numPart = txt:lower():gsub("k", "")
+        local numeric = tonumber(numPart) or 0
+        return numeric * 1000
+    else
+        return tonumber(txt) or 0
+    end
+end
+
+------------------------------------------
+-- AUTO TAP (CLICK) FUNCTIONS
+------------------------------------------
+local function getBlockWithMaxValue()
+    local highestValue = -math.huge
+    local bestBlock = nil
+
+    for _, block in ipairs(blocksFolder:GetChildren()) do
+        local backGui = block:FindFirstChild("Back")
+        if backGui then
+            local numberLabel = backGui:FindFirstChild("Number")
+            if numberLabel and numberLabel:IsA("TextLabel") then
+                local value = parseValue(numberLabel.Text)
+                if value > highestValue then
+                    highestValue = value
+                    bestBlock = block
+                end
+            end
+        end
+    end
+
+    return bestBlock, highestValue
+end
+
+local function tapBlock(block, value)
+    if block then
+        if block ~= currentBestBlock then
+            print("AutoClick: New best block found - " .. block.Name .. " with value: " .. tostring(value))
+            currentBestBlock = block
+        end
+        local args = { block }
+        local success, err = pcall(function()
+            TapEvent:FireServer(unpack(args))
+        end)
+        if not success then
+            warn("Failed to fire Tap event for block " .. block.Name .. ": " .. tostring(err))
+        end
+    end
+end
+
+local function autoTapLoop()
+    while autoTapActive do
+        local bestBlock, bestValue = getBlockWithMaxValue()
+        if bestBlock then
+            tapBlock(bestBlock, bestValue)
+        end
+        task.wait(0.05)
+    end
+    currentBestBlock = nil
+end
+
+------------------------------------------
+-- AUTO MERGE (TAKE BLOCK) FUNCTIONS
+------------------------------------------
+local function buildGroups()
+    local groups = {}
+    for _, block in ipairs(blocksFolder:GetChildren()) do
+        if block:IsA("BasePart") then
+            local back = block:FindFirstChild("Back")
+            if back then
+                local textLabel = back:FindFirstChildWhichIsA("TextLabel")
+                if textLabel then
+                    local textValue = textLabel.Text
+                    groups[textValue] = groups[textValue] or {}
+                    table.insert(groups[textValue], block)
+                else
+                    warn("Block " .. block.Name .. " is missing a TextLabel in 'Back'")
+                end
+            else
+                warn("Block " .. block.Name .. " is missing the 'Back' SurfaceGui")
+            end
+        end
+    end
+    return groups
+end
+
+local function processBlock(block)
+    local maxAttempts = 5
+    local attempt = 0
+    while autoMergeActive and block and block.Parent and attempt < maxAttempts do
+        hrp.CFrame = block.CFrame * CFrame.new(0, 2, -3)
+        RunService.Heartbeat:Wait()
+        hrp.CFrame = CFrame.lookAt(hrp.Position, block.Position)
+        RunService.Heartbeat:Wait()
+        local success, err = pcall(function()
+            TakeBlockEvent:FireServer(block)
+        end)
+        if not success then
+            warn("AutoMerge: Failed to fire TakeBlock event for block " .. block.Name .. ": " .. tostring(err))
+            if typeof(firetouchinterest) == "function" then
+                firetouchinterest(hrp, block, 0)
+                task.wait(0.1)
+                firetouchinterest(hrp, block, 1)
+            end
+        end
+        attempt = attempt + 1
+        task.wait(0.1)
+    end
+end
+
+local function autoMergeLoop()
+    while autoMergeActive do
+        local groups = buildGroups()
+        for textValue, blockList in pairs(groups) do
+            if #blockList >= 2 then
+                for _, block in ipairs(blockList) do
+                    if autoMergeActive and block and block.Parent then
+                        print("AutoMerge: Processing block " .. block.Name .. " (Group: " .. textValue .. ")")
+                        processBlock(block)
+                    end
+                    task.wait(0.01)
+                end
+            end
+        end
+        task.wait(0.01)
+    end
+end
+
+------------------------------------------
+-- AUTO BUY UPGRADES FUNCTIONS
+------------------------------------------
+local function autoBuySpawnrateLoop()
+    while true do
+        if autoBuySpawnrateActive then
+            print("AutoBuy: Sending upgrade request (Cooldown)")
+            local args = { "Cooldown" }
+            local success, err = pcall(function()
+                BuyUpgradeEvent:FireServer(unpack(args))
+            end)
+            if not success then
+                warn("AutoBuy: Failed for Cooldown upgrade: " .. tostring(err))
+            end
+        end
+        task.wait(1)
+    end
+end
+
+local function autoBuyMaxBlocksLoop()
+    while true do
+        if autoBuyMaxBlocksActive then
+            print("AutoBuy: Sending upgrade request (MaxBlocks)")
+            local args = { "MaxBlocks" }
+            local success, err = pcall(function()
+                BuyUpgradeEvent:FireServer(unpack(args))
+            end)
+            if not success then
+                warn("AutoBuy: Failed for MaxBlocks upgrade: " .. tostring(err))
+            end
+        end
+        task.wait(1)
+    end
+end
+
+local function autoBuySpawnTierLoop()
+    while true do
+        if autoBuySpawnTierActive then
+            print("AutoBuy: Sending upgrade request (SpawnTier)")
+            local args = { "SpawnTier" }
+            local success, err = pcall(function()
+                BuyUpgradeEvent:FireServer(unpack(args))
+            end)
+            if not success then
+                warn("AutoBuy: Failed for SpawnTier upgrade: " .. tostring(err))
+            end
+        end
+        task.wait(1)
+    end
+end
+
+task.spawn(autoBuySpawnrateLoop)
+task.spawn(autoBuyMaxBlocksLoop)
+task.spawn(autoBuySpawnTierLoop)
+
+------------------------------------------
+-- AUTO CLAIM FRENZY FUNCTION
+------------------------------------------
+local function autoClaimFrenzyLoop()
+    while autoClaimFrenzyActive do
+        local originalCFrame = hrp.CFrame
+        local finishPart = workspace:WaitForChild("Obby"):WaitForChild("Finish")
+        -- Move a bit above the finish part to ensure a proper touch
+        hrp.CFrame = finishPart.CFrame + Vector3.new(0, 3, 0)
+        task.wait(0.1)
+        if typeof(firetouchinterest) == "function" then
+            firetouchinterest(hrp, finishPart, 0)
+            task.wait(0.2)
+            firetouchinterest(hrp, finishPart, 1)
+        end
+        -- Wait longer to ensure the claim registers
+        task.wait(2)
+        hrp.CFrame = originalCFrame
+        task.wait(60)
+    end
+end
+
+------------------------------------------
+-- AUTO REBIRTH FUNCTION
+------------------------------------------
+local function autoRebirthLoop()
+    while autoRebirthActive do
+        local args = { 1 }
+        local success, result = pcall(function()
+            return ReplicatedStorage:WaitForChild("Functions"):WaitForChild("Rebirth"):InvokeServer(unpack(args))
+        end)
+        if success then
+            print("Auto Rebirth: Successful")
+        else
+            print("Auto Rebirth: Failed")
+        end
+        task.wait(10)
+    end
+end
+
+------------------------------------------
+-- TOGGLE BUTTON LOGIC
+------------------------------------------
+local tapThread, mergeThread
+
+tapToggle.MouseButton1Click:Connect(function()
+    autoTapActive = not autoTapActive
+    if autoTapActive then
+        tapToggle.Text = "Auto Click: ON"
+        print("Auto Click enabled.")
+        tapThread = task.spawn(autoTapLoop)
+    else
+        tapToggle.Text = "Auto Click: OFF"
+        print("Auto Click disabled.")
+    end
+end)
+
+mergeToggle.MouseButton1Click:Connect(function()
+    autoMergeActive = not autoMergeActive
+    if autoMergeActive then
+        mergeToggle.Text = "Auto Merge: ON"
+        print("Auto Merge enabled.")
+        mergeThread = task.spawn(autoMergeLoop)
+    else
+        mergeToggle.Text = "Auto Merge: OFF"
+        print("Auto Merge disabled.")
+    end
+end)
+
+claimFrenzyToggle.MouseButton1Click:Connect(function()
+    autoClaimFrenzyActive = not autoClaimFrenzyActive
+    if autoClaimFrenzyActive then
+        claimFrenzyToggle.Text = "Auto Claim Frenzy: ON"
+        print("Auto Claim Frenzy enabled.")
+        task.spawn(autoClaimFrenzyLoop)
+    else
+        claimFrenzyToggle.Text = "Auto Claim Frenzy: OFF"
+        print("Auto Claim Frenzy disabled.")
+    end
+end)
+
+rebirthToggle.MouseButton1Click:Connect(function()
+    autoRebirthActive = not autoRebirthActive
+    if autoRebirthActive then
+        rebirthToggle.Text = "Auto Rebirth: ON"
+        print("Auto Rebirth enabled.")
+        task.spawn(autoRebirthLoop)
+    else
+        rebirthToggle.Text = "Auto Rebirth: OFF"
+        print("Auto Rebirth disabled.")
+    end
+end)
+
+spawnrateToggle.MouseButton1Click:Connect(function()
+    autoBuySpawnrateActive = not autoBuySpawnrateActive
+    if autoBuySpawnrateActive then
+        spawnrateToggle.Text = "Spawnrate: ON"
+        print("Auto Buy Upgrade (Spawnrate) enabled.")
+    else
+        spawnrateToggle.Text = "Spawnrate: OFF"
+        print("Auto Buy Upgrade (Spawnrate) disabled.")
+    end
+end)
+
+maxBlocksToggle.MouseButton1Click:Connect(function()
+    autoBuyMaxBlocksActive = not autoBuyMaxBlocksActive
+    if autoBuyMaxBlocksActive then
+        maxBlocksToggle.Text = "Max Blocks: ON"
+        print("Auto Buy Upgrade (Max Blocks) enabled.")
+    else
+        maxBlocksToggle.Text = "Max Blocks: OFF"
+        print("Auto Buy Upgrade (Max Blocks) disabled.")
+    end
+end)
+
+spawnTierToggle.MouseButton1Click:Connect(function()
+    autoBuySpawnTierActive = not autoBuySpawnTierActive
+    if autoBuySpawnTierActive then
+        spawnTierToggle.Text = "Spawn Tier: ON"
+        print("Auto Buy Upgrade (Spawn Tier) enabled.")
+    else
+        spawnTierToggle.Text = "Spawn Tier: OFF"
+        print("Auto Buy Upgrade (Spawn Tier) disabled.")
+    end
+end)
+
+print("Initialized CombinedAutoActions script with Auto Actions and Auto Buy Upgrades sections.")

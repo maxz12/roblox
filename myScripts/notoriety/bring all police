@@ -1,0 +1,31 @@
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+-- Update police positions 10 times per second
+RunService.Heartbeat:Connect(function()
+    -- Get player's position and forward direction
+    local position = hrp.Position
+    local lookDirection = hrp.CFrame.LookVector
+    
+    -- Position to place officers (5 studs in front)
+    local targetPosition = position + (lookDirection * 5)
+    
+    -- Teleport all police officers to this position
+    for _, officer in pairs(workspace.Police:GetChildren()) do
+        local officerHRP = officer:FindFirstChild("HumanoidRootPart")
+        if officerHRP then
+            -- Face the player
+            local lookAt = CFrame.lookAt(targetPosition, position)
+            officerHRP.CFrame = lookAt
+        end
+    end
+end)
+
+-- Handle character respawn
+Players.LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    hrp = character:WaitForChild("HumanoidRootPart")
+end)

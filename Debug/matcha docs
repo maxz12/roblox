@@ -1,0 +1,229 @@
+Global Objects and Functions
+
+game  
+Type: Instance  
+Description: The root of the game hierarchy. Represents the DataModel instance.
+
+workspace  
+Type: Instance  
+Description: Represents the Workspace, containing all visible objects in the game.
+
+Instance Methods
+
+Instance.Name  
+Type: string  
+Description: Returns the name of the instance.
+
+Instance:FindFirstChild(childName)  
+Parameter: childName (string) - The name of the child to find.  
+Returns: Instance or nil  
+Description: Finds the first child of the instance with the given name.
+
+Instance:FindFirstChildOfClass(className)  
+Parameter: className (string) - The class name of the child to find.  
+Returns: Instance or nil  
+Description: Finds the first child of the instance with the given class name.
+
+Instance:GetService(serviceName)  
+Parameter: serviceName (string) - The name of the service to retrieve.  
+Returns: Instance or nil  
+Description: Retrieves a service by name from the instance (typically used with game).
+
+Instance:GetFullName()  
+Returns: string  
+Description: Returns the full hierarchical name of the instance.
+
+Instance:GetChildren()  
+Returns: table (array of Instance)  
+Description: Returns a table of all the children of the instance.
+
+Instance:GetPlayers()  
+Returns: table (array of Instance)  
+Description: Returns a table of all player instances in the game.
+
+Instance:GetDescendants()  
+Returns: table (array of Instance)  
+Description: Returns a table of all descendants (children, grandchildren, etc.) of the instance.
+
+Global Functions
+
+printl(...)  
+Description: Custom implementation of the print function, outputs the provided arguments to the console or log.
+
+wait(seconds)  
+Parameter: seconds (number) - The number of seconds to wait.  
+Returns: number - The actual time waited.  
+Description: Pauses the execution of the script for the specified duration.
+
+setclipboard(text)  
+Parameter: text (string) - The text to copy to the clipboard.  
+Description: Copies the specified text to the system clipboard.
+
+messagebox(text)  
+Parameter: text (string) - The message to display in a message box.  
+Returns: number - The user's response.  
+Description: Displays a message box with the specified text.
+
+Input Functions
+
+isrbxactive()  
+Returns: boolean  
+Description: Checks if Roblox is the active window.
+
+keypress(keyCode)  
+Parameter: keyCode (number) - The key code of the key to press.  
+Description: Simulates a key press.
+
+keyrelease(keyCode)  
+Parameter: keyCode (number) - The key code of the key to release.  
+Description: Simulates a key release.
+
+mouse1click()  
+Description: Simulates a left mouse button click.
+
+mouse1press()  
+Description: Simulates pressing the left mouse button.
+
+mouse1release()  
+Description: Simulates releasing the left mouse button.
+
+mouse2click()  
+Description: Simulates a right mouse button click.
+
+mouse2press()  
+Description: Simulates pressing the right mouse button.
+
+mouse2release()  
+Description: Simulates releasing the right mouse button.
+
+mousescroll(delta)  
+Parameter: delta (number) - The amount to scroll (positive or negative).  
+Description: Simulates scrolling the mouse wheel.
+
+mousemoverel(x, y)  
+Parameters:  
+x (number) - The relative x-coordinate to move the mouse.  
+y (number) - The relative y-coordinate to move the mouse.  
+Description: Moves the mouse cursor by the specified relative amount.
+
+mousemoveabs(x, y)  
+Parameters:  
+x (number) - The absolute x-coordinate to move the mouse.  
+y (number) - The absolute y-coordinate to move the mouse.  
+Description: Moves the mouse cursor to the specified absolute position.
+
+Workspace Properties
+
+Workspace.CurrentCamera  
+Returns: Instance  
+Description: Return current camera of the Player.
+
+Humanoid Properties
+
+Humanoid.WalkSpeed = number  
+Type: number  
+Description: Sets the walk speed of the Humanoid.
+
+Humanoid.JumpPower = number  
+Type: number  
+Description: Sets the jump power of the Humanoid.
+
+Humanoid.JumpHeight = number  
+Type: number  
+Description: Sets the jump height of the Humanoid.
+
+Humanoid.Sit = boolean  
+Type: boolean  
+Description: Make player sit down.
+
+Players Properties
+
+Players.LocalPlayer  
+Returns: Instance  
+Description: Returns the local player instance if the instance is Players.
+
+Player Properties
+
+Player.Character  
+Returns: Instance  
+Description: Returns the character model instance if the instance is a Player.
+
+BasePart Properties
+
+Part.Position  
+Returns: Vector3  
+Description: Returns the Position of the instance if it is a Part.
+
+Part.CFrame  
+Returns: CFrame  
+Description: Returns the CFrame of the instance if it is a Part.
+
+Part.CanCollide = boolean  
+Type: boolean  
+Description: Set the can collide or collision of the Part.
+
+Camera Properties
+
+Camera.FieldOfView = number  
+Type: number  
+Description: Set the field of view of camera instance.
+
+Userdata
+
+Vector2  
+(number, number)
+
+Vector3  
+(number, number, number)
+
+__index (getter)  
+Added <Vector3> BasePart.Position  
+Added <Vector3> BasePart.CFrame
+
+__newindex (setter)  
+Added <Vector3> BasePart.Position  
+Added <Vector3> BasePart.CFrame
+
+Functions
+
+<Vector2, bool(on_screen)> WorldToScreen(<Vector3> 3d_position)
+
+Drawing Library
+
+<object> Drawing.new(<string> type)
+
+Function  
+Drawing:Remove();
+
+General  
+Color3 Color  
+bool Visible
+
+Line  
+number Thickness  
+Vector2 From  
+Vector2 To
+
+Text  
+string Text  
+Vector2 Position
+
+Circle  
+number Thickness  
+number NumSides  
+number Radius  
+bool Filled  
+Vector2 Position
+
+Square  
+number Thickness  
+Vector2 Size  
+Vector2 Position  
+bool Filled
+
+Triangle  
+number Thickness  
+Vector2 PointA  
+Vector2 PointB  
+Vector2 PointC  
+bool Filled

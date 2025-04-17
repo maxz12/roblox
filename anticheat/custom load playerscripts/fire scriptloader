@@ -1,0 +1,31 @@
+-- This script should be placed in ServerScriptService.
+-- It detects when a certain condition is met (this example uses a simple wait for demonstration)
+-- and then fires a RemoteEvent to the client to trigger the cloning of the ConditionalLocalScript.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+-- Create the RemoteEvent if it doesn't exist already
+local loadEvent = ReplicatedStorage:FindFirstChild("loadLocalScript")
+if not loadEvent then
+	loadEvent = Instance.new("RemoteEvent")
+	loadEvent.Name = "loadLocalScript"
+	loadEvent.Parent = ReplicatedStorage
+end
+
+-- Example condition: Wait 10 seconds after a player joins
+Players.PlayerAdded:Connect(function(player)
+	-- You can replace this with your own condition, such as a score threshold or achievement
+	wait(1)  -- For demonstration purposes: wait 10 seconds
+	loadEvent:FireClient(player)
+	print("Fired load event to " .. player.Name)
+
+	wait(3)
+	loadEvent:Destroy()
+	print("[CLEANUP] removed localscirptloader remote function")
+	ReplicatedStorage.localscripts:Destroy()
+	print("[CLEANUP]removed loaderscirpts folder in replicated storage")
+	
+	
+	print("Removed load event from ReplicatedStorage")
+end)

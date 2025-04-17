@@ -1,0 +1,75 @@
+-- Character ESP Script for Roblox VM Exploit
+-- This is an executor script - paste into your exploit executor and run (not a Roblox script)
+
+-- Target the characters folder (lowercase c)
+local charactersFolder = workspace:FindFirstChild("characters")
+if not charactersFolder then
+    print("characters folder not found")
+    return
+end
+
+local prevItemsTable = {}  -- Stores previous {model, reference, textESP} entries
+
+while true do
+    -- Remove previous ESP drawings
+    for _, entry in pairs(prevItemsTable) do
+        if entry[3] then
+            pcall(function() entry[3]:Remove() end)
+        end
+    end
+
+    local newItemsTable = {}  -- Build new ESP entries on each refresh
+
+    for _, character in pairs(charactersFolder:GetChildren()) do
+        if character:IsA("Model") then
+            local reference = character.PrimaryPart
+            if not reference then
+                -- Try to find HumanoidRootPart first
+                if character:FindFirstChild("HumanoidRootPart") then
+                    reference = character.HumanoidRootPart
+                elseif character:FindFirstChild("Head") then
+                    reference = character.Head
+                elseif character:FindFirstChild("Torso") then
+                    reference = character.Torso
+                else
+                    -- Otherwise try to find any MeshPart or Part
+                    for _, part in pairs(character:GetChildren()) do
+                        if part:IsA("MeshPart") or part:IsA("Part") then
+                            reference = part
+                            break
+                        end
+                    end
+                end
+            end
+
+            if reference then
+                local textESP = Drawing.new("Text")
+                textESP.Text = character.Name
+                textESP.Color = Color3(1, 1, 0)   -- Yellow text
+                textESP.TextSize = 20
+                textESP.Outline = true
+                textESP.OutlineColor = Color3(0, 0, 0)
+                textESP.Visible = true
+                table.insert(newItemsTable, {character, reference, textESP})
+                print("Added ESP for: " .. character.Name)
+            else
+                print("No reference part found for: " .. character.Name)
+            end
+        end
+    end
+
+    -- Update positions for each ESP drawing
+    for _, entry in pairs(newItemsTable) do
+        local model, reference, textESP = entry[1], entry[2], entry[3]
+        local pos, onScreen = WorldToScreen(reference.Position + Vector3(0, 3, 0))
+        if pos and onScreen then
+            textESP.Position = pos
+            textESP.Visible = true
+        else
+            textESP.Visible = false
+        end
+    end
+
+    prevItemsTable = newItemsTable  -- Save current drawings to remove next iteration
+    wait(0.001)
+end

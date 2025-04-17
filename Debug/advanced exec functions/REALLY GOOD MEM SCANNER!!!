@@ -1,0 +1,1440 @@
+-- GC Explorer GUI - Real-time Version
+-- Created for maxz12 on 2025-04-05
+-- A cheat-engine like interface for Roblox garbage collection with CoreGui integration
+-- Added real-time updates, sorting functionality and value locking
+
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+
+-- Create the main GUI in CoreGui
+local GCExplorer = Instance.new("ScreenGui")
+GCExplorer.Name = "GCExplorer"
+GCExplorer.ResetOnSpawn = false
+GCExplorer.DisplayOrder = 999
+GCExplorer.IgnoreGuiInset = true
+
+-- Try to place in CoreGui, fall back to PlayerGui if not possible
+local success = pcall(function()
+    GCExplorer.Parent = CoreGui
+end)
+
+if not success then
+    GCExplorer.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    warn("CoreGui placement failed. Placed in PlayerGui instead.")
+end
+
+-- Create the main frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 600, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -300, 0.5, -200)
+MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ZIndex = 1000
+MainFrame.Parent = GCExplorer
+
+-- Title bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex = 1000
+TitleBar.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, -10, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 16
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "GC Explorer v1.3 [Right Shift to Toggle]"
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.ZIndex = 1000
+Title.Parent = TitleBar
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -30, 0, 0)
+CloseButton.BackgroundTransparency = 1
+CloseButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+CloseButton.TextSize = 20
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Text = "X"
+CloseButton.ZIndex = 1000
+CloseButton.Parent = TitleBar
+
+-- Minimize/Maximize Button
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
+MinimizeButton.Position = UDim2.new(1, -60, 0, 0)
+MinimizeButton.BackgroundTransparency = 1
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 100)
+MinimizeButton.TextSize = 20
+MinimizeButton.Font = Enum.Font.SourceSansBold
+MinimizeButton.Text = "-"
+MinimizeButton.ZIndex = 1000
+MinimizeButton.Parent = TitleBar
+
+-- Search section
+local SearchSection = Instance.new("Frame")
+SearchSection.Name = "SearchSection"
+SearchSection.Size = UDim2.new(1, -20, 0, 100)
+SearchSection.Position = UDim2.new(0, 10, 0, 40)
+SearchSection.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+SearchSection.BorderSizePixel = 0
+SearchSection.ZIndex = 1000
+SearchSection.Parent = MainFrame
+
+local SearchLabel = Instance.new("TextLabel")
+SearchLabel.Name = "SearchLabel"
+SearchLabel.Size = UDim2.new(1, -10, 0, 20)
+SearchLabel.Position = UDim2.new(0, 5, 0, 5)
+SearchLabel.BackgroundTransparency = 1
+SearchLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchLabel.TextSize = 14
+SearchLabel.Font = Enum.Font.SourceSans
+SearchLabel.Text = "Search Value:"
+SearchLabel.TextXAlignment = Enum.TextXAlignment.Left
+SearchLabel.ZIndex = 1000
+SearchLabel.Parent = SearchSection
+
+local SearchInput = Instance.new("TextBox")
+SearchInput.Name = "SearchInput"
+SearchInput.Size = UDim2.new(1, -10, 0, 25)
+SearchInput.Position = UDim2.new(0, 5, 0, 25)
+SearchInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SearchInput.BorderSizePixel = 0
+SearchInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchInput.TextSize = 14
+SearchInput.Font = Enum.Font.SourceSans
+SearchInput.Text = ""
+SearchInput.PlaceholderText = "Enter search value..."
+SearchInput.ClearTextOnFocus = false
+SearchInput.ZIndex = 1000
+SearchInput.Parent = SearchSection
+
+-- Type selection
+local TypeLabel = Instance.new("TextLabel")
+TypeLabel.Name = "TypeLabel"
+TypeLabel.Size = UDim2.new(0, 80, 0, 25)
+TypeLabel.Position = UDim2.new(0, 5, 0, 60)
+TypeLabel.BackgroundTransparency = 1
+TypeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TypeLabel.TextSize = 14
+TypeLabel.Font = Enum.Font.SourceSans
+TypeLabel.Text = "Value Type:"
+TypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+TypeLabel.ZIndex = 1000
+TypeLabel.Parent = SearchSection
+
+local TypeDropdown = Instance.new("TextButton")
+TypeDropdown.Name = "TypeDropdown"
+TypeDropdown.Size = UDim2.new(0, 120, 0, 25)
+TypeDropdown.Position = UDim2.new(0, 85, 0, 60)
+TypeDropdown.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+TypeDropdown.BorderSizePixel = 0
+TypeDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+TypeDropdown.TextSize = 14
+TypeDropdown.Font = Enum.Font.SourceSans
+TypeDropdown.Text = "All Types"
+TypeDropdown.ZIndex = 1000
+TypeDropdown.Parent = SearchSection
+
+-- Search type selection
+local SearchTypeLabel = Instance.new("TextLabel")
+SearchTypeLabel.Name = "SearchTypeLabel"
+SearchTypeLabel.Size = UDim2.new(0, 80, 0, 25)
+SearchTypeLabel.Position = UDim2.new(0.5, 0, 0, 60)
+SearchTypeLabel.BackgroundTransparency = 1
+SearchTypeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchTypeLabel.TextSize = 14
+SearchTypeLabel.Font = Enum.Font.SourceSans
+SearchTypeLabel.Text = "Search Type:"
+SearchTypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+SearchTypeLabel.ZIndex = 1000
+SearchTypeLabel.Parent = SearchSection
+
+local SearchTypeDropdown = Instance.new("TextButton")
+SearchTypeDropdown.Name = "SearchTypeDropdown"
+SearchTypeDropdown.Size = UDim2.new(0, 120, 0, 25)
+SearchTypeDropdown.Position = UDim2.new(0.5, 80, 0, 60)
+SearchTypeDropdown.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SearchTypeDropdown.BorderSizePixel = 0
+SearchTypeDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchTypeDropdown.TextSize = 14
+SearchTypeDropdown.Font = Enum.Font.SourceSans
+SearchTypeDropdown.Text = "Contains"
+SearchTypeDropdown.ZIndex = 1000
+SearchTypeDropdown.Parent = SearchSection
+
+-- Search button
+local SearchButton = Instance.new("TextButton")
+SearchButton.Name = "SearchButton"
+SearchButton.Size = UDim2.new(0, 100, 0, 30)
+SearchButton.Position = UDim2.new(1, -110, 0, 60)
+SearchButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+SearchButton.BorderSizePixel = 0
+SearchButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchButton.TextSize = 16
+SearchButton.Font = Enum.Font.SourceSansBold
+SearchButton.Text = "Search"
+SearchButton.ZIndex = 1000
+SearchButton.Parent = SearchSection
+
+-- Results section
+local ResultsSection = Instance.new("Frame")
+ResultsSection.Name = "ResultsSection"
+ResultsSection.Size = UDim2.new(1, -20, 1, -150)
+ResultsSection.Position = UDim2.new(0, 10, 0, 145)
+ResultsSection.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ResultsSection.BorderSizePixel = 0
+ResultsSection.ZIndex = 1000
+ResultsSection.Parent = MainFrame
+
+local ResultsHeader = Instance.new("Frame")
+ResultsHeader.Name = "ResultsHeader"
+ResultsHeader.Size = UDim2.new(1, 0, 0, 30)
+ResultsHeader.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ResultsHeader.BorderSizePixel = 0
+ResultsHeader.ZIndex = 1000
+ResultsHeader.Parent = ResultsSection
+
+-- Auto-Update Toggle
+local AutoUpdateToggle = Instance.new("TextButton")
+AutoUpdateToggle.Name = "AutoUpdateToggle"
+AutoUpdateToggle.Size = UDim2.new(0, 100, 0, 25)
+AutoUpdateToggle.Position = UDim2.new(0.5, -50, 0.5, -12.5)
+AutoUpdateToggle.BackgroundColor3 = Color3.fromRGB(70, 130, 70)
+AutoUpdateToggle.BorderSizePixel = 0
+AutoUpdateToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoUpdateToggle.TextSize = 13
+AutoUpdateToggle.Font = Enum.Font.SourceSansBold
+AutoUpdateToggle.Text = "Auto Update: ON"
+AutoUpdateToggle.ZIndex = 1000
+AutoUpdateToggle.Parent = ResultsHeader
+
+local ResultsLabel = Instance.new("TextLabel")
+ResultsLabel.Name = "ResultsLabel"
+ResultsLabel.Size = UDim2.new(0.3, 0, 1, 0)
+ResultsLabel.Position = UDim2.new(0, 5, 0, 0)
+ResultsLabel.BackgroundTransparency = 1
+ResultsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+ResultsLabel.TextSize = 14
+ResultsLabel.Font = Enum.Font.SourceSansBold
+ResultsLabel.Text = "Results: (0 found)"
+ResultsLabel.TextXAlignment = Enum.TextXAlignment.Left
+ResultsLabel.ZIndex = 1000
+ResultsLabel.Parent = ResultsHeader
+
+-- Change All Button
+local ChangeAllButton = Instance.new("TextButton")
+ChangeAllButton.Name = "ChangeAllButton"
+ChangeAllButton.Size = UDim2.new(0, 100, 0, 25)
+ChangeAllButton.Position = UDim2.new(1, -105, 0.5, -12.5)
+ChangeAllButton.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
+ChangeAllButton.BorderSizePixel = 0
+ChangeAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChangeAllButton.TextSize = 13
+ChangeAllButton.Font = Enum.Font.SourceSansBold
+ChangeAllButton.Text = "Change All"
+ChangeAllButton.ZIndex = 1000
+ChangeAllButton.Parent = ResultsHeader
+
+-- Results column headers (for sorting)
+local ColumnHeadersFrame = Instance.new("Frame")
+ColumnHeadersFrame.Name = "ColumnHeadersFrame"
+ColumnHeadersFrame.Size = UDim2.new(1, -10, 0, 25)
+ColumnHeadersFrame.Position = UDim2.new(0, 5, 0, 30)
+ColumnHeadersFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+ColumnHeadersFrame.BorderSizePixel = 0
+ColumnHeadersFrame.ZIndex = 1000
+ColumnHeadersFrame.Parent = ResultsSection
+
+-- Column Headers for sorting
+local IndexHeader = Instance.new("TextButton")
+IndexHeader.Name = "IndexHeader"
+IndexHeader.Size = UDim2.new(0, 30, 1, 0)
+IndexHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+IndexHeader.BorderSizePixel = 0
+IndexHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+IndexHeader.TextSize = 12
+IndexHeader.Font = Enum.Font.SourceSansBold
+IndexHeader.Text = "#"
+IndexHeader.ZIndex = 1000
+IndexHeader.Parent = ColumnHeadersFrame
+
+local KeyHeader = Instance.new("TextButton")
+KeyHeader.Name = "KeyHeader"
+KeyHeader.Size = UDim2.new(0.3, 0, 1, 0)
+KeyHeader.Position = UDim2.new(0, 30, 0, 0)
+KeyHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+KeyHeader.BorderSizePixel = 0
+KeyHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+KeyHeader.TextSize = 12
+KeyHeader.Font = Enum.Font.SourceSansBold
+KeyHeader.Text = "Key ↓"
+KeyHeader.TextXAlignment = Enum.TextXAlignment.Left
+KeyHeader.ZIndex = 1000
+KeyHeader.Parent = ColumnHeadersFrame
+
+local ValueHeader = Instance.new("TextButton")
+ValueHeader.Name = "ValueHeader"
+ValueHeader.Size = UDim2.new(0.4, 0, 1, 0)
+ValueHeader.Position = UDim2.new(0.3, 30, 0, 0)
+ValueHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+ValueHeader.BorderSizePixel = 0
+ValueHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+ValueHeader.TextSize = 12
+ValueHeader.Font = Enum.Font.SourceSansBold
+ValueHeader.Text = "Value"
+ValueHeader.TextXAlignment = Enum.TextXAlignment.Left
+ValueHeader.ZIndex = 1000
+ValueHeader.Parent = ColumnHeadersFrame
+
+local TypeHeader = Instance.new("TextButton")
+TypeHeader.Name = "TypeHeader"
+TypeHeader.Size = UDim2.new(0.15, 0, 1, 0)
+TypeHeader.Position = UDim2.new(0.7, 30, 0, 0)
+TypeHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+TypeHeader.BorderSizePixel = 0
+TypeHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+TypeHeader.TextSize = 12
+TypeHeader.Font = Enum.Font.SourceSansBold
+TypeHeader.Text = "Type"
+TypeHeader.TextXAlignment = Enum.TextXAlignment.Left
+TypeHeader.ZIndex = 1000
+TypeHeader.Parent = ColumnHeadersFrame
+
+local UpdatedHeader = Instance.new("TextButton")
+UpdatedHeader.Name = "UpdatedHeader"
+UpdatedHeader.Size = UDim2.new(0.15, -30, 1, 0)
+UpdatedHeader.Position = UDim2.new(0.85, 30, 0, 0)
+UpdatedHeader.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+UpdatedHeader.BorderSizePixel = 0
+UpdatedHeader.TextColor3 = Color3.fromRGB(200, 200, 200)
+UpdatedHeader.TextSize = 12
+UpdatedHeader.Font = Enum.Font.SourceSansBold
+UpdatedHeader.Text = "Updated"
+UpdatedHeader.TextXAlignment = Enum.TextXAlignment.Left
+UpdatedHeader.ZIndex = 1000
+UpdatedHeader.Parent = ColumnHeadersFrame
+
+-- Create ScrollingFrame for results
+local ResultsList = Instance.new("ScrollingFrame")
+ResultsList.Name = "ResultsList"
+ResultsList.Size = UDim2.new(1, -10, 1, -60)
+ResultsList.Position = UDim2.new(0, 5, 0, 55)
+ResultsList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ResultsList.BorderSizePixel = 0
+ResultsList.ScrollBarThickness = 6
+ResultsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+ResultsList.ZIndex = 1000
+ResultsList.Parent = ResultsSection
+
+-- Template for result entry (will be cloned for each result)
+local ResultTemplate = Instance.new("Frame")
+ResultTemplate.Name = "ResultTemplate"
+ResultTemplate.Size = UDim2.new(1, -10, 0, 30)
+ResultTemplate.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+ResultTemplate.BorderSizePixel = 0
+ResultTemplate.Visible = false
+ResultTemplate.ZIndex = 1000
+ResultTemplate.Parent = ResultsList
+
+local IndexLabel = Instance.new("TextLabel")
+IndexLabel.Name = "IndexLabel"
+IndexLabel.Size = UDim2.new(0, 30, 1, 0)
+IndexLabel.BackgroundTransparency = 1
+IndexLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+IndexLabel.TextSize = 12
+IndexLabel.Font = Enum.Font.SourceSans
+IndexLabel.Text = "1"
+IndexLabel.ZIndex = 1000
+IndexLabel.Parent = ResultTemplate
+
+local KeyLabel = Instance.new("TextLabel")
+KeyLabel.Name = "KeyLabel"
+KeyLabel.Size = UDim2.new(0.3, 0, 1, 0)
+KeyLabel.Position = UDim2.new(0, 30, 0, 0)
+KeyLabel.BackgroundTransparency = 1
+KeyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyLabel.TextSize = 12
+KeyLabel.Font = Enum.Font.SourceSans
+KeyLabel.Text = "keyName"
+KeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+KeyLabel.ZIndex = 1000
+KeyLabel.Parent = ResultTemplate
+
+-- ValueLabel is now a TextBox for direct editing
+local ValueTextBox = Instance.new("TextBox")
+ValueTextBox.Name = "ValueTextBox"
+ValueTextBox.Size = UDim2.new(0.4, -25, 0, 20) -- Reduced width to make room for lock button
+ValueTextBox.Position = UDim2.new(0.3, 30, 0.5, -10)
+ValueTextBox.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+ValueTextBox.BorderSizePixel = 0
+ValueTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+ValueTextBox.TextSize = 12
+ValueTextBox.Font = Enum.Font.SourceSans
+ValueTextBox.Text = "value"
+ValueTextBox.ClearTextOnFocus = false
+ValueTextBox.ZIndex = 1000
+ValueTextBox.Parent = ResultTemplate
+
+-- Lock button for each value
+local LockButton = Instance.new("TextButton")
+LockButton.Name = "LockButton"
+LockButton.Size = UDim2.new(0, 20, 0, 20)
+LockButton.Position = UDim2.new(0.7, 5, 0.5, -10)
+LockButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+LockButton.BorderSizePixel = 1
+LockButton.BorderColor3 = Color3.fromRGB(100, 100, 100)
+LockButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+LockButton.TextSize = 10
+LockButton.Font = Enum.Font.SourceSansBold
+LockButton.Text = "🔓"
+LockButton.ZIndex = 1000
+LockButton.Parent = ResultTemplate
+
+local TypeLabel = Instance.new("TextLabel")
+TypeLabel.Name = "TypeLabel"
+TypeLabel.Size = UDim2.new(0.15, 0, 1, 0)
+TypeLabel.Position = UDim2.new(0.7, 30, 0, 0)
+TypeLabel.BackgroundTransparency = 1
+TypeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+TypeLabel.TextSize = 12
+TypeLabel.Font = Enum.Font.SourceSans
+TypeLabel.Text = "string"
+TypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+TypeLabel.ZIndex = 1000
+TypeLabel.Parent = ResultTemplate
+
+-- Last updated indicator
+local UpdatedLabel = Instance.new("TextLabel")
+UpdatedLabel.Name = "UpdatedLabel"
+UpdatedLabel.Size = UDim2.new(0.15, -30, 1, 0)
+UpdatedLabel.Position = UDim2.new(0.85, 30, 0, 0)
+UpdatedLabel.BackgroundTransparency = 1
+UpdatedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+UpdatedLabel.TextSize = 11
+UpdatedLabel.Font = Enum.Font.SourceSans
+UpdatedLabel.Text = "Just now"
+UpdatedLabel.TextXAlignment = Enum.TextXAlignment.Left
+UpdatedLabel.ZIndex = 1000
+UpdatedLabel.Parent = ResultTemplate
+
+-- Change All UI (initially hidden)
+local ChangeAllUI = Instance.new("Frame")
+ChangeAllUI.Name = "ChangeAllUI"
+ChangeAllUI.Size = UDim2.new(0, 300, 0, 120)
+ChangeAllUI.Position = UDim2.new(0.5, -150, 0.5, -60)
+ChangeAllUI.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ChangeAllUI.BorderSizePixel = 2
+ChangeAllUI.BorderColor3 = Color3.fromRGB(180, 70, 70)
+ChangeAllUI.Visible = false
+ChangeAllUI.ZIndex = 1500
+ChangeAllUI.Parent = GCExplorer
+
+local ChangeAllTitle = Instance.new("TextLabel")
+ChangeAllTitle.Name = "ChangeAllTitle"
+ChangeAllTitle.Size = UDim2.new(1, 0, 0, 30)
+ChangeAllTitle.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ChangeAllTitle.BorderSizePixel = 0
+ChangeAllTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChangeAllTitle.TextSize = 16
+ChangeAllTitle.Font = Enum.Font.SourceSansBold
+ChangeAllTitle.Text = "Change All Values"
+ChangeAllTitle.ZIndex = 1500
+ChangeAllTitle.Parent = ChangeAllUI
+
+local NewValueLabel = Instance.new("TextLabel")
+NewValueLabel.Name = "NewValueLabel"
+NewValueLabel.Size = UDim2.new(1, -20, 0, 20)
+NewValueLabel.Position = UDim2.new(0, 10, 0, 40)
+NewValueLabel.BackgroundTransparency = 1
+NewValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+NewValueLabel.TextSize = 14
+NewValueLabel.Font = Enum.Font.SourceSans
+NewValueLabel.Text = "New Value for All:"
+NewValueLabel.TextXAlignment = Enum.TextXAlignment.Left
+NewValueLabel.ZIndex = 1500
+NewValueLabel.Parent = ChangeAllUI
+
+local NewValueInput = Instance.new("TextBox")
+NewValueInput.Name = "NewValueInput"
+NewValueInput.Size = UDim2.new(1, -20, 0, 25)
+NewValueInput.Position = UDim2.new(0, 10, 0, 60)
+NewValueInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+NewValueInput.BorderSizePixel = 0
+NewValueInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+NewValueInput.TextSize = 14
+NewValueInput.Font = Enum.Font.SourceSans
+NewValueInput.Text = "999" -- Default to 999 as requested
+NewValueInput.ClearTextOnFocus = false
+NewValueInput.ZIndex = 1500
+NewValueInput.Parent = ChangeAllUI
+
+local ApplyAllButton = Instance.new("TextButton")
+ApplyAllButton.Name = "ApplyAllButton"
+ApplyAllButton.Size = UDim2.new(0, 100, 0, 25)
+ApplyAllButton.Position = UDim2.new(0.25, -50, 1, -35)
+ApplyAllButton.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
+ApplyAllButton.BorderSizePixel = 0
+ApplyAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ApplyAllButton.TextSize = 14
+ApplyAllButton.Font = Enum.Font.SourceSansBold
+ApplyAllButton.Text = "Apply All"
+ApplyAllButton.ZIndex = 1500
+ApplyAllButton.Parent = ChangeAllUI
+
+local CancelAllButton = Instance.new("TextButton")
+CancelAllButton.Name = "CancelAllButton"
+CancelAllButton.Size = UDim2.new(0, 100, 0, 25)
+CancelAllButton.Position = UDim2.new(0.75, -50, 1, -35)
+CancelAllButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+CancelAllButton.BorderSizePixel = 0
+CancelAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CancelAllButton.TextSize = 14
+CancelAllButton.Font = Enum.Font.SourceSansBold
+CancelAllButton.Text = "Cancel"
+CancelAllButton.ZIndex = 1500
+CancelAllButton.Parent = ChangeAllUI
+
+-- Type dropdown contents
+local TypeDropdownFrame = Instance.new("Frame")
+TypeDropdownFrame.Name = "TypeDropdownFrame"
+TypeDropdownFrame.Size = UDim2.new(0, 120, 0, 120)
+TypeDropdownFrame.Position = UDim2.new(0, 0, 1, 0)
+TypeDropdownFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+TypeDropdownFrame.BorderSizePixel = 0
+TypeDropdownFrame.Visible = false
+TypeDropdownFrame.ZIndex = 1100
+TypeDropdownFrame.Parent = TypeDropdown
+
+local typeOptions = {"All Types", "string", "number", "boolean", "table"}
+for i, option in ipairs(typeOptions) do
+    local OptionButton = Instance.new("TextButton")
+    OptionButton.Name = option
+    OptionButton.Size = UDim2.new(1, 0, 0, 24)
+    OptionButton.Position = UDim2.new(0, 0, 0, (i-1)*24)
+    OptionButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    OptionButton.BorderSizePixel = 0
+    OptionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    OptionButton.TextSize = 14
+    OptionButton.Font = Enum.Font.SourceSans
+    OptionButton.Text = option
+    OptionButton.ZIndex = 1100
+    OptionButton.Parent = TypeDropdownFrame
+end
+
+-- Search type dropdown contents
+local SearchTypeDropdownFrame = Instance.new("Frame")
+SearchTypeDropdownFrame.Name = "SearchTypeDropdownFrame"
+SearchTypeDropdownFrame.Size = UDim2.new(0, 120, 0, 144)
+SearchTypeDropdownFrame.Position = UDim2.new(0, 0, 1, 0)
+SearchTypeDropdownFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SearchTypeDropdownFrame.BorderSizePixel = 0
+SearchTypeDropdownFrame.Visible = false
+SearchTypeDropdownFrame.ZIndex = 1100
+SearchTypeDropdownFrame.Parent = SearchTypeDropdown
+
+local searchTypeOptions = {"Contains", "Exact Match", "Starts With", "Ends With", "Greater Than", "Less Than"}
+for i, option in ipairs(searchTypeOptions) do
+    local OptionButton = Instance.new("TextButton")
+    OptionButton.Name = option
+    OptionButton.Size = UDim2.new(1, 0, 0, 24)
+    OptionButton.Position = UDim2.new(0, 0, 0, (i-1)*24)
+    OptionButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    OptionButton.BorderSizePixel = 0
+    OptionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    OptionButton.TextSize = 14
+    OptionButton.Font = Enum.Font.SourceSans
+    OptionButton.Text = option
+    OptionButton.ZIndex = 1100
+    OptionButton.Parent = SearchTypeDropdownFrame
+end
+
+-- Status bar
+local StatusBar = Instance.new("Frame")
+StatusBar.Name = "StatusBar"
+StatusBar.Size = UDim2.new(1, 0, 0, 20)
+StatusBar.Position = UDim2.new(0, 0, 1, -20)
+StatusBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+StatusBar.BorderSizePixel = 0
+StatusBar.ZIndex = 1000
+StatusBar.Parent = MainFrame
+
+local StatusText = Instance.new("TextLabel")
+StatusText.Name = "StatusText"
+StatusText.Size = UDim2.new(1, -10, 1, 0)
+StatusText.Position = UDim2.new(0, 5, 0, 0)
+StatusText.BackgroundTransparency = 1
+StatusText.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusText.TextSize = 12
+StatusText.Font = Enum.Font.SourceSans
+StatusText.Text = "Ready"
+StatusText.TextXAlignment = Enum.TextXAlignment.Left
+StatusText.ZIndex = 1000
+StatusText.Parent = StatusBar
+
+-- Minimized mode
+local MinimizedFrame = Instance.new("Frame")
+MinimizedFrame.Name = "MinimizedFrame"
+MinimizedFrame.Size = UDim2.new(0, 200, 0, 30)
+MinimizedFrame.Position = UDim2.new(0, 10, 0, 10)
+MinimizedFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MinimizedFrame.BorderSizePixel = 0
+MinimizedFrame.Visible = false
+MinimizedFrame.ZIndex = 1000
+MinimizedFrame.Parent = GCExplorer
+
+local MinimizedTitle = Instance.new("TextLabel")
+MinimizedTitle.Name = "MinimizedTitle"
+MinimizedTitle.Size = UDim2.new(1, -40, 1, 0)
+MinimizedTitle.Position = UDim2.new(0, 10, 0, 0)
+MinimizedTitle.BackgroundTransparency = 1
+MinimizedTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizedTitle.TextSize = 14
+MinimizedTitle.Font = Enum.Font.SourceSansBold
+MinimizedTitle.Text = "GC Explorer v1.3"
+MinimizedTitle.TextXAlignment = Enum.TextXAlignment.Left
+MinimizedTitle.ZIndex = 1000
+MinimizedTitle.Parent = MinimizedFrame
+
+local MaximizeButton = Instance.new("TextButton")
+MaximizeButton.Name = "MaximizeButton"
+MaximizeButton.Size = UDim2.new(0, 30, 0, 30)
+MaximizeButton.Position = UDim2.new(1, -30, 0, 0)
+MaximizeButton.BackgroundTransparency = 1
+MaximizeButton.TextColor3 = Color3.fromRGB(100, 255, 100)
+MaximizeButton.TextSize = 20
+MaximizeButton.Font = Enum.Font.SourceSansBold
+MaximizeButton.Text = "+"
+MaximizeButton.ZIndex = 1000
+MaximizeButton.Parent = MinimizedFrame
+
+-- Color constants
+local NORMAL_COLOR = Color3.fromRGB(70, 70, 70) -- Normal box color
+local LOCKED_COLOR = Color3.fromRGB(120, 50, 50) -- Locked box color
+local HIGHLIGHT_COLOR = Color3.fromRGB(100, 180, 100) -- Highlight color for changes
+
+-- Variables to store state
+local selectedType = "All Types"
+local selectedSearchType = "Contains"
+local searchResults = {}
+local resultIdCounter = 0
+local lockStates = {}
+local isMinimized = false
+local isVisible = true
+local isAutoUpdateEnabled = true
+local currentSortColumn = "Key"
+local currentSortDirection = "Descending"
+local updateConnection = nil
+local lastUpdateTime = 0
+-- Add this new variable to control update frequency
+local updateInterval = 0.1  -- Set to 0.1 for 10 updates per second (was effectively 1.0 before)
+local highlightDuration = 1.5
+local lockedValues = {}  -- Store the actual locked values
+
+-- Functions
+local function showStatus(message)
+    StatusText.Text = message
+end
+
+local function toggleTypeDropdown()
+    TypeDropdownFrame.Visible = not TypeDropdownFrame.Visible
+    SearchTypeDropdownFrame.Visible = false
+end
+
+local function toggleSearchTypeDropdown()
+    SearchTypeDropdownFrame.Visible = not SearchTypeDropdownFrame.Visible
+    TypeDropdownFrame.Visible = false
+end
+
+local function selectType(typeName)
+    selectedType = typeName
+    TypeDropdown.Text = typeName
+    TypeDropdownFrame.Visible = false
+end
+
+local function selectSearchType(searchTypeName)
+    selectedSearchType = searchTypeName
+    SearchTypeDropdown.Text = searchTypeName
+    SearchTypeDropdownFrame.Visible = false
+end
+
+local function getTimeAgo(timestamp)
+    if not timestamp then return "Never" end
+    
+    local seconds = os.time() - timestamp
+    
+    if seconds < 5 then
+        return "Just now"
+    elseif seconds < 60 then
+        return seconds .. "s ago"
+    elseif seconds < 3600 then
+        return math.floor(seconds / 60) .. "m ago"
+    elseif seconds < 86400 then
+        return math.floor(seconds / 3600) .. "h ago"
+    else
+        return math.floor(seconds / 86400) .. "d ago"
+    end
+end
+
+local function clearResults()
+    for _, child in pairs(ResultsList:GetChildren()) do
+        if child:IsA("Frame") and child.Name ~= "ResultTemplate" then
+            child:Destroy()
+        end
+    end
+    ResultsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+    searchResults = {}
+    lockStates = {}
+    resultIdCounter = 0
+end
+
+local function updateResultsLabel()
+    ResultsLabel.Text = "Results: (" .. #searchResults .. " found)"
+end
+
+local function valueToString(value)
+    local valueType = type(value)
+    if valueType == "string" then
+        if #value > 30 then
+            return string.sub(value, 1, 27) .. "..."
+        else
+            return value
+        end
+    elseif valueType == "number" or valueType == "boolean" then
+        return tostring(value)
+    elseif valueType == "table" then
+        return "[Table]"
+    elseif valueType == "function" then
+        return "[Function]"
+    elseif valueType == "userdata" then
+        return "[UserData]"
+    else
+        return "[" .. valueType .. "]"
+    end
+end
+
+local function convertValueToType(valueText, targetType)
+    if targetType == "number" then
+        return tonumber(valueText)
+    elseif targetType == "boolean" then
+        local lower = valueText:lower()
+        if lower == "true" then
+            return true
+        elseif lower == "false" then
+            return false
+        else
+            return nil
+        end
+    else
+        -- For strings or other types, return as is
+        return valueText
+    end
+end
+
+local function highlightValueChange(valueTextBox)
+    if not valueTextBox then return end
+    
+    local originalColor = valueTextBox.BackgroundColor3
+    local originalTextColor = valueTextBox.TextColor3
+    
+    -- Highlight
+    valueTextBox.BackgroundColor3 = HIGHLIGHT_COLOR
+    valueTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
+    -- Update "Updated" label to "Just now" if possible
+    local resultEntry = valueTextBox.Parent
+    if resultEntry and resultEntry:FindFirstChild("UpdatedLabel") then
+        resultEntry.UpdatedLabel.Text = "Just now"
+    end
+    
+    -- Reset after a delay, but keep locked color if locked
+    delay(highlightDuration, function()
+        if valueTextBox then
+            local resultName = valueTextBox.Parent.Name
+            local resultId = tonumber(resultName:match("Result_(%d+)"))
+            
+            if resultId and lockStates[resultId] then
+                valueTextBox.BackgroundColor3 = LOCKED_COLOR
+            else
+                valueTextBox.BackgroundColor3 = originalColor
+            end
+            
+            valueTextBox.TextColor3 = originalTextColor
+        end
+    end)
+end
+
+local function setValueFromTextBox(resultId, textBox)
+    -- Find the result by ID
+    local result = nil
+    for _, r in ipairs(searchResults) do
+        if r.id == resultId then
+            result = r
+            break
+        end
+    end
+    
+    if not result then return false end
+    
+    -- If locked, don't allow changes
+    if lockStates[resultId] then
+        showStatus("Cannot change locked value: " .. tostring(result.key))
+        textBox.Text = valueToString(lockedValues[resultId] or result.value)
+        return false
+    end
+    
+    local newValueText = textBox.Text
+    local valueType = type(result.value)
+    
+    -- Try to convert to appropriate type
+    local newValue = convertValueToType(newValueText, valueType)
+    
+    if newValue == nil and valueType ~= "string" then
+        showStatus("Error: Could not convert '" .. newValueText .. "' to " .. valueType)
+        -- Reset text box to current value
+        textBox.Text = valueToString(result.value)
+        return false
+    end
+    
+    -- Set the value
+    local success, err = pcall(function()
+        result.table[result.key] = newValue
+        result.value = newValue
+        result.lastUpdated = os.time()
+    end)
+    
+    if success then
+        showStatus("Value changed successfully: " .. tostring(result.key))
+        highlightValueChange(textBox)
+        return true
+    else
+        showStatus("Error: " .. tostring(err))
+        -- Reset text box to current value
+        textBox.Text = valueToString(result.value)
+        return false
+    end
+end
+
+local function updateLockDisplay(resultId)
+    local resultEntry = ResultsList:FindFirstChild("Result_" .. resultId)
+    if not resultEntry then return end
+    
+    local isLocked = lockStates[resultId]
+    
+    -- Update lock button
+    local lockButton = resultEntry:FindFirstChild("LockButton")
+    if lockButton then
+        if isLocked then
+            lockButton.Text = "🔒"
+            lockButton.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
+            lockButton.BorderColor3 = Color3.fromRGB(200, 100, 100)
+            lockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        else
+            lockButton.Text = "🔓"
+            lockButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            lockButton.BorderColor3 = Color3.fromRGB(100, 100, 100)
+            lockButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end
+    
+    -- Update value text box
+    local valueTextBox = resultEntry:FindFirstChild("ValueTextBox")
+    if valueTextBox then
+        if isLocked then
+            valueTextBox.BackgroundColor3 = LOCKED_COLOR
+        else
+            valueTextBox.BackgroundColor3 = NORMAL_COLOR
+        end
+    end
+end
+
+local function toggleLockValue(resultId)
+    -- Toggle locked state
+    local isNowLocked = not lockStates[resultId]
+    lockStates[resultId] = isNowLocked
+    
+    -- Find the result
+    local result = nil
+    for _, r in ipairs(searchResults) do
+        if r.id == resultId then
+            result = r
+            break
+        end
+    end
+    
+    if result then
+        -- If we're locking, store the current value
+        if isNowLocked then
+            lockedValues[resultId] = result.value
+        else
+            lockedValues[resultId] = nil
+        end
+        
+        -- Update the lock display
+        updateLockDisplay(resultId)
+        
+        -- Show status message
+        local actionText = isNowLocked and "Locked" or "Unlocked"
+        showStatus(actionText .. " value: " .. tostring(result.key))
+    end
+end
+
+local function showChangeAllUI()
+    ChangeAllUI.Visible = true
+    NewValueInput.Text = "999"
+    NewValueInput:CaptureFocus()
+end
+
+local function applyChangeAll()
+    local newValueText = NewValueInput.Text
+    local successCount = 0
+    local failCount = 0
+    local lockedCount = 0
+    local currentTime = os.time()
+    
+    for _, result in ipairs(searchResults) do
+        -- Skip locked values
+        if lockStates[result.id] then
+            lockedCount = lockedCount + 1
+            continue
+        end
+        
+        local valueType = type(result.value)
+        local newValue = convertValueToType(newValueText, valueType)
+        
+        if newValue ~= nil or valueType == "string" then
+            local success = pcall(function()
+                result.table[result.key] = newValue
+                result.value = newValue
+                result.lastUpdated = currentTime
+                
+                -- Update the text box in the UI
+                local resultEntry = ResultsList:FindFirstChild("Result_" .. result.id)
+                if resultEntry and resultEntry:FindFirstChild("ValueTextBox") then
+                    resultEntry.ValueTextBox.Text = valueToString(newValue)
+                    highlightValueChange(resultEntry.ValueTextBox)
+                end
+            end)
+            
+            if success then
+                successCount = successCount + 1
+            else
+                failCount = failCount + 1
+            end
+        else
+            failCount = failCount + 1
+        end
+    end
+    
+    showStatus("Changed " .. successCount .. " values. Failed: " .. failCount .. ". Locked: " .. lockedCount)
+    ChangeAllUI.Visible = false
+end
+
+local function matchesSearchCriteria(key, value, searchValue, searchType)
+    -- If key is not a string, convert it to string for searching
+    local keyStr = tostring(key)
+    
+    -- For string values
+    if type(value) == "string" then
+        if searchType == "Contains" then
+            return string.find(string.lower(keyStr), string.lower(searchValue)) ~= nil
+        elseif searchType == "Exact Match" then
+            return string.lower(keyStr) == string.lower(searchValue)
+        elseif searchType == "Starts With" then
+            return string.find(string.lower(keyStr), "^" .. string.lower(searchValue)) ~= nil
+        elseif searchType == "Ends With" then
+            return string.find(string.lower(keyStr), string.lower(searchValue) .. "$") ~= nil
+        end
+    -- For number values
+    elseif type(value) == "number" and tonumber(searchValue) then
+        local numSearchValue = tonumber(searchValue)
+        if searchType == "Greater Than" then
+            return value > numSearchValue
+        elseif searchType == "Less Than" then
+            return value < numSearchValue
+        elseif searchType == "Exact Match" then
+            return value == numSearchValue
+        elseif searchType == "Contains" then
+            -- Check if number contains the digits
+            return string.find(tostring(value), searchValue) ~= nil
+        end
+    -- For boolean values
+    elseif type(value) == "boolean" and (searchValue == "true" or searchValue == "false") then
+        local boolSearchValue = searchValue == "true"
+        if searchType == "Exact Match" or searchType == "Contains" then
+            return value == boolSearchValue
+        end
+    end
+    
+    -- Default to checking the key if other checks didn't match
+    if searchType == "Contains" then
+        return string.find(string.lower(keyStr), string.lower(searchValue)) ~= nil
+    elseif searchType == "Exact Match" then
+        return string.lower(keyStr) == string.lower(searchValue)
+    elseif searchType == "Starts With" then
+        return string.find(string.lower(keyStr), "^" .. string.lower(searchValue)) ~= nil
+    elseif searchType == "Ends With" then
+        return string.find(string.lower(keyStr), string.lower(searchValue) .. "$") ~= nil
+    end
+    
+    return false
+end
+
+-- Compare function for sorting
+local function compareValues(a, b)
+    -- Default return for when comparison isn't possible
+    local defaultCompare = currentSortDirection == "Ascending"
+    
+    if currentSortColumn == "Key" then
+        local aKey = tostring(a.key)
+        local bKey = tostring(b.key)
+        
+        if currentSortDirection == "Ascending" then
+            return string.lower(aKey) < string.lower(bKey)
+        else
+            return string.lower(aKey) > string.lower(bKey)
+        end
+    elseif currentSortColumn == "Value" then
+        local aType = type(a.value)
+        local bType = type(b.value)
+        
+        if aType == bType then
+            if aType == "number" or aType == "boolean" then
+                if currentSortDirection == "Ascending" then
+                    return a.value < b.value
+                else
+                    return a.value > b.value
+                end
+            else
+                local aStr = valueToString(a.value)
+                local bStr = valueToString(b.value)
+                if currentSortDirection == "Ascending" then
+                    return aStr < bStr
+                else
+                    return aStr > bStr
+                end
+            end
+        else
+            -- Different types, sort by type name
+            if currentSortDirection == "Ascending" then
+                return aType < bType
+            else
+                return aType > bType
+            end
+        end
+    elseif currentSortColumn == "Type" then
+        if currentSortDirection == "Ascending" then
+            return type(a.value) < type(b.value)
+        else
+            return type(a.value) > type(b.value)
+        end
+    elseif currentSortColumn == "Updated" then
+        local aTime = a.lastUpdated or 0
+        local bTime = b.lastUpdated or 0
+        if currentSortDirection == "Ascending" then
+            return aTime < bTime
+        else
+            return aTime > bTime
+        end
+    else -- Index
+        if currentSortDirection == "Ascending" then
+            return a.index < b.index
+        else
+            return a.index > b.index
+        end
+    end
+    
+    return defaultCompare
+end
+
+-- Update header text to show sorting state
+local function updateSortHeaders()
+    local headers = {
+        {header = IndexHeader, name = "Index"},
+        {header = KeyHeader, name = "Key"},
+        {header = ValueHeader, name = "Value"},
+        {header = TypeHeader, name = "Type"},
+        {header = UpdatedHeader, name = "Updated"}
+    }
+    
+    for _, item in ipairs(headers) do
+        if item.name == currentSortColumn then
+            item.header.Text = item.name .. (currentSortDirection == "Ascending" and " ↑" or " ↓")
+            item.header.TextColor3 = Color3.fromRGB(255, 255, 255) -- Highlight active sort
+        else
+            item.header.Text = item.name
+            item.header.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end
+end
+
+-- Function to sort and reposition results
+local function sortResults()
+    -- Sort the results array
+    table.sort(searchResults, compareValues)
+    
+    -- Update the UI to reflect the new order
+    for i, result in ipairs(searchResults) do
+        result.index = i
+        local resultEntry = ResultsList:FindFirstChild("Result_" .. result.id)
+        if resultEntry then
+            resultEntry.IndexLabel.Text = tostring(i)
+            resultEntry.Position = UDim2.new(0, 5, 0, (i - 1) * 35)
+        end
+    end
+    
+    -- Update the sort indicators in the headers
+    updateSortHeaders()
+end
+
+-- Function to toggle the sort direction or column
+local function toggleSort(column)
+    if currentSortColumn == column then
+        -- Toggle direction if same column
+        currentSortDirection = currentSortDirection == "Ascending" and "Descending" or "Ascending"
+    else
+        -- Change column and set default direction
+        currentSortColumn = column
+        currentSortDirection = "Ascending"
+    end
+    
+    sortResults()
+    showStatus("Sorted by " .. column .. " (" .. currentSortDirection .. ")")
+end
+
+-- Update all displayed values from their source tables
+local function updateDisplayedValues()
+    local changedCount = 0
+    local lockedEnforcedCount = 0
+    local timeNow = os.time()
+    
+    for _, result in ipairs(searchResults) do
+        -- Handle locked values first - enforce the locked value
+        if lockStates[result.id] then
+            local lockedValue = lockedValues[result.id]
+            
+            -- If the current value doesn't match the locked value, force it back
+            if result.table[result.key] ~= lockedValue then
+                -- Restore the locked value
+                pcall(function()
+                    result.table[result.key] = lockedValue
+                    lockedEnforcedCount = lockedEnforcedCount + 1
+                end)
+            end
+            
+            -- Skip further processing for locked values
+            continue
+        end
+        
+        -- For unlocked values, check for changes (same as before)
+        local currentValue = result.table[result.key]
+        
+        -- Check if the value has changed
+        if currentValue ~= result.value then
+            result.value = currentValue
+            result.lastUpdated = timeNow
+            changedCount = changedCount + 1
+            
+            -- Update the UI if it exists
+            local resultEntry = ResultsList:FindFirstChild("Result_" .. result.id)
+            if resultEntry and resultEntry:FindFirstChild("ValueTextBox") then
+                resultEntry.ValueTextBox.Text = valueToString(currentValue)
+                highlightValueChange(resultEntry.ValueTextBox)
+            end
+        end
+        
+        -- Update time ago labels
+        local resultEntry = ResultsList:FindFirstChild("Result_" .. result.id)
+        if resultEntry and resultEntry:FindFirstChild("UpdatedLabel") and result.lastUpdated then
+            resultEntry.UpdatedLabel.Text = getTimeAgo(result.lastUpdated)
+        end
+    end
+    
+    if changedCount > 0 then
+        showStatus(changedCount .. " values updated automatically" .. 
+                  (lockedEnforcedCount > 0 and ", " .. lockedEnforcedCount .. " locked values enforced" or ""))
+        
+        -- If sorting by "Updated" column, resort
+        if currentSortColumn == "Updated" then
+            sortResults()
+        end
+    elseif lockedEnforcedCount > 0 then
+        showStatus(lockedEnforcedCount .. " locked values enforced")
+    end
+    
+    return changedCount
+end
+
+
+-- Toggle auto update feature
+local function toggleAutoUpdate()
+    isAutoUpdateEnabled = not isAutoUpdateEnabled
+    
+    if isAutoUpdateEnabled then
+        AutoUpdateToggle.Text = "Auto Update: ON"
+        AutoUpdateToggle.BackgroundColor3 = Color3.fromRGB(70, 130, 70)
+        
+        -- Setup the update connection if it doesn't exist
+        if not updateConnection and #searchResults > 0 then
+            lastUpdateTime = tick() -- Use tick() instead of os.time() for higher precision
+            updateConnection = RunService.Heartbeat:Connect(function()
+                -- Update based on the updateInterval (now in seconds with decimal precision)
+                if tick() - lastUpdateTime >= updateInterval then
+                    updateDisplayedValues()
+                    lastUpdateTime = tick()
+                end
+            end)
+        end
+    else
+        AutoUpdateToggle.Text = "Auto Update: OFF"
+        AutoUpdateToggle.BackgroundColor3 = Color3.fromRGB(130, 70, 70)
+        
+        -- Disconnect the update
+        if updateConnection then
+            updateConnection:Disconnect()
+            updateConnection = nil
+        end
+    end
+end
+
+-- Create a result entry in the UI
+local function createResultEntry(result, index)
+    local newResult = ResultTemplate:Clone()
+    newResult.Name = "Result_" .. result.id
+    newResult.IndexLabel.Text = tostring(index)
+    newResult.KeyLabel.Text = tostring(result.key)
+    newResult.ValueTextBox.Text = valueToString(result.value)
+    newResult.TypeLabel.Text = type(result.value)
+    newResult.UpdatedLabel.Text = "Just now"
+    newResult.Visible = true
+    newResult.Position = UDim2.new(0, 5, 0, (index - 1) * 35)
+    newResult.Parent = ResultsList
+    
+    -- Store the result ID in the button itself using attributes
+    -- This ensures the event handler always has the correct ID
+    newResult.LockButton:SetAttribute("ResultId", result.id)
+    
+    -- Set up the lock button click handler
+    newResult.LockButton.MouseButton1Click:Connect(function()
+        local id = newResult.LockButton:GetAttribute("ResultId")
+        toggleLockValue(id)
+    end)
+    
+    -- Set up the value text box to update the value when it loses focus
+    newResult.ValueTextBox:SetAttribute("ResultId", result.id)
+    newResult.ValueTextBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local id = newResult.ValueTextBox:GetAttribute("ResultId")
+            setValueFromTextBox(id, newResult.ValueTextBox)
+        end
+    end)
+    
+    return newResult
+end
+
+-- Function to refresh all search results with the current search criteria
+local function searchGC()
+    clearResults()
+    showStatus("Searching...")
+    
+    local searchValue = SearchInput.Text
+    local count = 0
+    local tableCount = 0
+    local currentTime = os.time()
+    
+    -- Get all GC objects
+    local gcObjects = getgc(true)
+    
+    -- Loop through all GC objects
+    for _, obj in next, gcObjects do
+        if type(obj) == "table" then
+            tableCount = tableCount + 1
+            
+            -- Scan each table
+            for key, value in pairs(obj) do
+                local valueType = type(value)
+                
+                -- Filter by type if needed
+                if selectedType == "All Types" or valueType == selectedType then
+                    -- Check if it matches search criteria
+                    if searchValue == "" or matchesSearchCriteria(key, value, searchValue, selectedSearchType) then
+                        count = count + 1
+                        
+                        -- Create a unique ID for this result
+                        resultIdCounter = resultIdCounter + 1
+                        local resultId = resultIdCounter
+                        
+                        -- Store result
+                        local result = {
+                            id = resultId,
+                            index = count,
+                            table = obj,
+                            key = key,
+                            value = value,
+                            lastUpdated = currentTime
+                        }
+                        
+                        table.insert(searchResults, result)
+                        
+                        -- Initialize lock state (unlocked by default)
+                        lockStates[resultId] = false
+                        
+                        -- Create the UI element
+                        createResultEntry(result, count)
+                        
+                        -- Limit results to prevent UI lag
+                        if count >= 1000 then
+                            showStatus("Reached maximum results (1000). Try refining your search.")
+                            break
+                        end
+                        
+                        -- Update canvas size
+                        ResultsList.CanvasSize = UDim2.new(0, 0, 0, count * 35)
+                    end
+                end
+            end
+            
+            -- If we reached the limit, break out of outer loop too
+            if count >= 1000 then
+                break
+            end
+        end
+    end
+    
+    -- Apply the initial sort
+    sortResults()
+    
+    updateResultsLabel()
+    showStatus("Found " .. count .. " results in " .. tableCount .. " tables")
+    
+    -- Enable/disable Change All button based on results
+    ChangeAllButton.Visible = (count > 0)
+    
+    -- Set up auto-update if enabled
+    if isAutoUpdateEnabled and count > 0 and not updateConnection then
+        lastUpdateTime = tick() -- Use tick() instead of os.time()
+        updateConnection = RunService.Heartbeat:Connect(function()
+            if tick() - lastUpdateTime >= updateInterval then
+                updateDisplayedValues()
+                lastUpdateTime = tick()
+            end
+        end)
+    elseif count == 0 and updateConnection then
+        updateConnection:Disconnect()
+        updateConnection = nil
+    end
+end
+
+local function toggleMinimize()
+    isMinimized = not isMinimized
+    
+    if isMinimized then
+        MainFrame.Visible = false
+        MinimizedFrame.Visible = true
+    else
+        MainFrame.Visible = true
+        MinimizedFrame.Visible = false
+    end
+end
+
+local function toggleVisibility()
+    isVisible = not isVisible
+    
+    GCExplorer.Enabled = isVisible
+    
+    -- If toggling back to visible, also restore the correct minimized state
+    if isVisible then
+        if isMinimized then
+            MainFrame.Visible = false
+            MinimizedFrame.Visible = true
+        else
+            MainFrame.Visible = true
+            MinimizedFrame.Visible = false
+        end
+    end
+end
+
+-- Capture keyboard events
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        toggleVisibility()
+    end
+end)
+
+-- Set up button connections
+CloseButton.MouseButton1Click:Connect(function()
+    if updateConnection then
+        updateConnection:Disconnect()
+        updateConnection = nil
+    end
+    GCExplorer:Destroy()
+end)
+
+MinimizeButton.MouseButton1Click:Connect(toggleMinimize)
+MaximizeButton.MouseButton1Click:Connect(toggleMinimize)
+
+TypeDropdown.MouseButton1Click:Connect(toggleTypeDropdown)
+SearchTypeDropdown.MouseButton1Click:Connect(toggleSearchTypeDropdown)
+SearchButton.MouseButton1Click:Connect(searchGC)
+ChangeAllButton.MouseButton1Click:Connect(showChangeAllUI)
+AutoUpdateToggle.MouseButton1Click:Connect(toggleAutoUpdate)
+
+-- Set up type options connections
+for _, button in pairs(TypeDropdownFrame:GetChildren()) do
+    if button:IsA("TextButton") then
+        button.MouseButton1Click:Connect(function()
+            selectType(button.Text)
+        end)
+    end
+end
+
+-- Set up search type options connections
+for _, button in pairs(SearchTypeDropdownFrame:GetChildren()) do
+    if button:IsA("TextButton") then
+        button.MouseButton1Click:Connect(function()
+            selectSearchType(button.Text)
+        end)
+    end
+end
+
+-- Apply and cancel buttons for Change All
+ApplyAllButton.MouseButton1Click:Connect(applyChangeAll)
+CancelAllButton.MouseButton1Click:Connect(function()
+    ChangeAllUI.Visible = false
+end)
+
+-- Search input connects to search button when Enter is pressed
+SearchInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        searchGC()
+    end
+end)
+
+-- Set up sorting headers
+IndexHeader.MouseButton1Click:Connect(function() toggleSort("Index") end)
+KeyHeader.MouseButton1Click:Connect(function() toggleSort("Key") end)
+ValueHeader.MouseButton1Click:Connect(function() toggleSort("Value") end)
+TypeHeader.MouseButton1Click:Connect(function() toggleSort("Type") end)
+UpdatedHeader.MouseButton1Click:Connect(function() toggleSort("Updated") end)
+
+-- Make GUI draggable even while minimized
+MinimizedFrame.Active = true
+MinimizedFrame.Draggable = true
+
+-- Initial status
+showStatus("Ready to search. Press Right Shift to toggle visibility.")
+
+print("GC Explorer v1.3 loaded successfully - Press Right Shift to toggle visibility")

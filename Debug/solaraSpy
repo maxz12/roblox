@@ -1,0 +1,551 @@
+--// REVAMPED BY LUNA SCRIPTS
+--// Enhanced with scrolling, resend functionality, argument editing, improved UI scaling and detailed console responses
+
+--[[
+ This script creates a draggable GUI for viewing, copying, blacklisting, whitelisting, and resending remote calls.
+ Each remote invocation displays:
+   - Remote type (RemoteEvent or RemoteFunction)
+   - Full object path in the game hierarchy
+   - Its arguments, including nested tables
+ Blacklisted requests are not logged and can be later whitelisted.
+
+ New/Improved Features:
+   - Proper serialization of arguments when printing "sending request".
+   - Better scaling for UI buttons in the requests list (View, Resend, Block) so they don’t overlap.
+   - Scrollable details view for large bodies of data.
+   - "Resend Request" allows you to adjust arguments, view them, and then resend.
+   - Detailed console responses: prints if a request was sent, what arguments were sent, and if applicable, prints the response from RemoteFunction.
+]]
+
+-- Utility: Serialize a Lua table with indentation
+local function serializeTable(val, indent)
+    indent = indent or ""
+    local toprint = ""
+    if type(val) == "table" then
+        toprint = toprint .. "{\n"
+        for k, v in pairs(val) do
+            local key = tostring(k)
+            toprint = toprint .. indent .. "  [" .. key .. "] = " .. serializeTable(v, indent .. "  ") .. ",\n"
+        end
+        toprint = toprint .. indent .. "}"
+    else
+        if type(val) == "string" then
+            toprint = string.format("%q", val)
+        else
+            toprint = tostring(val)
+        end
+    end
+    return toprint
+end
+
+-- Utility: Serialize arguments array
+local function serializeArgs(args)
+    local t = {}
+    for i, v in ipairs(args) do
+        t[i] = serializeTable(v, "  ")
+    end
+    return table.concat(t, ", ")
+end
+
+--// Create the main GUI
+local RemoteSpyGui = Instance.new("ScreenGui")
+RemoteSpyGui.Name = "RemoteSpyGui"
+RemoteSpyGui.ResetOnSpawn = false
+if syn and syn.protect_gui then
+    syn.protect_gui(RemoteSpyGui)
+end
+RemoteSpyGui.Parent = game:GetService("CoreGui")
+
+--// Main container frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 700, 0, 450)
+MainFrame.Position = UDim2.new(0.5, -350, 0.5, -225)
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.BorderSizePixel = 1
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = RemoteSpyGui
+
+--// Title bar
+local TitleBar = Instance.new("TextLabel")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+TitleBar.BorderSizePixel = 0
+TitleBar.Text = "Remote Spy - Revamped by LUNA SCRIPTS"
+TitleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleBar.TextSize = 14
+TitleBar.Font = Enum.Font.SourceSans
+TitleBar.Parent = MainFrame
+
+--// Close button
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -30, 0, 0)
+CloseButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 16
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Parent = TitleBar
+CloseButton.MouseButton1Click:Connect(function()
+    RemoteSpyGui:Destroy()
+end)
+
+--// ScrollingFrame for listing all remote calls
+local RequestList = Instance.new("ScrollingFrame")
+RequestList.Name = "RequestList"
+RequestList.Size = UDim2.new(0.4, -10, 1, -40)
+RequestList.Position = UDim2.new(0, 5, 0, 35)
+RequestList.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+RequestList.BorderSizePixel = 1
+RequestList.ScrollBarThickness = 6
+RequestList.Parent = MainFrame
+
+local RequestListLayout = Instance.new("UIListLayout")
+RequestListLayout.Parent = RequestList
+RequestListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+RequestListLayout.Padding = UDim.new(0, 2)
+RequestListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    RequestList.CanvasSize = UDim2.new(0, 0, 0, RequestListLayout.AbsoluteContentSize.Y + 10)
+end)
+
+--// Details frame with scrolling for large content
+local DetailsFrame = Instance.new("Frame")
+DetailsFrame.Name = "DetailsFrame"
+DetailsFrame.Size = UDim2.new(0.6, -10, 0.55, -10)
+DetailsFrame.Position = UDim2.new(0.4, 5, 0, 35)
+DetailsFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+DetailsFrame.BorderSizePixel = 1
+DetailsFrame.Parent = MainFrame
+
+local DetailsScrolling = Instance.new("ScrollingFrame")
+DetailsScrolling.Name = "DetailsScrolling"
+DetailsScrolling.Size = UDim2.new(1, -10, 1, -10)
+DetailsScrolling.Position = UDim2.new(0, 5, 0, 5)
+DetailsScrolling.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+DetailsScrolling.BorderSizePixel = 1
+DetailsScrolling.ScrollBarThickness = 6
+DetailsScrolling.Parent = DetailsFrame
+
+local DetailsBox = Instance.new("TextBox")
+DetailsBox.Name = "DetailsBox"
+DetailsBox.Size = UDim2.new(1, -6, 0, 2000)
+DetailsBox.Position = UDim2.new(0, 3, 0, 3)
+DetailsBox.BackgroundTransparency = 1
+DetailsBox.Text = ""
+DetailsBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+DetailsBox.TextXAlignment = Enum.TextXAlignment.Left
+DetailsBox.TextYAlignment = Enum.TextYAlignment.Top
+DetailsBox.ClearTextOnFocus = false
+DetailsBox.MultiLine = true
+DetailsBox.Font = Enum.Font.SourceSans
+DetailsBox.TextSize = 14
+DetailsBox.TextWrapped = false
+DetailsBox.Parent = DetailsScrolling
+DetailsBox.Changed:Connect(function(p)
+    if p == "TextBounds" or p == "Text" then
+        DetailsBox.Size = UDim2.new(1, -6, 0, DetailsBox.TextBounds.Y + 10)
+        DetailsScrolling.CanvasSize = UDim2.new(0, 0, 0, DetailsBox.TextBounds.Y + 20)
+    end
+end)
+
+--// Blacklist frame setup
+local BlacklistFrame = Instance.new("Frame")
+BlacklistFrame.Name = "BlacklistFrame"
+BlacklistFrame.Size = UDim2.new(0.6, -10, 0.45, -15)
+BlacklistFrame.Position = UDim2.new(0.4, 5, 0.55, 5)
+BlacklistFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+BlacklistFrame.BorderSizePixel = 1
+BlacklistFrame.Parent = MainFrame
+
+local BlacklistLabel = Instance.new("TextLabel")
+BlacklistLabel.Name = "BlacklistLabel"
+BlacklistLabel.Size = UDim2.new(1, 0, 0, 20)
+BlacklistLabel.Position = UDim2.new(0, 0, 0, 0)
+BlacklistLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+BlacklistLabel.Text = " Blacklisted Requests"
+BlacklistLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+BlacklistLabel.TextSize = 14
+BlacklistLabel.Font = Enum.Font.SourceSansBold
+BlacklistLabel.BorderSizePixel = 0
+BlacklistLabel.Parent = BlacklistFrame
+
+local BlacklistList = Instance.new("ScrollingFrame")
+BlacklistList.Name = "BlacklistList"
+BlacklistList.Size = UDim2.new(1, -4, 1, -24)
+BlacklistList.Position = UDim2.new(0, 2, 0, 22)
+BlacklistList.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+BlacklistList.BorderSizePixel = 1
+BlacklistList.ScrollBarThickness = 6
+BlacklistList.Parent = BlacklistFrame
+
+local BlacklistListLayout = Instance.new("UIListLayout")
+BlacklistListLayout.Parent = BlacklistList
+BlacklistListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local blacklistedPaths = {}
+local function UpdateBlacklistDisplay()
+    for _, child in ipairs(BlacklistList:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    for path, _ in pairs(blacklistedPaths) do
+        local itemFrame = Instance.new("Frame")
+        itemFrame.Size = UDim2.new(1, 0, 0, 30)
+        itemFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        itemFrame.Parent = BlacklistList
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.8, -5, 1, 0)
+        label.Position = UDim2.new(0, 5, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = path
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextSize = 14
+        label.Font = Enum.Font.SourceSans
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = itemFrame
+
+        local whitelistButton = Instance.new("TextButton")
+        whitelistButton.Size = UDim2.new(0.2, -5, 1, 0)
+        whitelistButton.Position = UDim2.new(0.8, 5, 0, 0)
+        whitelistButton.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
+        whitelistButton.Text = "Whitelist"
+        whitelistButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        whitelistButton.TextSize = 14
+        whitelistButton.Font = Enum.Font.SourceSans
+        whitelistButton.Parent = itemFrame
+        whitelistButton.MouseButton1Click:Connect(function()
+            blacklistedPaths[path] = nil
+            UpdateBlacklistDisplay()
+        end)
+    end
+    BlacklistList.CanvasSize = UDim2.new(0, 0, 0, BlacklistListLayout.AbsoluteContentSize.Y + 10)
+end
+
+--// UI for resending requests with argument editing
+local function createResendUI(remoteObj, remoteType, oldArgs)
+    local ResendFrame = Instance.new("Frame")
+    ResendFrame.Name = "ResendFrame"
+    ResendFrame.Size = UDim2.new(0, 300, 0, 400)
+    ResendFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+    ResendFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    ResendFrame.BorderSizePixel = 2
+    ResendFrame.Active = true
+    ResendFrame.Draggable = true
+    ResendFrame.Parent = RemoteSpyGui
+
+    local Title = Instance.new("TextLabel")
+    Title.Name = "Title"
+    Title.Size = UDim2.new(1, 0, 0, 30)
+    Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    Title.Text = "Resend Request"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.Font = Enum.Font.SourceSansBold
+    Title.TextSize = 14
+    Title.Parent = ResendFrame
+
+    local Close = Instance.new("TextButton")
+    Close.Name = "Close"
+    Close.Size = UDim2.new(0, 30, 0, 30)
+    Close.Position = UDim2.new(1, -30, 0, 0)
+    Close.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    Close.Text = "X"
+    Close.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Close.TextSize = 16
+    Close.Font = Enum.Font.SourceSansBold
+    Close.Parent = Title
+    Close.MouseButton1Click:Connect(function()
+        ResendFrame:Destroy()
+    end)
+
+    local ArgumentsLabel = Instance.new("TextLabel")
+    ArgumentsLabel.Size = UDim2.new(1, 0, 0, 20)
+    ArgumentsLabel.Position = UDim2.new(0, 0, 0, 35)
+    ArgumentsLabel.BackgroundTransparency = 1
+    ArgumentsLabel.Text = "Edit Arguments:"
+    ArgumentsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ArgumentsLabel.Font = Enum.Font.SourceSans
+    ArgumentsLabel.TextSize = 14
+    ArgumentsLabel.Parent = ResendFrame
+
+    local ScrollContainer = Instance.new("ScrollingFrame")
+    ScrollContainer.Size = UDim2.new(1, -10, 1, -100)
+    ScrollContainer.Position = UDim2.new(0, 5, 0, 60)
+    ScrollContainer.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    ScrollContainer.BorderSizePixel = 2
+    ScrollContainer.ScrollBarThickness = 6
+    ScrollContainer.Parent = ResendFrame
+
+    local UIList = Instance.new("UIListLayout")
+    UIList.Parent = ScrollContainer
+    UIList.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local ArgInputs = {}
+
+    local function formatValueForDisplay(v)
+        if typeof(v) == "string" then
+            return ("string:%s"):format(v)
+        elseif typeof(v) == "number" then
+            return ("number:%s"):format(v)
+        elseif typeof(v) == "boolean" then
+            return ("boolean:%s"):format(tostring(v))
+        else
+            return ("string:%s"):format(tostring(v))
+        end
+    end
+
+    local function parseValueFromString(str)
+        local varType, val = str:match("^(%w+)%:(.*)")
+        varType = varType or "string"
+        val = val or str
+        if varType == "number" then
+            return tonumber(val) or val
+        elseif varType == "boolean" then
+            return (val:lower() == "true")
+        else
+            return val
+        end
+    end
+
+    for i, arg in ipairs(oldArgs) do
+        local ArgFrame = Instance.new("Frame")
+        ArgFrame.Size = UDim2.new(1, -4, 0, 30)
+        ArgFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        ArgFrame.Parent = ScrollContainer
+
+        local ArgBox = Instance.new("TextBox")
+        ArgBox.Size = UDim2.new(1, -4, 1, -4)
+        ArgBox.Position = UDim2.new(0, 2, 0, 2)
+        ArgBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        ArgBox.Text = formatValueForDisplay(arg)
+        ArgBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        ArgBox.ClearTextOnFocus = false
+        ArgBox.Font = Enum.Font.SourceSans
+        ArgBox.TextSize = 14
+        ArgBox.Parent = ArgFrame
+
+        ArgInputs[i] = ArgBox
+    end
+
+    local function updateScrollCanvas()
+        ScrollContainer.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y + 10)
+    end
+
+    ScrollContainer.ChildAdded:Connect(updateScrollCanvas)
+    ScrollContainer.ChildRemoved:Connect(updateScrollCanvas)
+    UIList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateScrollCanvas)
+    updateScrollCanvas()
+
+    local SendButton = Instance.new("TextButton")
+    SendButton.Size = UDim2.new(0.4, -5, 0, 30)
+    SendButton.Position = UDim2.new(0, 5, 1, -35)
+    SendButton.BackgroundColor3 = Color3.fromRGB(85, 170, 85)
+    SendButton.Text = "Send"
+    SendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SendButton.TextSize = 14
+    SendButton.Font = Enum.Font.SourceSans
+    SendButton.Parent = ResendFrame
+
+    local CancelButton = Instance.new("TextButton")
+    CancelButton.Size = UDim2.new(0.4, -5, 0, 30)
+    CancelButton.Position = UDim2.new(0.6, 0, 1, -35)
+    CancelButton.BackgroundColor3 = Color3.fromRGB(170, 85, 85)
+    CancelButton.Text = "Cancel"
+    CancelButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CancelButton.TextSize = 14
+    CancelButton.Font = Enum.Font.SourceSans
+    CancelButton.Parent = ResendFrame
+
+    CancelButton.MouseButton1Click:Connect(function()
+        ResendFrame:Destroy()
+    end)
+
+    SendButton.MouseButton1Click:Connect(function()
+        local newArgs = {}
+        for i, box in ipairs(ArgInputs) do
+            newArgs[i] = parseValueFromString(box.Text)
+        end
+
+        ResendFrame:Destroy()
+        if remoteType == "RemoteEvent" then
+            print("[RemoteEvent Resend] Sending arguments: " .. serializeArgs(newArgs))
+            remoteObj:FireServer(unpack(newArgs))
+            print("[RemoteEvent Resend] Request sent successfully.")
+        elseif remoteType == "RemoteFunction" then
+            print("[RemoteFunction Resend] Sending arguments: " .. serializeArgs(newArgs))
+            local response = remoteObj:InvokeServer(unpack(newArgs))
+            print("[RemoteFunction Resend] Request sent successfully.")
+            print("[RemoteFunction Response] " .. serializeTable(response))
+        end
+    end)
+end
+
+-- Adjusted layout: Each request row with columns for name, view, resend, block
+local function AddRequestToList(remoteObj, remotePath, remoteType, args)
+    local itemFrame = Instance.new("Frame")
+    itemFrame.Size = UDim2.new(1, 0, 0, 30)
+    itemFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    itemFrame.Parent = RequestList
+
+    -- Label for remote info (60% width)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.60, -5, 1, 0)
+    label.Position = UDim2.new(0, 5, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = ("[%s] %s"):format(remoteType, remotePath)
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 14
+    label.Font = Enum.Font.SourceSans
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = itemFrame
+
+    -- View button (13% width)
+    local viewButton = Instance.new("TextButton")
+    viewButton.Size = UDim2.new(0.13, -5, 1, 0)
+    viewButton.Position = UDim2.new(0.60, 5, 0, 0)
+    viewButton.BackgroundColor3 = Color3.fromRGB(75, 75, 75)
+    viewButton.Text = "View"
+    viewButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    viewButton.TextSize = 14
+    viewButton.Font = Enum.Font.SourceSans
+    viewButton.Parent = itemFrame
+
+    -- Resend button (13% width)
+    local resendButton = Instance.new("TextButton")
+    resendButton.Size = UDim2.new(0.13, -5, 1, 0)
+    resendButton.Position = UDim2.new(0.73, 5, 0, 0)
+    resendButton.BackgroundColor3 = Color3.fromRGB(75, 75, 125)
+    resendButton.Text = "Resend"
+    resendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    resendButton.TextSize = 14
+    resendButton.Font = Enum.Font.SourceSans
+    resendButton.Parent = itemFrame
+
+    -- Block button (11% width)
+    local blacklistButton = Instance.new("TextButton")
+    blacklistButton.Size = UDim2.new(0.11, 0, 1, 0)
+    blacklistButton.Position = UDim2.new(0.86, 0, 0, 0)
+    blacklistButton.BackgroundColor3 = Color3.fromRGB(170, 85, 85)
+    blacklistButton.Text = "Block"
+    blacklistButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    blacklistButton.TextSize = 14
+    blacklistButton.Font = Enum.Font.SourceSans
+    blacklistButton.Parent = itemFrame
+
+    viewButton.MouseButton1Click:Connect(function()
+        local details = {}
+        table.insert(details, ("Remote Path: %s"):format(remotePath))
+        table.insert(details, ("Remote Type: %s"):format(remoteType))
+        table.insert(details, "Arguments:")
+        local function appendTable(tbl, indent)
+            indent = indent or "  "
+            local idx = 1
+            for k, v in pairs(tbl) do
+                if type(v) == "table" then
+                    table.insert(details, ("%s[%d] %s (table):"):format(indent, idx, tostring(k)))
+                    appendTable(v, indent .. "  ")
+                else
+                    table.insert(details, ("%s[%d] ['%s'] = %s (%s)"):format(indent, idx, tostring(k), tostring(v), typeof(v)))
+                end
+                idx = idx + 1
+            end
+        end
+        for i, arg in ipairs(args) do
+            if type(arg) == "table" then
+                table.insert(details, ("  Argument %d: (table)"):format(i))
+                appendTable(arg, "    ")
+            else
+                table.insert(details, ("  Argument %d: %s (%s)"):format(i, tostring(arg), typeof(arg)))
+            end
+        end
+        DetailsBox.Text = table.concat(details, "\n")
+    end)
+    
+    resendButton.MouseButton1Click:Connect(function()
+        createResendUI(remoteObj, remoteType, args)
+    end)
+    
+    blacklistButton.MouseButton1Click:Connect(function()
+        blacklistedPaths[remotePath] = true
+        UpdateBlacklistDisplay()
+        itemFrame:Destroy()
+    end)
+end
+
+local function getRemotePath(remote)
+    local pathParts = {}
+    local current = remote
+    while current and current ~= game do
+        table.insert(pathParts, 1, current.Name)
+        current = current.Parent
+    end
+    table.insert(pathParts, 1, "game")
+    return table.concat(pathParts, ".")
+end
+
+-- Core function to handle remote calls
+local function handleRemoteCall(remote, remoteType, ...)
+    local remotePath = getRemotePath(remote)
+    if blacklistedPaths[remotePath] then return end
+    local args = { ... }
+    AddRequestToList(remote, remotePath, remoteType, args)
+end
+
+local function wrapRemote(remote)
+    if remote:IsA("RemoteEvent") then
+        remote.OnClientEvent:Connect(function(...)
+            handleRemoteCall(remote, "RemoteEvent", ...)
+        end)
+    elseif remote:IsA("RemoteFunction") then
+        remote.OnClientInvoke = function(...)
+            handleRemoteCall(remote, "RemoteFunction", ...)
+        end
+    end
+end
+
+local function wrapRemotesInFolder(folder)
+    for _, obj in ipairs(folder:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            wrapRemote(obj)
+        end
+    end
+    folder.DescendantAdded:Connect(function(descendant)
+        if descendant:IsA("RemoteEvent") or descendant:IsA("RemoteFunction") then
+            wrapRemote(descendant)
+        end
+    end)
+end
+
+-- Wrap remotes in key game services
+wrapRemotesInFolder(game:GetService("ReplicatedStorage"))
+wrapRemotesInFolder(game:GetService("StarterGui"))
+wrapRemotesInFolder(game:GetService("StarterPack"))
+wrapRemotesInFolder(game:GetService("StarterPlayer"))
+
+game:GetService("ReplicatedStorage").DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("RemoteEvent") or descendant:IsA("RemoteFunction") then
+        wrapRemote(descendant)
+    end
+end)
+game:GetService("StarterGui").DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("RemoteEvent") or descendant:IsA("RemoteFunction") then
+        wrapRemote(descendant)
+    end
+end)
+game:GetService("StarterPack").DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("RemoteEvent") or descendant:IsA("RemoteFunction") then
+        wrapRemote(descendant)
+    end
+end)
+game:GetService("StarterPlayer").DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("RemoteEvent") or descendant:IsA("RemoteFunction") then
+        wrapRemote(descendant)
+    end
+end)
+
+-- The GUI is fully set up and ready to use.

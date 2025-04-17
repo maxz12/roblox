@@ -1,0 +1,155 @@
+-- Place this LocalScript in StarterGui or inside a ScreenGui.
+
+local player = game.Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+-- Enable noclip (disabling collisions)
+local function noclip()
+    for _, v in pairs(character:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.CanCollide = false
+        end
+    end
+
+
+-- Get the Map object in Workspace.
+local mapFolder = workspace:WaitForChild("Map")
+
+-- Build a list of parts to work with by only using direct children of Map
+-- whose names are entirely numeric. If a child is a Model, we use its PrimaryPart.
+local partsList = {}
+for _, child in ipairs(mapFolder:GetChildren()) do
+    if child.Name:match("^%d+$") then
+        if child:IsA("Model") then
+            if child.PrimaryPart then
+                table.insert(partsList, child.PrimaryPart)
+            else
+                warn("Model " .. child:GetFullName() .. " has no PrimaryPart!")
+            end
+        elseif child:IsA("BasePart") then
+            table.insert(partsList, child)
+        end
+    end
+end
+
+-- Log all detected numeric objects (or their parts) to the Output/Console.
+print("Detected numeric objects in Map:")
+for i, part in ipairs(partsList) do
+    print(string.format("  %d: %s", i, part:GetFullName()))
+end
+
+if #partsList == 0 then
+    warn("No numeric objects detected in Map!")
+    return
+end
+
+-- Set the current index for cycling through parts.
+local currentIndex = 1
+
+-- Teleport function: moves the character to the given BasePart (with an upward offset).
+local function teleportToPart(part)
+    if part and part:IsA("BasePart") then
+        hrp.CFrame = part.CFrame + Vector3.new(0, 0, 0)
+        wait(0.1)
+         hrp.CFrame = part.CFrame + Vector3.new(1, 0, 0)
+         wait(0.1)
+         hrp.CFrame = part.CFrame + Vector3.new(-1, 0, 0)
+        print("Teleported to part:", part:GetFullName())
+    end
+end
+
+----------------------------
+-- GUI Creation
+----------------------------
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TeleportGui"
+screenGui.Parent = playerGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 220, 0, 100)
+frame.Position = UDim2.new(0, 10, 0, 10)
+frame.BackgroundTransparency = 0.3
+frame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+frame.Parent = screenGui
+
+local nextButton = Instance.new("TextButton")
+nextButton.Size = UDim2.new(0, 200, 0, 30)
+nextButton.Position = UDim2.new(0, 10, 0, 10)
+nextButton.Text = "Next Part"
+nextButton.Parent = frame
+
+local toggleHighlightButton = Instance.new("TextButton")
+toggleHighlightButton.Size = UDim2.new(0, 200, 0, 30)
+toggleHighlightButton.Position = UDim2.new(0, 10, 0, 50)
+toggleHighlightButton.Text = "Highlight Parts"
+toggleHighlightButton.Parent = frame
+
+-- State variable for whether highlights are enabled.
+local highlightEnabled = false
+
+-- Toggle highlight on the numeric objects (or their primary parts).
+local function toggleHighlight()
+    highlightEnabled = not highlightEnabled
+
+    if highlightEnabled then
+        toggleHighlightButton.Text = "Remove Highlights"
+        -- Iterate over direct children of Map with numeric names.
+        for _, child in ipairs(mapFolder:GetChildren()) do
+            if child.Name:match("^%d+$") then
+                local target = nil
+                if child:IsA("Model") then
+                    target = child.PrimaryPart
+                elseif child:IsA("BasePart") then
+                    target = child
+                end
+                if target then
+                    -- Only add a Highlight if one doesn't already exist.
+                    if not target:FindFirstChild("Highlight") then
+                        local hl = Instance.new("Highlight")
+                        hl.Name = "Highlight"
+                        hl.Adornee = target
+                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        hl.FillColor = Color3.new(1, 1, 0)    -- Yellow fill.
+                        hl.FillTransparency = 0.5              -- Semi-transparent.
+                        hl.OutlineColor = Color3.new(1, 0, 0)    -- Red outline.
+                        hl.OutlineTransparency = 0
+                        hl.Parent = target
+                    end
+                end
+            end
+        end
+    else
+        toggleHighlightButton.Text = "Highlight Parts"
+        for _, child in ipairs(mapFolder:GetChildren()) do
+            if child.Name:match("^%d+$") then
+                local target = nil
+                if child:IsA("Model") then
+                    target = child.PrimaryPart
+                elseif child:IsA("BasePart") then
+                    target = child
+                end
+                if target then
+                    local hl = target:FindFirstChild("Highlight")
+                    if hl then
+                        hl:Destroy()
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Connect the Next Part button to cycle and teleport.
+nextButton.MouseButton1Click:Connect(function()
+    currentIndex = currentIndex + 1
+    if currentIndex > #partsList then
+        currentIndex = 1  -- Cycle back to the first part.
+    end
+    teleportToPart(partsList[currentIndex])
+end)
+
+-- Connect the Toggle Highlight button.
+toggleHighlightButton.MouseButton1Click:Connect(toggleHighlight)

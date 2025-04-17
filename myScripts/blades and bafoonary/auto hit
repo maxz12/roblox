@@ -1,0 +1,384 @@
+-- ProximityEventScript.lua
+-- This is a LocalScript that goes in StarterPlayer → StarterPlayerScripts
+-- It helps with targeting players and includes improved anti-fall mechanics
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Wait for your weapon model in workspace (named after your username)
+local weaponModel = workspace:WaitForChild(LocalPlayer.Name)
+local weaponTool = nil
+
+-- Find the Tool inside your personal model
+for _, child in ipairs(weaponModel:GetChildren()) do
+    if child:IsA("Tool") then
+        weaponTool = child
+        break
+    end
+end
+
+if not weaponTool then
+    warn("No weapon tool found in your model!")
+    return
+end
+
+-- Wait for the Events folder and Hit RemoteEvent inside your weapon tool
+local eventsFolder = weaponTool:WaitForChild("Events", 10)
+if not eventsFolder then
+    warn("No 'Events' folder found inside your weapon tool!")
+    return
+end
+local hitEvent = eventsFolder:WaitForChild("Hit", 10)
+if not hitEvent then
+    warn("No 'Hit' RemoteEvent found inside the Events folder!")
+    return
+end
+
+-- Configurable settings
+local DEFAULT_DISTANCE = 30         -- Normal attack distance
+local FLING_THRESHOLD = 30           -- Horizontal velocity threshold for anti-knockback
+local DODGE_RADIUS = 15              -- Range for dodge activation
+local DODGE_DOT_THRESHOLD = 0.7      -- How directly target must face you for dodge
+local DODGE_OFFSET = 10              -- Sideways dodge distance
+local DODGE_TWEEN_TIME = 0.1        -- Dodge movement speed
+local DODGE_COOLDOWN = 0.3           -- Time between dodges
+local REPOSITION_TWEEN_TIME = 0.1    -- Normal movement speed
+local EDGE_CHECK_DISTANCE = 10       -- Distance to check for edges
+local FALL_DETECTION_THRESHOLD = -10 -- Y velocity that triggers fall detection
+local TELEPORT_DEBOUNCE_TIME = 0.4     -- Time between teleport recovery (prevents spam)
+
+-- Create highlight for target
+local targetHighlight = Instance.new("Highlight")
+targetHighlight.FillColor = Color3.fromRGB(255, 0, 0)
+targetHighlight.OutlineColor = Color3.fromRGB(255, 165, 0)
+targetHighlight.FillTransparency = 0.7
+targetHighlight.OutlineTransparency = 0
+targetHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+targetHighlight.Enabled = true
+
+-- GUI Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ProximityGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 250, 0, 100)
+mainFrame.Position = UDim2.new(0, 50, 0, 50)
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+mainFrame.Parent = screenGui
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 200, 0, 30)
+toggleButton.Position = UDim2.new(0, 25, 0, 10)
+toggleButton.Text = "Activate Trigger"
+toggleButton.Parent = mainFrame
+
+local distanceLabel = Instance.new("TextLabel")
+distanceLabel.Size = UDim2.new(0, 90, 0, 30)
+distanceLabel.Position = UDim2.new(0, 25, 0, 50)
+distanceLabel.Text = "Distance:"
+distanceLabel.TextColor3 = Color3.new(1, 1, 1)
+distanceLabel.BackgroundTransparency = 1
+distanceLabel.Parent = mainFrame
+
+local distanceBox = Instance.new("TextBox")
+distanceBox.Size = UDim2.new(0, 60, 0, 30)
+distanceBox.Position = UDim2.new(0, 120, 0, 50)
+distanceBox.Text = tostring(DEFAULT_DISTANCE)
+distanceBox.ClearTextOnFocus = false
+distanceBox.Parent = mainFrame
+
+-- Make GUI draggable
+local dragging = false
+local dragInput, dragStart, startPos
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Toggle functionality
+local triggerActive = false
+toggleButton.MouseButton1Click:Connect(function()
+    triggerActive = not triggerActive
+    toggleButton.Text = triggerActive and "Deactivate Trigger" or "Activate Trigger"
+    
+    -- Remove highlight when deactivated
+    if not triggerActive and targetHighlight.Parent then
+        targetHighlight.Parent = nil
+    end
+end)
+
+-- Track current states
+local currentTween = nil
+local dodgeInProgress = false
+local lastSafePosition = nil
+local isRecovering = false
+local lastTeleportTime = 0
+local userMovementOverride = false
+
+-- Check if user is actively trying to move
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W or 
+       input.KeyCode == Enum.KeyCode.A or 
+       input.KeyCode == Enum.KeyCode.S or 
+       input.KeyCode == Enum.KeyCode.D or
+       input.KeyCode == Enum.KeyCode.Space then
+        userMovementOverride = true
+        -- Keep override active for a short time
+        delay(0.5, function()
+            userMovementOverride = false
+        end)
+    end
+end)
+
+-- Function to check for ground
+local function checkGround(position, characterY, extraHeight)
+    extraHeight = extraHeight or 50  -- Default height to check from
+    local rayOrigin = Vector3.new(position.X, characterY + extraHeight, position.Z)
+    local rayDir = Vector3.new(0, -(extraHeight + 50), 0)  -- Check below character
+    local rayResult = workspace:Raycast(rayOrigin, rayDir)
+    return rayResult ~= nil, rayResult and rayResult.Position.Y or characterY
+end
+
+-- Function to check platform safety
+local function isSafeTerrain(position, characterY)
+    -- First check ground directly below
+    local hasGround, groundY = checkGround(position, characterY)
+    if not hasGround then
+        return false, nil
+    end
+    
+    -- Check surrounding areas for edges
+    local surroundingSafe = true
+    local directions = {
+        Vector3.new(1, 0, 0),
+        Vector3.new(-1, 0, 0),
+        Vector3.new(0, 0, 1),
+        Vector3.new(0, 0, -1)
+    }
+    
+    for _, dir in ipairs(directions) do
+        local checkPoint = position + (dir * 3)  -- Check 3 studs away
+        local pointHasGround = checkGround(checkPoint, groundY, 5)
+        if not pointHasGround then
+            surroundingSafe = false
+            break
+        end
+    end
+    
+    return surroundingSafe, groundY
+end
+
+-- Main proximity check loop
+local function proximityCheckLoop()
+    while triggerActive do
+        local currentDistance = tonumber(distanceBox.Text) or DEFAULT_DISTANCE
+        
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local localHRP = LocalPlayer.Character.HumanoidRootPart
+            
+            -- Update last safe position if we're on safe ground
+            local currentPosSafe, currentGroundY = isSafeTerrain(localHRP.Position, localHRP.Position.Y)
+            if currentPosSafe then
+                lastSafePosition = CFrame.new(localHRP.Position.X, currentGroundY, localHRP.Position.Z)
+            end
+            
+            -- Find closest player
+            local closestPlayer = nil
+            local closestHRP = nil
+            local minDistance = math.huge
+
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local otherHRP = player.Character.HumanoidRootPart
+                    local distance = (otherHRP.Position - localHRP.Position).Magnitude
+                    if distance <= currentDistance and distance < minDistance then
+                        minDistance = distance
+                        closestPlayer = player
+                        closestHRP = otherHRP
+                    end
+                end
+            end
+
+            -- Remove highlight if no target
+            if not closestPlayer and targetHighlight.Parent then
+                targetHighlight.Parent = nil
+            end
+
+            if closestPlayer and closestPlayer.Character then
+                -- Apply highlight to target
+                if targetHighlight.Parent ~= closestPlayer.Character then
+                    targetHighlight.Parent = closestPlayer.Character
+                end
+                
+                local targetHumanoid = closestPlayer.Character:FindFirstChild("Humanoid")
+                if targetHumanoid then
+                    -- Fire hit events
+                    for i = 1, 3 do
+                        hitEvent:FireServer(targetHumanoid)
+                        wait(0.08)
+                    end
+
+                    local targetPosition = closestHRP.Position
+                    local diff = localHRP.Position - targetPosition
+                    local distance = diff.Magnitude
+                    
+                    -- Check if target is facing us
+                    local facingDot = closestHRP.CFrame.LookVector:Dot((localHRP.Position - targetPosition).Unit)
+                    
+                    if distance <= DODGE_RADIUS and facingDot >= DODGE_DOT_THRESHOLD then
+                        -- Dodge maneuver
+                        local originalPos = localHRP.Position
+                        dodgeInProgress = true
+
+                        if currentTween then
+                            currentTween:Cancel()
+                        end
+                        
+                        local dodgeOffset = closestHRP.CFrame.RightVector * DODGE_OFFSET
+                        local dodgePos = localHRP.Position + dodgeOffset
+                        
+                        local isSafe, groundY = isSafeTerrain(dodgePos, localHRP.Position.Y)
+                        if isSafe then
+                            dodgePos = Vector3.new(dodgePos.X, groundY, dodgePos.Z)
+                            local dodgeCFrame = CFrame.new(dodgePos, targetPosition)
+                            
+                            local tweenInfo = TweenInfo.new(DODGE_TWEEN_TIME, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                            currentTween = TweenService:Create(localHRP, tweenInfo, {CFrame = dodgeCFrame})
+                            currentTween:Play()
+
+                            -- Fire hits during dodge
+                            for i = 1, 2 do
+                                hitEvent:FireServer(targetHumanoid)
+                                wait(0.08)
+                            end
+
+                            wait(DODGE_COOLDOWN)
+                            
+                            -- Return to original position if safe
+                            local returnSafe = isSafeTerrain(originalPos, originalPos.Y)
+                            if returnSafe then
+                                local returnTween = TweenService:Create(localHRP, tweenInfo, {
+                                    CFrame = CFrame.new(originalPos, targetPosition)
+                                })
+                                returnTween:Play()
+                                wait(tweenInfo.Time)
+                            end
+                        end
+                        dodgeInProgress = false
+                    elseif not dodgeInProgress then 
+                        -- Normal repositioning behind target
+                        local desiredPos = targetPosition - (closestHRP.CFrame.LookVector * currentDistance)
+                        
+                        local isSafe, groundY = isSafeTerrain(desiredPos, localHRP.Position.Y)
+                        
+                        if isSafe then
+                            desiredPos = Vector3.new(desiredPos.X, groundY, desiredPos.Z)
+                            local desiredCFrame = CFrame.new(desiredPos, targetPosition)
+                            
+                            if (localHRP.Position - desiredPos).Magnitude > 0.1 then
+                                if currentTween then
+                                    currentTween:Cancel()
+                                end
+                                local tweenInfo = TweenInfo.new(REPOSITION_TWEEN_TIME, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                                currentTween = TweenService:Create(localHRP, tweenInfo, {CFrame = desiredCFrame})
+                                currentTween:Play()
+                            end
+                        elseif lastSafePosition and not userMovementOverride then
+                            -- Go to last safe position if current target isn't safe
+                            if currentTween then
+                                currentTween:Cancel()
+                            end
+                            local tweenInfo = TweenInfo.new(REPOSITION_TWEEN_TIME, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                            currentTween = TweenService:Create(localHRP, tweenInfo, {CFrame = lastSafePosition})
+                            currentTween:Play()
+                        end
+                    end
+                end
+            end
+            
+            -- Fall recovery system - only if user isn't trying to move
+            local currentVel = localHRP.AssemblyLinearVelocity
+            local currentTime = tick()
+            if currentVel.Y < FALL_DETECTION_THRESHOLD and 
+               lastSafePosition and 
+               not isRecovering and 
+               not userMovementOverride and
+               currentTime - lastTeleportTime > TELEPORT_DEBOUNCE_TIME then
+               
+                isRecovering = true
+                lastTeleportTime = currentTime
+                
+                -- Cancel any active tween
+                if currentTween then
+                    currentTween:Cancel()
+                    currentTween = nil
+                end
+                
+                -- Clean teleport back to safe position
+                localHRP.CFrame = lastSafePosition
+                localHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                localHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                
+                -- Slight delay before allowing another teleport
+                wait(0.1)
+                isRecovering = false
+            end
+        end
+
+        RunService.RenderStepped:Wait()
+    end
+end
+
+-- Start the proximity check loop
+spawn(function()
+    while true do
+        if triggerActive then
+            proximityCheckLoop()
+        else
+            wait(0.1)
+        end
+    end
+end)
+
+-- Anti-knockback with threshold
+RunService.RenderStepped:Connect(function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        local currentVelocity = hrp.AssemblyLinearVelocity
+        local horizontalSpeed = Vector3.new(currentVelocity.X, 0, currentVelocity.Z).Magnitude
+        
+        if horizontalSpeed > FLING_THRESHOLD then
+            hrp.AssemblyLinearVelocity = Vector3.new(0, currentVelocity.Y, 0)
+            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        end
+    end
+end)

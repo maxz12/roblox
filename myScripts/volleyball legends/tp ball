@@ -1,0 +1,157 @@
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- Create UI to display toggle status.
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local toggleLabel = Instance.new("TextLabel")
+toggleLabel.Size = UDim2.new(0, 200, 0, 50)
+toggleLabel.Position = UDim2.new(0, 10, 0, 10)
+toggleLabel.BackgroundTransparency = 0.5
+toggleLabel.TextScaled = true
+toggleLabel.Font = Enum.Font.SourceSansBold
+toggleLabel.Text = "Auto Teleport: OFF"
+toggleLabel.Parent = screenGui
+
+-- Function to find the CLIENT_BALL model.
+local function findClientBallModel()
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("Model") then
+            local match = obj.Name:match("^CLIENT_BALL_(%d+)$")
+            if match then
+                return obj
+            end
+        end
+    end
+    return nil
+end
+
+local ballModel = findClientBallModel()
+spawn(function()
+    while wait(1) do
+        if not ballModel or not ballModel.Parent then
+            ballModel = findClientBallModel()
+        end
+    end
+end)
+
+-- Update (or create) a "better" hitbox for the ball.
+local function updateHitbox(model)
+    if not model then return end
+    local primary = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    if not primary then return end
+
+    local hitbox = model:FindFirstChild("Hitbox")
+    if not hitbox then
+        hitbox = Instance.new("Part")
+        hitbox.Name = "Hitbox"
+        hitbox.Transparency = 0.7
+        hitbox.CanCollide = false
+        hitbox.Anchored = false
+        hitbox.Parent = model
+
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = primary
+        weld.Part1 = hitbox
+        weld.Parent = hitbox
+    end
+    hitbox.Size = primary.Size + Vector3.new(1,1,1)
+    hitbox.CFrame = primary.CFrame
+end
+
+-- Create a red direction indicator part.
+local directionIndicator = Instance.new("Part")
+directionIndicator.Name = "DirectionIndicator"
+directionIndicator.Anchored = true
+directionIndicator.CanCollide = false
+directionIndicator.Transparency = 0.5
+directionIndicator.Color = Color3.new(1, 0, 0)
+directionIndicator.Parent = workspace
+
+-- Auto teleport toggle.
+local autoTeleport = false
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Z then
+        autoTeleport = not autoTeleport
+        toggleLabel.Text = "Auto Teleport: " .. (autoTeleport and "ON" or "OFF")
+        -- When toggled off, remove any existing physics controllers.
+        if not autoTeleport then
+            local character = player.Character
+            if character then
+                local hrp = character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local bp = hrp:FindFirstChild("AutoTP_BP")
+                    local bg = hrp:FindFirstChild("AutoTP_BG")
+                    if bp then bp:Destroy() end
+                    if bg then bg:Destroy() end
+                end
+            end
+        end
+    end
+end)
+
+-- Settings.
+local offsetDistance = 1         -- Closer placement behind the ball.
+local indicatorLength = 10       -- Length of the direction indicator.
+
+RunService.RenderStepped:Connect(function(delta)
+    if not ballModel then return end
+    local targetPart = ballModel.PrimaryPart or ballModel:FindFirstChildWhichIsA("BasePart")
+    if not targetPart then return end
+
+    updateHitbox(ballModel)
+    local ballPos = targetPart.Position
+
+    -- Compute the aim direction using the mouse's hit position.
+    local mouse = player:GetMouse()
+    local aimPos = mouse.Hit.Position
+    local diff = aimPos - ballPos
+    local direction = (diff.Magnitude > 0) and diff.Unit or Vector3.new(0, 0, -1)
+
+    -- Update the direction indicator so you see a straight red ray from the ball.
+    directionIndicator.Size = Vector3.new(0.2, 0.2, indicatorLength)
+    local indicatorMid = ballPos + (direction * (indicatorLength / 2))
+    directionIndicator.CFrame = CFrame.new(indicatorMid, indicatorMid + direction)
+
+    if autoTeleport then
+        local character = player.Character
+        if character then
+            local hrp = character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                -- Create or update BodyPosition for smooth movement.
+                local bp = hrp:FindFirstChild("AutoTP_BP")
+                if not bp then
+                    bp = Instance.new("BodyPosition")
+                    bp.Name = "AutoTP_BP"
+                    bp.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+                    bp.P = 1e4
+                    bp.D = 500
+                    bp.Parent = hrp
+                end
+
+                -- Create or update BodyGyro for smooth orientation.
+                local bg = hrp:FindFirstChild("AutoTP_BG")
+                if not bg then
+                    bg = Instance.new("BodyGyro")
+                    bg.Name = "AutoTP_BG"
+                    bg.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+                    bg.P = 1e4
+                    bg.D = 500
+                    bg.Parent = hrp
+                end
+
+                -- Compute desired position directly behind the ball.
+                local desiredPos = ballPos - (direction * offsetDistance)
+                bp.Position = desiredPos
+
+                -- Orient the character to face the aim direction.
+                bg.CFrame = CFrame.new(hrp.Position, hrp.Position + direction)
+            end
+        end
+    end
+end)

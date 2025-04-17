@@ -1,0 +1,129 @@
+-- This is a LocalScript - Put it directly in StarterGui (not inside anything else)
+-- This script will create its own ScreenGui automatically
+
+-- Set your secret key here
+local correctKey = "secret123"
+
+-- Create all GUI elements from scratch to avoid parent errors
+local player = game.Players.LocalPlayer
+-- Wait for player to load if needed
+if not player then
+    player = game.Players.LocalPlayer or game.Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+end
+
+-- Create our own ScreenGui instead of trying to find one
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "KeyVerificationGui"
+screenGui.ResetOnSpawn = false -- GUI stays when player respawns
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Create main frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "KeyFrame"
+mainFrame.Size = UDim2.new(0, 250, 0, 150)
+mainFrame.Position = UDim2.new(0.5, -125, 0.5, -75) -- Center on screen
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+mainFrame.BorderSizePixel = 2
+mainFrame.Active = true -- Required for draggable to work
+mainFrame.Draggable = true -- Built-in dragging functionality
+mainFrame.Parent = screenGui
+
+-- Title bar
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 18
+titleLabel.Text = "Key Verification"
+titleLabel.Parent = mainFrame
+
+-- Key input box
+local keyInput = Instance.new("TextBox")
+keyInput.Name = "KeyInput"
+keyInput.Size = UDim2.new(0.8, 0, 0, 30)
+keyInput.Position = UDim2.new(0.1, 0, 0.4, -15)
+keyInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+keyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+keyInput.PlaceholderText = "Enter key here..."
+keyInput.Text = ""
+keyInput.ClearTextOnFocus = false -- Keep text when clicked
+keyInput.Font = Enum.Font.SourceSans
+keyInput.TextSize = 14
+keyInput.Parent = mainFrame
+
+-- Submit button
+local submitButton = Instance.new("TextButton")
+submitButton.Name = "SubmitButton"
+submitButton.Size = UDim2.new(0.5, 0, 0, 30)
+submitButton.Position = UDim2.new(0.25, 0, 0.65, 0)
+submitButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+submitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+submitButton.Font = Enum.Font.SourceSansBold
+submitButton.TextSize = 16
+submitButton.Text = "Submit"
+submitButton.Parent = mainFrame
+
+-- Status label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Name = "StatusLabel"
+statusLabel.Size = UDim2.new(0.9, 0, 0, 20)
+statusLabel.Position = UDim2.new(0.05, 0, 0.85, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusLabel.Font = Enum.Font.SourceSans
+statusLabel.TextSize = 14
+statusLabel.Text = "Enter the key to continue"
+statusLabel.Parent = mainFrame
+
+-- Function to verify the key and execute code if correct
+local function verifyKey()
+    local enteredKey = keyInput.Text
+    
+    if enteredKey == correctKey then
+        -- Key is correct
+        statusLabel.Text = "Access granted!"
+        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+        
+        -- Wait briefly
+        wait(1)
+        
+        -- Hide the GUI
+        mainFrame.Visible = false
+        
+        -- ====================================================
+        -- YOUR CODE GOES HERE (executes when key is correct)
+        -- ====================================================
+        
+        print("Key verification successful!")
+        
+        -- Example notification
+        local message = Instance.new("Message")
+        message.Text = "Script activated successfully!"
+        message.Parent = workspace
+        wait(3)
+        message:Destroy()
+        
+    else
+        -- Key is wrong
+        statusLabel.Text = "Wrong key!"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+        
+        -- Clear the input box after a second
+        wait(1)
+        keyInput.Text = ""
+    end
+end
+
+-- Connect the submit button to the verification function
+submitButton.MouseButton1Click:Connect(verifyKey)
+
+-- Allow Enter key to submit as well
+keyInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        verifyKey()
+    end
+end)
+

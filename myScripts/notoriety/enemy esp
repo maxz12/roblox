@@ -1,0 +1,38 @@
+local highlights = {}
+
+-- Apply highlights to all police
+local function addHighlight(officer)
+    if not highlights[officer] then
+        local highlight = Instance.new("Highlight")
+        highlight.FillColor = Color3.fromRGB(0, 100, 255)
+        highlight.OutlineColor = Color3.fromRGB(0, 0, 255)
+        highlight.FillTransparency = 0.7
+        highlight.Parent = officer
+        highlights[officer] = highlight
+        
+        -- Remove on death
+        local humanoid = officer:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.Died:Connect(function()
+                highlight:Destroy()
+                highlights[officer] = nil
+            end)
+        end
+    end
+end
+
+-- Apply to existing officers
+for _, officer in pairs(workspace.Police:GetChildren()) do
+    addHighlight(officer)
+end
+
+-- Apply to new officers
+workspace.Police.ChildAdded:Connect(addHighlight)
+
+-- Remove when officer is removed
+workspace.Police.ChildRemoved:Connect(function(officer)
+    if highlights[officer] then
+        highlights[officer]:Destroy()
+        highlights[officer] = nil
+    end
+end)

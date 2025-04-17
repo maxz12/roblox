@@ -1,0 +1,478 @@
+-- ProximityEventScript.lua
+-- Place this LocalScript into StarterPlayer → StarterPlayerScripts.
+--
+-- This script now stops following the selected target if they fall off the map
+-- (i.e. no ground detected beneath the target) and immediately teleports you
+-- to your last safe position.
+--
+-- Setup:
+--   1. Ensure your weapon model is in workspace and is named after your username.
+--   2. That model must contain a Tool with an "Events" folder containing a "Hit" RemoteEvent.
+
+--loadstring thing: loadstring(game:HttpGet("https://pastebin.com/raw/wcQXa5tt"))()
+
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Core state variables
+local triggerActive = false
+local isAlive = true
+local currentTween = nil
+local dodgeInProgress = false
+local lastSafePosition = nil
+local userMovementOverride = false
+local hitCooldownTimer = 0
+local currentTarget = nil
+local hitEvent = nil
+local lastTargetChangeTime = 0 -- Records time when target changed
+
+-- Settings
+local TARGET_DISTANCE = 20            -- How far to scan for targets
+local MAINTAIN_DISTANCE_DEFAULT = 10    -- How far to stay from the selected target
+local DEFAULT_TWEEN_SPEED = 0.2         -- Tween duration for repositioning
+local HIT_COOLDOWN = 0.08
+local DODGE_RADIUS = 15
+local DODGE_DOT_THRESHOLD = 0.8
+local DODGE_OFFSET = 10
+
+-- Feature toggles (default enabled)
+local featureToggles = {
+    hitsEnabled = true,
+    moveEnabled = true,
+    fallProtectionEnabled = true
+}
+
+-- Create target highlight
+local targetHighlight = Instance.new("Highlight")
+targetHighlight.FillColor = Color3.fromRGB(255, 0, 0)
+targetHighlight.OutlineColor = Color3.fromRGB(255, 165, 0)
+targetHighlight.FillTransparency = 0.7
+targetHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+
+---------------------------------------------------
+-- Function to initialize the weapon tool and hit event.
+---------------------------------------------------
+local function initWeaponTool()
+    hitEvent = nil
+    local weaponModel = workspace:FindFirstChild(LocalPlayer.Name)
+    if weaponModel then
+        for _, child in ipairs(weaponModel:GetChildren()) do
+            if child:IsA("Tool") then
+                local events = child:FindFirstChild("Events")
+                if events then
+                    hitEvent = events:FindFirstChild("Hit")
+                    if hitEvent then
+                        print("[DEBUG] New weapon tool found and hit event initialized.")
+                        return
+                    end
+                end
+            end
+        end
+    end
+    print("[DEBUG] Weapon tool not found in inventory!")
+end
+
+---------------------------------------------------
+-- Function to check if the target is on solid ground.
+---------------------------------------------------
+local function isTargetGrounded(targetHRP)
+    local origin = targetHRP.Position
+    local rayOrigin = Vector3.new(origin.X, origin.Y + 5, origin.Z)
+    local rayDirection = Vector3.new(0, -50, 0)
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {targetHRP.Parent}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local rayResult = workspace:Raycast(rayOrigin, rayDirection, rayParams)
+    return rayResult ~= nil
+end
+
+---------------------------------------------------
+-- GUI Setup
+---------------------------------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CombatGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 240, 0, 230)
+mainFrame.Position = UDim2.new(0, 50, 0, 50)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 25)
+titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(0.8, 0, 1, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "Combat Assist"
+titleText.Font = Enum.Font.SourceSansBold
+titleText.TextSize = 14
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.Parent = titleBar
+
+local statusIndicator = Instance.new("Frame")
+statusIndicator.Size = UDim2.new(0, 10, 0, 10)
+statusIndicator.Position = UDim2.new(0.9, 0, 0.5, -5)
+statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+statusIndicator.BorderSizePixel = 0
+statusIndicator.Parent = titleBar
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0.9, 0, 0, 25)
+toggleButton.Position = UDim2.new(0.05, 0, 0, 30)
+toggleButton.Text = "ACTIVATE TRIGGER"
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 14
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.BackgroundColor3 = Color3.fromRGB(41, 128, 185)
+toggleButton.BorderSizePixel = 0
+toggleButton.Parent = mainFrame
+
+-- Alignment for textboxes using consistent X offsets
+local labelX = 0.05
+local boxX = 0.65
+local labelWidth = 0.55
+local boxWidth = 0.35
+local rowHeight = 20
+local rowSpacing = 5
+
+local distanceLabel = Instance.new("TextLabel")
+distanceLabel.Size = UDim2.new(labelWidth, 0, 0, rowHeight)
+distanceLabel.Position = UDim2.new(labelX, 0, 0, 60)
+distanceLabel.Text = "Scan Range:"
+distanceLabel.TextColor3 = Color3.new(1, 1, 1)
+distanceLabel.BackgroundTransparency = 1
+distanceLabel.TextXAlignment = Enum.TextXAlignment.Left
+distanceLabel.Parent = mainFrame
+
+local distanceBox = Instance.new("TextBox")
+distanceBox.Size = UDim2.new(boxWidth, 0, 0, rowHeight)
+distanceBox.Position = UDim2.new(boxX, 0, 0, 60)
+distanceBox.Text = tostring(TARGET_DISTANCE)
+distanceBox.TextColor3 = Color3.new(1, 1, 1)
+distanceBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+distanceBox.BorderSizePixel = 0
+distanceBox.Parent = mainFrame
+
+local maintainLabel = Instance.new("TextLabel")
+maintainLabel.Size = UDim2.new(labelWidth, 0, 0, rowHeight)
+maintainLabel.Position = UDim2.new(labelX, 0, 0, 60 + rowHeight + rowSpacing)
+maintainLabel.Text = "Maintain Distance:"
+maintainLabel.TextColor3 = Color3.new(1, 1, 1)
+maintainLabel.BackgroundTransparency = 1
+maintainLabel.TextXAlignment = Enum.TextXAlignment.Left
+maintainLabel.Parent = mainFrame
+
+local maintainBox = Instance.new("TextBox")
+maintainBox.Size = UDim2.new(boxWidth, 0, 0, rowHeight)
+maintainBox.Position = UDim2.new(boxX, 0, 0, 60 + rowHeight + rowSpacing)
+maintainBox.Text = tostring(MAINTAIN_DISTANCE_DEFAULT)
+maintainBox.TextColor3 = Color3.new(1, 1, 1)
+maintainBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+maintainBox.BorderSizePixel = 0
+maintainBox.Parent = mainFrame
+
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(labelWidth, 0, 0, rowHeight)
+speedLabel.Position = UDim2.new(labelX, 0, 0, 60 + 2*(rowHeight + rowSpacing))
+speedLabel.Text = "Tween Speed:"
+speedLabel.TextColor3 = Color3.new(1, 1, 1)
+speedLabel.BackgroundTransparency = 1
+speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+speedLabel.Parent = mainFrame
+
+local speedBox = Instance.new("TextBox")
+speedBox.Size = UDim2.new(boxWidth, 0, 0, rowHeight)
+speedBox.Position = UDim2.new(boxX, 0, 0, 60 + 2*(rowHeight + rowSpacing))
+speedBox.Text = tostring(DEFAULT_TWEEN_SPEED)
+speedBox.TextColor3 = Color3.new(1, 1, 1)
+speedBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+speedBox.BorderSizePixel = 0
+speedBox.Parent = mainFrame
+
+local targetLabel = Instance.new("TextLabel")
+targetLabel.Size = UDim2.new(0.9, 0, 0, rowHeight)
+targetLabel.Position = UDim2.new(0.05, 0, 0, 60 + 3*(rowHeight + rowSpacing))
+targetLabel.Text = "No Target"
+targetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+targetLabel.BackgroundTransparency = 1
+targetLabel.Parent = mainFrame
+
+local hitToggle = Instance.new("TextButton")
+hitToggle.Size = UDim2.new(0.42, 0, 0, rowHeight)
+hitToggle.Position = UDim2.new(0.05, 0, 0, 60 + 4*(rowHeight + rowSpacing))
+hitToggle.Text = "Auto Hit"
+hitToggle.BackgroundColor3 = Color3.fromRGB(46,204,113)
+hitToggle.Parent = mainFrame
+
+local moveToggle = Instance.new("TextButton")
+moveToggle.Size = UDim2.new(0.42, 0, 0, rowHeight)
+moveToggle.Position = UDim2.new(0.53, 0, 0, 60 + 4*(rowHeight + rowSpacing))
+moveToggle.Text = "Auto Move"
+moveToggle.BackgroundColor3 = Color3.fromRGB(46,204,113)
+moveToggle.Parent = mainFrame
+
+local fallToggle = Instance.new("TextButton")
+fallToggle.Size = UDim2.new(0.9, 0, 0, rowHeight)
+fallToggle.Position = UDim2.new(0.05, 0, 0, 60 + 5*(rowHeight + rowSpacing))
+fallToggle.Text = "Fall Protection"
+fallToggle.BackgroundColor3 = Color3.fromRGB(46,204,113)
+fallToggle.Parent = mainFrame
+
+-- Make GUI draggable
+local dragging, dragStart, startPos
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+titleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Button functionality
+hitToggle.MouseButton1Click:Connect(function()
+    if not isAlive then return end
+    featureToggles.hitsEnabled = not featureToggles.hitsEnabled
+    hitToggle.BackgroundColor3 = featureToggles.hitsEnabled and Color3.fromRGB(46,204,113) or Color3.fromRGB(192,57,43)
+end)
+moveToggle.MouseButton1Click:Connect(function()
+    if not isAlive then return end
+    featureToggles.moveEnabled = not featureToggles.moveEnabled
+    moveToggle.BackgroundColor3 = featureToggles.moveEnabled and Color3.fromRGB(46,204,113) or Color3.fromRGB(192,57,43)
+end)
+fallToggle.MouseButton1Click:Connect(function()
+    if not isAlive then return end
+    featureToggles.fallProtectionEnabled = not featureToggles.fallProtectionEnabled
+    fallToggle.BackgroundColor3 = featureToggles.fallProtectionEnabled and Color3.fromRGB(46,204,113) or Color3.fromRGB(192,57,43)
+end)
+toggleButton.MouseButton1Click:Connect(function()
+    if not isAlive then return end
+    triggerActive = not triggerActive
+    toggleButton.Text = triggerActive and "DEACTIVATE TRIGGER" or "ACTIVATE TRIGGER"
+    toggleButton.BackgroundColor3 = triggerActive and Color3.fromRGB(192,57,43) or Color3.fromRGB(41,128,185)
+    statusIndicator.BackgroundColor3 = triggerActive and Color3.fromRGB(46,204,113) or Color3.fromRGB(255,0,0)
+    if not triggerActive and targetHighlight.Parent then
+        targetHighlight.Parent = nil
+        currentTarget = nil
+        targetLabel.Text = "No Target"
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W or input.KeyCode == Enum.KeyCode.A or 
+       input.KeyCode == Enum.KeyCode.S or input.KeyCode == Enum.KeyCode.D or 
+       input.KeyCode == Enum.KeyCode.Space then
+        userMovementOverride = true
+        task.delay(0.5, function() userMovementOverride = false end)
+    end
+end)
+
+---------------------------------------------------
+-- Helper Functions for Terrain Safety & Targeting
+---------------------------------------------------
+local function checkGround(position)
+    local rayOrigin = Vector3.new(position.X, position.Y + 50, position.Z)
+    local rayDir = Vector3.new(0, -100, 0)
+    local rayParams = RaycastParams.new()
+    if LocalPlayer.Character then
+        rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    end
+    local rayResult = workspace:Raycast(rayOrigin, rayDir, rayParams)
+    return rayResult ~= nil, rayResult and rayResult.Position.Y or position.Y
+end
+
+local function isSafeTerrain(position)
+    local hasGround, groundY = checkGround(position)
+    if not hasGround then return false, nil end
+    for _, offset in ipairs({Vector3.new(3,0,0), Vector3.new(-3,0,0), Vector3.new(0,0,3), Vector3.new(0,0,-3)}) do
+        if not checkGround(position + offset) then return false, nil end
+    end
+    return true, groundY
+end
+
+local function findClosestTarget()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return nil, nil, math.huge
+    end
+    local localHRP = LocalPlayer.Character.HumanoidRootPart
+    local distLimit = tonumber(distanceBox.Text) or TARGET_DISTANCE
+    local closest, closestHRP, minDist = nil, nil, math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and 
+           player.Character:FindFirstChild("HumanoidRootPart") and 
+           player.Character:FindFirstChild("Humanoid") and
+           player.Character.Humanoid.Health > 0 then
+            local otherHRP = player.Character.HumanoidRootPart
+            local d = (otherHRP.Position - localHRP.Position).Magnitude
+            if d <= distLimit and d < minDist then
+                minDist = d
+                closest = player
+                closestHRP = otherHRP
+            end
+        end
+    end
+    return closest, closestHRP, minDist
+end
+
+---------------------------------------------------
+-- Character Setup: on Spawn & Respawn
+---------------------------------------------------
+local function setupCharacter(char)
+    if not char then return end
+    local hum = char:WaitForChild("Humanoid")
+    print("[DEBUG] Character spawned.")
+    isAlive = true
+    -- Auto-enable feature toggles on respawn.
+    featureToggles.hitsEnabled = true
+    featureToggles.moveEnabled = true
+    featureToggles.fallProtectionEnabled = true
+    hitToggle.BackgroundColor3 = Color3.fromRGB(46,204,113)
+    moveToggle.BackgroundColor3 = Color3.fromRGB(46,204,113)
+    fallToggle.BackgroundColor3 = Color3.fromRGB(46,204,113)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(41,128,185)
+    task.wait(1)
+    if char:FindFirstChild("HumanoidRootPart") then
+        lastSafePosition = char.HumanoidRootPart.CFrame
+    end
+    initWeaponTool()
+    hum.Died:Connect(function()
+        print("[DEBUG] Character died.")
+        isAlive = false
+        triggerActive = false
+        if targetHighlight.Parent then targetHighlight.Parent = nil end
+        if currentTween then currentTween:Cancel() end
+        toggleButton.Text = "ACTIVATE TRIGGER"
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(255,0,0)
+        hitToggle.BackgroundColor3 = Color3.fromRGB(192,57,43)
+        moveToggle.BackgroundColor3 = Color3.fromRGB(192,57,43)
+        fallToggle.BackgroundColor3 = Color3.fromRGB(192,57,43)
+        print("[DEBUG] GUI buttons set to OFF state after death.")
+    end)
+end
+
+if LocalPlayer.Character then
+    setupCharacter(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(setupCharacter)
+
+---------------------------------------------------
+-- Main Loop for Targeting, Movement, and Hit Events
+---------------------------------------------------
+RunService.Heartbeat:Connect(function(deltaTime)
+    if not triggerActive or not isAlive then return end
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local localHRP = LocalPlayer.Character.HumanoidRootPart
+        local safe, groundY = isSafeTerrain(localHRP.Position)
+        if safe then lastSafePosition = CFrame.new(localHRP.Position.X, groundY + 3, localHRP.Position.Z) end
+
+        local target, targetHRP, distance = findClosestTarget()
+        if target ~= currentTarget then
+            if targetHighlight.Parent then targetHighlight.Parent = nil end
+            currentTarget = target
+            lastTargetChangeTime = tick() -- Record new target selection time.
+            if target then
+                targetHighlight.Parent = target.Character
+                targetLabel.Text = "Target: " .. target.Name
+            else
+                targetLabel.Text = "No Target"
+            end
+        end
+
+        if target and target.Character then
+            -- New: Check if target is grounded; if not, abort following and teleport back to safe position.
+            if not isTargetGrounded(targetHRP) then
+                print("[DEBUG] Target has fallen off! Aborting follow and returning to safe position.")
+                currentTarget = nil
+                if targetHighlight.Parent then targetHighlight.Parent = nil end
+                targetLabel.Text = "Target off edge"
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = lastSafePosition
+                end
+                return
+            end
+
+            local targetHumanoid = target.Character:FindFirstChild("Humanoid")
+            -- Auto Hit
+            if featureToggles.hitsEnabled then
+                hitCooldownTimer = hitCooldownTimer - deltaTime
+                if hitCooldownTimer <= 0 then
+                    if hitEvent and targetHumanoid and targetHumanoid.Health > 0 then
+                        hitEvent:FireServer(targetHumanoid)
+                        print("[DEBUG] Firing hit event on " .. target.Name)
+                    else
+                        initWeaponTool()
+                    end
+                    hitCooldownTimer = HIT_COOLDOWN
+                end
+            end
+
+            -- Auto Movement: Maintain a strict constant distance from the target.
+            if featureToggles.moveEnabled and not userMovementOverride then
+                local targetPos = targetHRP.Position
+                local maintainDistance = tonumber(maintainBox.Text) or MAINTAIN_DISTANCE_DEFAULT
+                local tweenSpeed = tonumber(speedBox.Text) or DEFAULT_TWEEN_SPEED
+                local facingUs = targetHRP.CFrame.LookVector:Dot((localHRP.Position - targetPos).Unit) >= DODGE_DOT_THRESHOLD
+                if distance <= DODGE_RADIUS and facingUs and not dodgeInProgress then
+                    dodgeInProgress = true
+                    if currentTween then currentTween:Cancel() end
+                    local dodgePos = localHRP.Position + targetHRP.CFrame.RightVector * DODGE_OFFSET
+                    if isSafeTerrain(dodgePos) then
+                        local tweenInfo = TweenInfo.new(tweenSpeed, Enum.EasingStyle.Linear)
+                        currentTween = TweenService:Create(localHRP, tweenInfo, {CFrame = CFrame.new(dodgePos, targetPos)})
+                        currentTween:Play()
+                    end
+                    task.delay(0.3, function() dodgeInProgress = false end)
+                elseif not dodgeInProgress then
+                    local behindPos = targetPos - (targetHRP.CFrame.LookVector * maintainDistance)
+                    local safeBehind, groundY2 = isSafeTerrain(behindPos)
+                    if safeBehind and (localHRP.Position - behindPos).Magnitude > 1 then
+                        local finalPos = Vector3.new(behindPos.X, groundY2 + 3, behindPos.Z)
+                        if currentTween then currentTween:Cancel() end
+                        local tweenInfo = TweenInfo.new(tweenSpeed, Enum.EasingStyle.Linear)
+                        currentTween = TweenService:Create(localHRP, tweenInfo, {CFrame = CFrame.new(finalPos, targetPos)})
+                        currentTween:Play()
+                    end
+                end
+            end
+        end
+
+        -- Fall protection and anti-knockback
+        if featureToggles.fallProtectionEnabled and lastSafePosition then
+            local velocity = localHRP.AssemblyLinearVelocity
+            if velocity.Magnitude > 50 then
+                localHRP.AssemblyLinearVelocity = Vector3.new(0, velocity.Y, 0)
+                localHRP.AssemblyAngularVelocity = Vector3.zero
+            end
+            if (tick() - lastTargetChangeTime) > 1 then
+                if velocity.Y < -20 and not userMovementOverride then
+                    print("[DEBUG] Falling detected. Teleporting to safe position.")
+                    localHRP.CFrame = lastSafePosition
+                    localHRP.AssemblyLinearVelocity = Vector3.zero
+                end
+            end
+        end
+    end
+end)

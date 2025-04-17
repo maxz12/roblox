@@ -1,0 +1,76 @@
+-- CommandRunner: A simple GUI command interpreter.
+-- Place this LocalScript inside StarterGui.
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Create a ScreenGui to hold our elements
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CommandRunnerGui"
+screenGui.Parent = playerGui
+
+-- Create a multi-line TextBox for entering commands
+local commandTextBox = Instance.new("TextBox")
+commandTextBox.Name = "CommandTextBox"
+commandTextBox.Position = UDim2.new(0.1, 0, 0.1, 0)
+commandTextBox.Size = UDim2.new(0.8, 0, 0.5, 0)
+commandTextBox.MultiLine = true
+commandTextBox.ClearTextOnFocus = false
+commandTextBox.TextWrapped = true
+commandTextBox.Text = "print Hello, world!"  -- default command example
+commandTextBox.Parent = screenGui
+
+-- Create a button labeled "Run" that executes the command when clicked
+local runButton = Instance.new("TextButton")
+runButton.Name = "RunButton"
+runButton.Position = UDim2.new(0.4, 0, 0.7, 0)
+runButton.Size = UDim2.new(0.2, 0, 0.1, 0)
+runButton.Text = "Run"
+runButton.Parent = screenGui
+
+-- Define a table of allowed commands and their functions.
+-- Extend this table with any additional commands you want to support.
+local commands = {}
+
+-- "print" command: prints all arguments to the output.
+commands["print"] = function(args)
+	local output = table.concat(args, " ")
+	print(output)
+end
+
+-- "spawnPart" command: creates a new Part in the Workspace.
+commands["spawnPart"] = function(args)
+	local part = Instance.new("Part")
+	part.Size = Vector3.new(4, 1, 2)
+	part.Position = Vector3.new(0, 5, 0)
+	part.Parent = workspace
+	print("Spawned a part!")
+end
+
+-- Helper function: Parses the text input into a command and its arguments.
+local function parseCommand(input)
+	local words = {}
+	for word in string.gmatch(input, "%S+") do
+		table.insert(words, word)
+	end
+	local commandName = words[1]
+	table.remove(words, 1)
+	return commandName, words
+end
+
+-- Connect the Run button so that when it is clicked, it parses and runs the command.
+runButton.MouseButton1Click:Connect(function()
+	local input = commandTextBox.Text
+	local commandName, args = parseCommand(input)
+	if commands[commandName] then
+		local success, err = pcall(function()
+			commands[commandName](args)
+		end)
+		if not success then
+			warn("Error executing command: " .. err)
+		end
+	else
+		warn("Unknown command: " .. tostring(commandName))
+	end
+end)

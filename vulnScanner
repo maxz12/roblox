@@ -1,0 +1,253 @@
+--[[
+    Extended Vulnerability Scanner with Enhanced Descriptions
+    ----------------------------------------------------------
+    This script scans for functions and objects that, if available,
+    allow an executor (hacker) to modify game code, read/alter script
+    source, change protected environments, or interfere with server-side
+    behavior via RemoteEvents/RemoteFunctions.
+
+    Output:
+      - Informational messages are printed in white.
+      - Vulnerability warnings are printed using warn() (yellow text).
+    
+    How to use:
+      Place this LocalScript in StarterGui.
+    
+    DISCLAIMER:
+      This tool is for testing and educational purposes only.
+--]]
+
+local vulnerabilities = {}
+
+local function addVulnerability(desc)
+    table.insert(vulnerabilities, desc)
+end
+
+----------------------------
+-- Detailed Function Checks
+----------------------------
+
+-- 1. loadstring
+--    What it does: Compiles and executes Lua code provided as a string.
+--    Why it's dangerous: An attacker can pass in arbitrary code at runtime,
+--                       which is then executed immediately. This means that rather
+--                       than being limited to pre-written scripts, a hacker can
+--                       inject any behavior they want.
+if type(loadstring) == "function" then
+    addVulnerability("loadstring is enabled:\n" ..
+        "   - Allows dynamic execution of code from a string.\n" ..
+        "   - A hacker can inject new code on the fly, altering game behavior beyond " ..
+        "     what a static script could do.")
+end
+
+-- 2. getfenv
+--    What it does: Retrieves a function’s environment (its set of global variables).
+--    Why it's dangerous: Exposes internal data and functions that should remain hidden.
+if type(getfenv) == "function" then
+    addVulnerability("getfenv is enabled:\n" ..
+        "   - Provides access to a function's environment, revealing global variables and functions.\n" ..
+        "   - This can expose sensitive data or allow manipulation of game logic.")
+end
+
+-- 3. setfenv
+--    What it does: Changes a function’s environment.
+--    Why it's dangerous: Can be used to alter what variables a function sees,
+--                         potentially bypassing security checks.
+if type(setfenv) == "function" then
+    addVulnerability("setfenv is enabled:\n" ..
+        "   - Allows modification of a function's environment.\n" ..
+        "   - An attacker could redirect variable lookups or change critical behavior.")
+end
+
+-- 4. debug.getinfo
+--    What it does: Provides detailed information (like source code location) about functions.
+--    Why it's dangerous: Helps an attacker reverse-engineer your code and discover vulnerabilities.
+if debug and type(debug.getinfo) == "function" then
+    addVulnerability("debug.getinfo is enabled:\n" ..
+        "   - Reveals internal details about functions, such as where they are defined.\n" ..
+        "   - This can be used to understand and potentially exploit your game’s logic.")
+end
+
+-- 5. debug.getupvalues
+--    What it does: Retrieves the external local variables (upvalues) that a function uses.
+--    Why it's dangerous: Exposes private data or state that the function relies on.
+if debug and type(debug.getupvalues) == "function" then
+    addVulnerability("debug.getupvalues is enabled:\n" ..
+        "   - Allows inspection of a function's upvalues (its hidden local variables).\n" ..
+        "   - This can leak internal state or allow an attacker to manipulate behavior.")
+end
+
+-- 6. debug.setupvalue
+--    What it does: Modifies the upvalues of a function.
+--    Why it's dangerous: An attacker could change a function's internal state,
+--                         thereby altering its behavior.
+if debug and type(debug.setupvalue) == "function" then
+    addVulnerability("debug.setupvalue is enabled:\n" ..
+        "   - Permits changing a function's upvalues.\n" ..
+        "   - This can be used to modify internal variables and disrupt intended logic.")
+end
+
+-- 7. getgenv
+--    What it does: Retrieves the global environment used by the executor.
+--    Why it's dangerous: Exposes and allows modifications to all global variables.
+if type(getgenv) == "function" then
+    addVulnerability("getgenv is enabled:\n" ..
+        "   - Provides access to the global environment, including all global variables.\n" ..
+        "   - An attacker can inject or alter code that runs across the entire client.")
+end
+
+-- 8. setgenv
+--    What it does: Replaces the global environment with another.
+--    Why it's dangerous: This can completely change what global functions and variables your code sees.
+if type(setgenv) == "function" then
+    addVulnerability("setgenv is enabled:\n" ..
+        "   - Allows replacement of the global environment.\n" ..
+        "   - Can lead to widespread changes in how the client code behaves.")
+end
+
+-- 9. getrawmetatable
+--    What it does: Retrieves the metatable of an object without any protections.
+--    Why it's dangerous: The metatable controls how an object behaves; exposing it
+--                         can allow an attacker to override or bypass protections.
+if type(getrawmetatable) == "function" then
+    addVulnerability("getrawmetatable is enabled:\n" ..
+        "   - Exposes the internal metatable of objects.\n" ..
+        "   - Can be exploited to change object behavior or bypass restrictions.")
+end
+
+-- 10. setrawmetatable
+--     What it does: Sets the metatable of an object.
+--     Why it's dangerous: Changing an object’s metatable can alter its behavior and
+--                         break or bypass safeguards in the code.
+if type(setrawmetatable) == "function" then
+    addVulnerability("setrawmetatable is enabled:\n" ..
+        "   - Allows modification of an object's metatable.\n" ..
+        "   - Can be used to override built-in behaviors or disable protections.")
+end
+
+-- 11. getscriptsource
+--     What it does: Returns the source code of a given script.
+--     Why it's dangerous: Exposes proprietary or sensitive code that should remain secret.
+if type(getscriptsource) == "function" then
+    addVulnerability("getscriptsource is enabled:\n" ..
+        "   - Lets an attacker read the source code of scripts.\n" ..
+        "   - This can be used to understand and copy proprietary game logic.")
+end
+
+-- 12. setreadonly
+--     What it does: Changes the readonly status of tables.
+--     Why it's dangerous: Tables that are meant to be immutable can be altered,
+--                         potentially breaking the integrity of the game.
+if type(setreadonly) == "function" then
+    addVulnerability("setreadonly is enabled:\n" ..
+        "   - Permits changing the readonly status of tables.\n" ..
+        "   - An attacker could modify data that is intended to be protected from changes.")
+end
+
+-- 13. getgc
+--     What it does: Returns a list of objects that are currently garbage-collected.
+--     Why it's dangerous: Can expose hidden functions or data that aren’t meant for public access.
+if type(getgc) == "function" then
+    addVulnerability("getgc is enabled:\n" ..
+        "   - Reveals garbage-collected objects which may contain hidden or sensitive functions.\n" ..
+        "   - This can be exploited to discover internal data not normally visible.")
+end
+
+-- 14. getscriptclosure
+--     What it does: Retrieves a function’s closure (its internal context).
+--     Why it's dangerous: Reveals a function’s internal variables and logic.
+if type(getscriptclosure) == "function" then
+    addVulnerability("getscriptclosure is enabled:\n" ..
+        "   - Exposes the closure of a function, including its internal state.\n" ..
+        "   - Can be used to tamper with or replicate the function's behavior.")
+end
+
+-- 15. hookmetamethod
+--     What it does: Intercepts calls to an object's metamethods.
+--     Why it's dangerous: Can override or bypass default behaviors, potentially disabling security checks.
+if type(hookmetamethod) == "function" then
+    addVulnerability("hookmetamethod is enabled:\n" ..
+        "   - Allows interception of metamethod calls on objects.\n" ..
+        "   - This can be used to bypass or alter protected behaviors in the game.")
+end
+
+-- 16. hookfunction
+--     What it does: Replaces an existing function with a custom one.
+--     Why it's dangerous: Enables the attacker to modify critical game functions.
+if type(hookfunction) == "function" then
+    addVulnerability("hookfunction is enabled:\n" ..
+        "   - Permits the hooking (replacement) of existing functions.\n" ..
+        "   - An attacker can modify or bypass game logic by intercepting function calls.")
+end
+
+-- 17. getconnections
+--     What it does: Returns a list of connections (listeners) for an event.
+--     Why it's dangerous: An attacker could inspect or disconnect events, potentially disrupting game logic.
+if type(getconnections) == "function" then
+    addVulnerability("getconnections is enabled:\n" ..
+        "   - Exposes event connections for objects.\n" ..
+        "   - This could allow an attacker to interfere with or disable critical event handlers.")
+end
+
+-- 18. gethiddenproperty
+--     What it does: Reads properties that are normally hidden on instances.
+--     Why it's dangerous: Reveals internal state and sensitive data.
+if type(gethiddenproperty) == "function" then
+    addVulnerability("gethiddenproperty is enabled:\n" ..
+        "   - Grants access to normally hidden instance properties.\n" ..
+        "   - Can leak internal data that the game assumes is secure.")
+end
+
+-- 19. sethiddenproperty
+--     What it does: Modifies properties that are normally hidden on instances.
+--     Why it's dangerous: An attacker can change aspects of objects that should remain immutable.
+if type(sethiddenproperty) == "function" then
+    addVulnerability("sethiddenproperty is enabled:\n" ..
+        "   - Allows altering of hidden properties on instances.\n" ..
+        "   - This can affect the behavior of objects in unforeseen and insecure ways.")
+end
+
+-- 20. getreg
+--     What it does: Retrieves the Lua registry, a table holding internal references.
+--     Why it's dangerous: Gives access to the underlying data structures of the Lua runtime,
+--                         which can be exploited to change core behaviors.
+if type(getreg) == "function" then
+    addVulnerability("getreg is enabled:\n" ..
+        "   - Exposes the Lua registry containing internal references.\n" ..
+        "   - This could be used to tamper with or monitor the game's core functions.")
+end
+
+----------------------------
+-- Server/Global Object Checks
+----------------------------
+
+-- Scan for RemoteEvents and RemoteFunctions that are accessible on the client.
+-- These objects are used to communicate with the server.
+-- If they aren’t secured properly, a malicious client can trigger server-side actions.
+local remoteWarnings = {}
+for _, obj in ipairs(game:GetDescendants()) do
+    if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+        -- Check if these remotes are in common public containers
+        if obj:IsDescendantOf(game.ReplicatedStorage) or obj:IsDescendantOf(game:GetService("Players")) then
+            table.insert(remoteWarnings, "  • " .. obj:GetFullName())
+        end
+    end
+end
+if #remoteWarnings > 0 then
+    addVulnerability("Accessible Remote objects detected (which can affect all players):\n" ..
+        table.concat(remoteWarnings, "\n"))
+end
+
+----------------------------
+-- Output the Scan Results
+----------------------------
+
+if #vulnerabilities == 0 then
+    print("No exploitable vulnerabilities detected in the LocalScript environment.")
+else
+    print("=== Potential Vulnerabilities Detected ===")
+    for i, vuln in ipairs(vulnerabilities) do
+        warn("[" .. i .. "] " .. vuln)
+    end
+    print("==========================================")
+end

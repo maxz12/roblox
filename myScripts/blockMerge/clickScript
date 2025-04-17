@@ -1,0 +1,145 @@
+-- This LocalScript creates a draggable GUI with a toggleable checkbox.
+-- When the checkbox is enabled, it continuously finds the block with the highest "Number" value
+-- from the player's plot blocks, prints logs every time it fires the event, and prints a message
+-- when a new block with a higher value is found.
+-- The event is fired using the provided path:
+--   workspace.Plots[PlayerName].Blocks -> each block contains a ScreenGui "Back" with a TextLabel "Number" whose Text property holds the value.
+--
+-- The script converts values like "10k" to 10000.
+-- Every click attempt will be printed to the output.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local localPlayer = Players.LocalPlayer
+local plrName = localPlayer.Name
+
+-- Create a ScreenGui and parent it to the player's PlayerGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+-- Create a draggable Frame, which serves as the container for the toggleable checkbox
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 100)
+frame.Position = UDim2.new(0.5, -100, 0.5, -50)
+frame.BackgroundColor3 = Color3.new(0.8, 0.8, 0.8)
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
+
+-- Create the Checkbox as a TextButton
+local checkbox = Instance.new("TextButton")
+checkbox.Size = UDim2.new(0, 20, 0, 20)
+checkbox.Position = UDim2.new(0, 10, 0, 10)
+checkbox.BackgroundColor3 = Color3.new(1, 0, 0) -- Red indicates it is off
+checkbox.Text = ""
+checkbox.Parent = frame
+
+-- Add a TextLabel next to the checkbox
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(0, 100, 0, 20)
+label.Position = UDim2.new(0, 40, 0, 10)
+label.BackgroundTransparency = 1
+label.Text = "Toggle"
+label.Parent = frame
+
+-- Variables to store state
+local autoTapEnabled = false
+local currentBestBlock = nil -- to track the block with the highest value
+
+-- Get the Blocks path: workspace.Plots[plrName].Blocks
+local blocksPath = workspace:WaitForChild("Plots"):WaitForChild(plrName):WaitForChild("Blocks")
+
+-- Helper function to parse strings like "10" or "10k" to a number
+local function parseValue(txt)
+	txt = txt or ""
+	local numeric = 0
+	if txt:lower():find("k") then
+		local numPart = txt:lower():gsub("k", "")
+		numeric = tonumber(numPart) or 0
+		numeric = numeric * 1000
+	else
+		numeric = tonumber(txt) or 0
+	end
+	return numeric
+end
+
+-- Function to get the block with the highest "Number" value.
+-- Returns both the block and its numeric value.
+local function getBlockWithMaxValue()
+	local highestValue = -math.huge
+	local bestBlock = nil
+
+	for _, block in ipairs(blocksPath:GetChildren()) do
+		local backGui = block:FindFirstChild("Back")
+		if backGui then
+			local numberLabel = backGui:FindFirstChild("Number")
+			if numberLabel and numberLabel:IsA("TextLabel") then
+				local value = parseValue(numberLabel.Text)
+				-- Check if this block has a higher value than the current highest value.
+				if value > highestValue then
+					highestValue = value
+					bestBlock = block
+				end
+			end
+		end
+	end
+
+	return bestBlock, highestValue
+end
+
+-- Function that fires the "Tap" event on the given block.
+local function fireTapEvent(block)
+	if block then
+		local args = { block }
+		ReplicatedStorage:WaitForChild("Functions"):WaitForChild("Tap"):FireServer(unpack(args))
+		print("Fired Tap event on block:", block.Name)
+	else
+		print("No valid block found to tap.")
+	end
+end
+
+-- The auto-tap loop: while autoTapEnabled is true, continually find the block with the highest value
+-- and fire the event repeatedly. Print logs for every action.
+local function autoTap()
+	while autoTapEnabled do
+		local bestBlock, bestValue = getBlockWithMaxValue()
+		if bestBlock then
+			-- If we've found a new block different from the one previously tapped, print its details.
+			if bestBlock ~= currentBestBlock then
+				currentBestBlock = bestBlock
+				print("New best block found: " .. bestBlock.Name .. " with value: " .. tostring(bestValue))
+			end
+
+			-- Print every time before firing the Tap event.
+			print("Clicking on block: " .. bestBlock.Name .. " with value: " .. tostring(bestValue))
+			fireTapEvent(bestBlock)
+		else
+			print("No blocks found in the path.")
+		end
+
+		-- Small delay between taps to allow the loop to yield
+		RunService.Heartbeat:Wait()
+	end
+end
+
+-- Update the button appearance depending on toggle state and start/stop auto tap.
+local function updateCheckbox()
+	if autoTapEnabled then
+		checkbox.BackgroundColor3 = Color3.new(0, 1, 0) -- Green if enabled
+		print("Auto tap enabled. Starting loop...")
+		-- Start the auto tap loop in a new thread
+		spawn(autoTap)
+	else
+		checkbox.BackgroundColor3 = Color3.new(1, 0, 0) -- Red if disabled
+		print("Auto tap disabled. Stopping loop...")
+		currentBestBlock = nil -- Reset the best block tracker
+	end
+end
+
+-- Toggle the auto tap state when the checkbox is clicked.
+checkbox.MouseButton1Click:Connect(function()
+	autoTapEnabled = not autoTapEnabled
+	updateCheckbox()
+end)
