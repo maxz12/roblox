@@ -34,7 +34,7 @@ table.insert(connections, Players.LocalPlayer.CharacterAdded:Connect(function(ne
 end))
 
 -- Create a single tab with all features
-local MainTab = Window:Tab({Name = "Prison Life GUI"})
+local MainTab = Window:Tab({Name = "main"})
 
 -- POLICE CONTROLS SECTION
 local PoliceSection = MainTab:Section({Name = "Police Controls", Side = "Left"})
@@ -521,95 +521,115 @@ AmmoCollect:Keybind({
 -- MONEY BAGS SECTION
 local BagsSection = MainTab:Section({Name = "Money Bags", Side = "Right"})
 
-local CollectBagsButton = BagsSection:Button({
-    Name = "Collect All Money Bags",
-    Callback = function()
-        local plr = game.Players.LocalPlayer
-        local char = plr.Character or plr.CharacterAdded:Wait()
-        local hrp = char:WaitForChild("HumanoidRootPart")
-    
-        -- Remote references
-        local remotes = game:GetService("ReplicatedStorage"):WaitForChild("RS_Package"):WaitForChild("Remotes")
-        local startInteraction = remotes:WaitForChild("StartInteraction")
-        local completeInteraction = remotes:WaitForChild("CompleteInteraction")
-        local throwBag = remotes:WaitForChild("ThrowBag")
-    
-        -- Drop-off location
-        local dropArea = workspace.BagSecuredArea.FloorPart
-    
-        -- Process a single bag
-        local function grabAndDeliverBag(bag)
-            local moneyBag = bag:FindFirstChild("MoneyBag")
-            if not moneyBag then return false end
-            
-            local prompt = moneyBag:FindFirstChild("ProximityPrompt")
-            if not prompt then return false end
-            
-            -- 1. Go to bag
-            hrp.CFrame = CFrame.new(moneyBag.Position + Vector3.new(0, 3, 0))
-            task.wait(0.2)
-            
-            -- 2. Pick up bag
-            startInteraction:FireServer(prompt)
-            task.wait(0.2)
-            completeInteraction:FireServer(prompt)
-            task.wait(0.2)
-            
-            -- 3. Go to drop-off
-            hrp.CFrame = CFrame.new(dropArea.Position + Vector3.new(0, 3, 0))
-            task.wait(0.2)
-            
-            -- 4. Drop bag
-            throwBag:FireServer(Vector3.new(0, -1, 0))
-            task.wait(0.3)
-            
-            return true
-        end
-    
-        -- Main function - one-time execution
-        local function collectAllBagsOnce()
-            Bracket:Notification({
-                Title = "Money Bags",
-                Description = "Starting collection...",
-                Duration = 2
-            })
-            
-            local bagsFolder = workspace:FindFirstChild("Bags")
-            if not bagsFolder then
-                Bracket:Notification({
-                    Title = "Error",
-                    Description = "No bags folder found!",
-                    Duration = 2
-                })
-                return
+-- Global variables to track state
+local autoCollectEnabled = false
+local monitoringLoop = nil
+
+local AutoCollectBags = BagsSection:Toggle({
+    Name = "Auto-Collect Money Bags",
+    Value = false,
+    Callback = function(enabled)
+        autoCollectEnabled = enabled
+        
+        if enabled then
+            -- Create a single monitoring loop that runs continuously
+            if monitoringLoop then
+                task.cancel(monitoringLoop)
             end
             
-            local bagList = bagsFolder:GetChildren()
-            local totalBags = #bagList
-            local delivered = 0
-            
-            for i, bag in ipairs(bagList) do
-                if bag.Name == "Bag" then
-                    local success = grabAndDeliverBag(bag)
-                    if success then
-                        delivered = delivered + 1
+            monitoringLoop = task.spawn(function()
+                while autoCollectEnabled and task.wait(0.2) do
+                    -- Check if bags folder exists
+                    local bagsFolder = workspace:FindFirstChild("Bags")
+                    if not bagsFolder then continue end
+                    
+                    -- Check drop area exists
+                    local dropArea = workspace:FindFirstChild("BagSecuredArea")
+                    if not dropArea then continue end
+                    
+                    local floorPart = dropArea:FindFirstChild("FloorPart")
+                    if not floorPart then continue end
+                    
+                    -- Process all bags
+                    for _, bag in pairs(bagsFolder:GetChildren()) do
+                        if not bag or not bag:IsA("Model") or bag.Name ~= "Bag" then continue end
+                        
+                        local moneyBag = bag:FindFirstChild("MoneyBag")
+                        if not moneyBag then continue end
+                        
+                        -- If bag doesn't have a weld, it's dropped - teleport it
+                        if not moneyBag:FindFirstChild("BagWeld") then
+                            -- Set primary part if needed
+                            if not bag.PrimaryPart then
+                                bag.PrimaryPart = moneyBag
+                            end
+                            
+                            -- Only teleport if it's not already at drop area
+                            local bagPos = bag:GetPrimaryPartCFrame().Position
+                            local dropPos = floorPart.Position
+                            
+                            -- If bag is more than 10 studs away from drop area
+                            if (bagPos - dropPos).Magnitude > 10 then
+                                -- Teleport the bag
+                                bag:SetPrimaryPartCFrame(CFrame.new(floorPart.Position + Vector3.new(0, 1, 0)))
+                                
+                                Bracket:Notification({
+                                    Title = "Money Bag Collected",
+                                    Description = "Bag teleported to drop-off",
+                                    Duration = 1
+                                })
+                            end
+                        end
                     end
                 end
+            end)
+            
+            -- Add to connections for cleanup
+            table.insert(connections, function()
+                if monitoringLoop then
+                    task.cancel(monitoringLoop)
+                    monitoringLoop = nil
+                end
+            end)
+            
+            Bracket:Notification({
+                Title = "Auto-Collect Enabled",
+                Description = "Now monitoring for dropped money bags",
+                Duration = 2
+            })
+        else
+            -- Clean up monitoring loop
+            if monitoringLoop then
+                task.cancel(monitoringLoop)
+                monitoringLoop = nil
             end
             
             Bracket:Notification({
-                Title = "Collection Complete",
-                Description = "Delivered " .. delivered .. " bags",
-                Duration = 3
+                Title = "Auto-Collect Disabled",
+                Description = "No longer collecting money bags",
+                Duration = 2
             })
         end
-    
-        -- Run the one-time collection
-        collectAllBagsOnce()
     end
 })
-CollectBagsButton:ToolTip("Collects and delivers all money bags in the game")
 
+-- Add keybind
+AutoCollectBags:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"}
+})
+
+-- Add tooltip
+AutoCollectBags:ToolTip("Automatically teleports dropped money bags to the drop-off")
+AutoCollectBags:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"},
+    Callback = function(_, _)
+        -- This will be called when the keybind is pressed
+    end
+})
 -- SETTINGS SECTION
 local SettingsSection = MainTab:Section({Name = "Settings", Side = "Right"})
 
