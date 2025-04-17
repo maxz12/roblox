@@ -2,14 +2,14 @@ local Bracket = loadstring(game:HttpGet("https://raw.githubusercontent.com/AlexR
 
 -- Show initial notifications
 Bracket:Notification({
-    Title = "Prison Life GUI Loaded",
+    Title = "Notoriety GUI Loaded",
     Description = "Created by maxz12",
     Duration = 3
 })
 
 -- Create main window
 local Window = Bracket:Window({
-    Name = "Prison Life GUI",
+    Name = "Notoriety GUI",
     Enabled = true,
     Color = Color3.new(0.4, 0.4, 0.8),
     Size = UDim2.new(0, 496, 0, 400),
@@ -335,7 +335,7 @@ CitizenHighlight:Keybind({
 -- Citizens remove feature
 local citizenRemoveConnection = nil
 local CitizenRemove = CitizenSection:Toggle({
-    Name = "Remove Citizens (9999,9999,9999)",
+    Name = "Remove Citizens(no work)",
     Value = false,
     Callback = function(enabled)
         if workspace:FindFirstChild("Citizens") then
@@ -975,6 +975,7 @@ InfiniteAmmo:Keybind({
 })
 
 -- Apply Gun Mods button
+-- Apply Gun Mods button
 local ApplyModsButton = GunModsSection:Button({
     Name = "Apply Mods To Current Guns",
     Callback = function()
@@ -988,6 +989,10 @@ local ApplyModsButton = GunModsSection:Button({
     end
 })
 ApplyModsButton:ToolTip("Force apply mods to all current guns")
+
+-- Add this note here ↓
+GunModsSection:Label({Text = "Note: Switch to secondary weapon"})
+GunModsSection:Label({Text = "and back to apply some effects"})
 
 -- Set up gun modifiers as soon as the script loads
 setupGunModifiers()
@@ -1108,10 +1113,10 @@ AutoCollectBags:Keybind({
 local SettingsSection = MainTab:Section({Name = "Settings", Side = "Right"})
 
 -- Information
-SettingsSection:Label({Text = "Prison Life GUI v1.0"})
+SettingsSection:Label({Text = "Notoriety GUI v1.0"})
 SettingsSection:Label({Text = "Created by maxz12"})
 SettingsSection:Label({Text = "Last updated: 2025-04-16 19:22:08"})
-SettingsSection:Label({Text = "Toggle UI: RightShift (fixed)"})
+SettingsSection:Label({Text = "Toggle UI: RightShift"})
 
 -- Manual implementation of UI toggle with fixed RightShift keybind
 local guiVisible = true
