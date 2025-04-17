@@ -12,7 +12,7 @@ local Window = Bracket:Window({
     Name = "Prison Life GUI",
     Enabled = true,
     Color = Color3.new(0.4, 0.4, 0.8),
-    Size = UDim2.new(0, 496, 0, 300),
+    Size = UDim2.new(0, 496, 0, 400),
     Position = UDim2.new(0.5, -248, 0.5, -150)
 })
 
@@ -517,6 +517,480 @@ AmmoCollect:Keybind({
         -- This will be called when the keybind is pressed
     end
 })
+-- PLAYER MODS SECTION
+local PlayerModsSection = MainTab:Section({Name = "Player Mods", Side = "Left"})
+
+-- Infinite Stamina Toggle
+local staminaLoop = nil
+local InfiniteStamina = PlayerModsSection:Toggle({
+    Name = "Infinite Stamina",
+    Value = false,
+    Callback = function(enabled)
+        if enabled then
+            if staminaLoop then
+                task.cancel(staminaLoop)
+            end
+            
+            staminaLoop = task.spawn(function()
+                while true do
+                    local plrName = game.Players.LocalPlayer.Name
+                    local criminalFolder = workspace:FindFirstChild("Criminals")
+                    
+                    if criminalFolder and criminalFolder:FindFirstChild(plrName) then
+                        local staminaValue = criminalFolder[plrName]:FindFirstChild("Stamina")
+                        if staminaValue then
+                            staminaValue.Value = 240
+                        end
+                    end
+                    RunService.Heartbeat:Wait()
+                end
+            end)
+            
+            table.insert(connections, function()
+                if staminaLoop then
+                    task.cancel(staminaLoop)
+                    staminaLoop = nil
+                end
+            end)
+            
+            Bracket:Notification({
+                Title = "Infinite Stamina",
+                Description = "Enabled infinite stamina",
+                Duration = 2
+            })
+        else
+            if staminaLoop then
+                task.cancel(staminaLoop)
+                staminaLoop = nil
+            end
+            
+            Bracket:Notification({
+                Title = "Infinite Stamina",
+                Description = "Disabled infinite stamina",
+                Duration = 2
+            })
+        end
+    end
+})
+InfiniteStamina:ToolTip("Never run out of stamina")
+InfiniteStamina:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"}
+})
+
+-- Speed Slider
+local SpeedSlider = PlayerModsSection:Slider({
+    Name = "Movement Speed",
+    Min = 18,
+    Max = 100,
+    Value = 18,
+    Precise = 0,
+    Unit = "",
+    Callback = function(value)
+        local plrName = game.Players.LocalPlayer.Name
+        local criminalFolder = workspace:FindFirstChild("Criminals")
+        
+        if criminalFolder and criminalFolder:FindFirstChild(plrName) then
+            local baseSpeed = criminalFolder[plrName]:FindFirstChild("BaseSpeed")
+            if baseSpeed then
+                baseSpeed.Value = value
+                
+                Bracket:Notification({
+                    Title = "Speed Modified",
+                    Description = "Set speed to " .. value,
+                    Duration = 1
+                })
+            end
+        else
+            Bracket:Notification({
+                Title = "Error",
+                Description = "Couldn't find character or speed value",
+                Duration = 2
+            })
+        end
+    end
+})
+SpeedSlider:ToolTip("Modify your character's base movement speed (default: 18)")
+
+-- GUN MODS SECTION
+local GunModsSection = MainTab:Section({Name = "Gun Mods", Side = "Right"})
+
+-- Track settings
+local gunSettings = {
+    fastReload = false,
+    fastFireRate = false,
+    noRecoil = false,
+    infiniteAmmo = false
+}
+
+-- Function to modify a gun's properties
+local function modifyGunModule(gunData)
+    if not gunData then return false end
+    
+    local success, module = pcall(function()
+        return require(gunData)
+    end)
+    
+    if not success or not module then
+        return false
+    end
+    
+    -- Apply mods based on settings
+    if gunSettings.fastReload then
+        module.ReloadTime = 0.05
+        module.LongerReloadTime = 0.05
+    end
+    
+    if gunSettings.fastFireRate then
+        module.FireDelay = 0.02
+    end
+    
+    if gunSettings.noRecoil then
+        module.RecoilDirectionPattern = {Vector2.new(0, 0), Vector2.new(0, 0), Vector2.new(0, 0), Vector2.new(0, 0)}
+        module.RecoilCameraDirectionPattern = {Vector2.new(0, 0), Vector2.new(0, 0)}
+        module.ShakeMagnitude = 0
+        module.Knockback = 0
+        module.PushBack = 0
+    end
+    
+    return true
+end
+
+-- Main function to check for and modify guns
+local function setupGunModifiers()
+    local plr = game.Players.LocalPlayer
+    local backpack = plr.Backpack
+    local criminalFolder = workspace:FindFirstChild("Criminals")
+    local plrFolder = criminalFolder and criminalFolder:FindFirstChild(plr.Name)
+    
+    -- Watch for when the player equips a weapon
+    local characterConnection
+    if plr.Character then
+        characterConnection = plr.Character.ChildAdded:Connect(function(item)
+            if item:IsA("Tool") then
+                task.wait(0.1) -- Brief wait for gun to fully load
+                
+                -- Find the gun data
+                if plrFolder and plrFolder:FindFirstChild(item.Name) then
+                    local gunFolder = plrFolder:FindFirstChild(item.Name)
+                    local gunData = gunFolder and gunFolder:FindFirstChild("Data")
+                    
+                    if gunData then
+                        if modifyGunModule(gunData) then
+                            Bracket:Notification({
+                                Title = "Gun Modified",
+                                Description = "Applied mods to " .. item.Name,
+                                Duration = 1
+                            })
+                        end
+                    end
+                end
+            end
+        end)
+        table.insert(connections, characterConnection)
+    end
+    
+    -- Watch for when character is added (respawn)
+    local charAddedConnection = plr.CharacterAdded:Connect(function(char)
+        if characterConnection then
+            characterConnection:Disconnect()
+        end
+        
+        characterConnection = char.ChildAdded:Connect(function(item)
+            if item:IsA("Tool") then
+                task.wait(0.1)
+                
+                -- Find the gun data
+                if plrFolder and plrFolder:FindFirstChild(item.Name) then
+                    local gunFolder = plrFolder:FindFirstChild(item.Name)
+                    local gunData = gunFolder and gunFolder:FindFirstChild("Data")
+                    
+                    if gunData then
+                        if modifyGunModule(gunData) then
+                            Bracket:Notification({
+                                Title = "Gun Modified",
+                                Description = "Applied mods to " .. item.Name,
+                                Duration = 1
+                            })
+                        end
+                    end
+                end
+            end
+        end)
+        table.insert(connections, characterConnection)
+    end)
+    table.insert(connections, charAddedConnection)
+    
+    -- Watch for changes in the workspace.Criminals folder
+    local gunsModified = {}
+    
+    local criminalsChildAddedConn = workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Criminals" then
+            local plrFolderWatcher
+            
+            plrFolderWatcher = child.ChildAdded:Connect(function(playerFolder)
+                if playerFolder.Name == plr.Name then
+                    -- Watch for gun folders being added
+                    local gunFolderAddedConn = playerFolder.ChildAdded:Connect(function(gunFolder)
+                        if gunFolder:IsA("Folder") and not gunFolder.Name:match("Ammo") and not gunFolder.Name:match("Speed") then
+                            task.wait(0.1)
+                            local gunData = gunFolder:FindFirstChild("Data")
+                            
+                            if gunData and not gunsModified[gunData] then
+                                if modifyGunModule(gunData) then
+                                    gunsModified[gunData] = true
+                                    Bracket:Notification({
+                                        Title = "Gun Modified",
+                                        Description = "Applied mods to " .. gunFolder.Name,
+                                        Duration = 1
+                                    })
+                                end
+                            end
+                        end
+                    end)
+                    table.insert(connections, gunFolderAddedConn)
+                    
+                    -- Check existing gun folders
+                    for _, gunFolder in pairs(playerFolder:GetChildren()) do
+                        if gunFolder:IsA("Folder") and not gunFolder.Name:match("Ammo") and not gunFolder.Name:match("Speed") then
+                            local gunData = gunFolder:FindFirstChild("Data")
+                            
+                            if gunData and not gunsModified[gunData] then
+                                if modifyGunModule(gunData) then
+                                    gunsModified[gunData] = true
+                                    Bracket:Notification({
+                                        Title = "Gun Modified", 
+                                        Description = "Applied mods to " .. gunFolder.Name,
+                                        Duration = 1
+                                    })
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            table.insert(connections, plrFolderWatcher)
+            
+            -- Check if player folder already exists
+            if child:FindFirstChild(plr.Name) then
+                local playerFolder = child:FindFirstChild(plr.Name)
+                
+                -- Check existing gun folders
+                for _, gunFolder in pairs(playerFolder:GetChildren()) do
+                    if gunFolder:IsA("Folder") and not gunFolder.Name:match("Ammo") and not gunFolder.Name:match("Speed") then
+                        local gunData = gunFolder:FindFirstChild("Data")
+                        
+                        if gunData and not gunsModified[gunData] then
+                            if modifyGunModule(gunData) then
+                                gunsModified[gunData] = true
+                                Bracket:Notification({
+                                    Title = "Gun Modified",
+                                    Description = "Applied mods to " .. gunFolder.Name,
+                                    Duration = 1
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    table.insert(connections, criminalsChildAddedConn)
+    
+    -- Check if Criminals folder already exists
+    if workspace:FindFirstChild("Criminals") then
+        if workspace.Criminals:FindFirstChild(plr.Name) then
+            local playerFolder = workspace.Criminals:FindFirstChild(plr.Name)
+            
+            -- Check existing gun folders
+            for _, gunFolder in pairs(playerFolder:GetChildren()) do
+                if gunFolder:IsA("Folder") and not gunFolder.Name:match("Ammo") and not gunFolder.Name:match("Speed") then
+                    local gunData = gunFolder:FindFirstChild("Data")
+                    
+                    if gunData and not gunsModified[gunData] then
+                        if modifyGunModule(gunData) then
+                            gunsModified[gunData] = true
+                            Bracket:Notification({
+                                Title = "Gun Modified",
+                                Description = "Applied mods to " .. gunFolder.Name,
+                                Duration = 1
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Fast Reload Toggle
+local FastReload = GunModsSection:Toggle({
+    Name = "Instant Reload",
+    Value = false,
+    Callback = function(enabled)
+        gunSettings.fastReload = enabled
+        
+        if enabled then
+            Bracket:Notification({
+                Title = "Instant Reload Enabled",
+                Description = "Applying to all guns...",
+                Duration = 2
+            })
+        else
+            Bracket:Notification({
+                Title = "Instant Reload Disabled",
+                Description = "Will apply on gun pickup/switch",
+                Duration = 2
+            })
+        end
+        
+        -- Apply changes to any current guns
+        setupGunModifiers()
+    end
+})
+FastReload:ToolTip("Makes weapon reload nearly instant")
+
+-- Fast Fire Rate Toggle
+local FastFireRate = GunModsSection:Toggle({
+    Name = "Fast Fire Rate",
+    Value = false,
+    Callback = function(enabled)
+        gunSettings.fastFireRate = enabled
+        
+        if enabled then
+            Bracket:Notification({
+                Title = "Fast Fire Rate Enabled",
+                Description = "Applying to all guns...",
+                Duration = 2
+            })
+        else
+            Bracket:Notification({
+                Title = "Fast Fire Rate Disabled", 
+                Description = "Will apply on gun pickup/switch",
+                Duration = 2
+            })
+        end
+        
+        -- Apply changes to any current guns
+        setupGunModifiers()
+    end
+})
+FastFireRate:ToolTip("Increases weapon fire rate")
+
+-- No Recoil Toggle
+local NoRecoil = GunModsSection:Toggle({
+    Name = "No Recoil",
+    Value = false,
+    Callback = function(enabled)
+        gunSettings.noRecoil = enabled
+        
+        if enabled then
+            Bracket:Notification({
+                Title = "No Recoil Enabled",
+                Description = "Applying to all guns...",
+                Duration = 2
+            })
+        else
+            Bracket:Notification({
+                Title = "No Recoil Disabled",
+                Description = "Will apply on gun pickup/switch",
+                Duration = 2
+            })
+        end
+        
+        -- Apply changes to any current guns
+        setupGunModifiers()
+    end
+})
+NoRecoil:ToolTip("Removes weapon recoil and camera shake")
+
+-- Infinite Ammo Toggle - Super Fast Implementation
+local ammoLoop = nil
+local InfiniteAmmo = GunModsSection:Toggle({
+    Name = "Infinite Ammo",
+    Value = false,
+    Callback = function(enabled)
+        gunSettings.infiniteAmmo = enabled
+        
+        if enabled then
+            if ammoLoop then
+                task.cancel(ammoLoop)
+            end
+            
+            ammoLoop = task.spawn(function()
+                local plrName = game.Players.LocalPlayer.Name
+                
+                -- Direct references to avoid lookups in the loop
+                local criminalFolder = workspace:FindFirstChild("Criminals")
+                if not criminalFolder then return end
+                
+                local playerFolder = criminalFolder:FindFirstChild(plrName)
+                if not playerFolder then return end
+                
+                local primaryAmmo = playerFolder:FindFirstChild("PrimaryAmmo")
+                local primaryAmmoMax = playerFolder:FindFirstChild("PrimaryAmmoMax")
+                
+                if not primaryAmmo or not primaryAmmoMax then return end
+                
+                -- Super fast loop using Heartbeat
+                while true do
+                    primaryAmmo.Value = 999
+                    primaryAmmoMax.Value = 999
+                    RunService.Heartbeat:Wait()
+                end
+            end)
+            
+            table.insert(connections, function()
+                if ammoLoop then
+                    task.cancel(ammoLoop)
+                    ammoLoop = nil
+                end
+            end)
+            
+            Bracket:Notification({
+                Title = "Infinite Ammo",
+                Description = "Enabled infinite ammo",
+                Duration = 2
+            })
+        else
+            if ammoLoop then
+                task.cancel(ammoLoop)
+                ammoLoop = nil
+            end
+            
+            Bracket:Notification({
+                Title = "Infinite Ammo",
+                Description = "Disabled infinite ammo",
+                Duration = 2
+            })
+        end
+    end
+})
+InfiniteAmmo:ToolTip("Never run out of ammo")
+InfiniteAmmo:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"}
+})
+
+-- Apply Gun Mods button
+local ApplyModsButton = GunModsSection:Button({
+    Name = "Apply Mods To Current Guns",
+    Callback = function()
+        setupGunModifiers()
+        
+        Bracket:Notification({
+            Title = "Gun Mods",
+            Description = "Applied mods to all current guns",
+            Duration = 2
+        })
+    end
+})
+ApplyModsButton:ToolTip("Force apply mods to all current guns")
+
+-- Set up gun modifiers as soon as the script loads
+setupGunModifiers()
 
 -- MONEY BAGS SECTION
 local BagsSection = MainTab:Section({Name = "Money Bags", Side = "Right"})
