@@ -1,0 +1,112 @@
+-- Hook to prevent ammo consumption and recoil
+local oldNameCall = nil
+oldNameCall = hookmetamethod(game, "__namecall", function(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+    
+    -- Prevent ammo decrease
+    if method == "SetAttribute" and args[1] == "Ammo" and typeof(self) == "Instance" then
+        local currentAmmo = self:GetAttribute("Ammo")
+        if currentAmmo and args[2] < currentAmmo then
+            print("Blocked ammo decrease:", currentAmmo, "->", args[2])
+            return currentAmmo -- Return current ammo without changing
+        end
+    end
+    
+    return oldNameCall(self, ...)
+end)
+
+-- Create a constant variable watcher to detect and reset recoil
+local function setupRecoilRemover()
+    -- Find the yRecoil and xRecoil variables
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" then
+            for key, value in pairs(v) do
+                -- Look for any variables related to recoil
+                if type(key) == "string" and 
+                   (key:lower():find("recoil") or key == "yRecoil" or key == "xRecoil") and 
+                   type(value) == "number" then
+                    
+                    print("Found recoil variable:", key, "=", value)
+                    
+                    -- Set up a hook to keep it at 0
+                    local mt = getrawmetatable(v)
+                    local oldIndex = mt.__index
+                    local oldNewIndex = mt.__newindex
+                    
+                    -- Handle reads
+                    mt.__index = function(t, k)
+                        if k == key then
+                            return 0 -- Always return 0 for recoil
+                        end
+                        return oldIndex(t, k)
+                    end
+                    
+                    -- Handle writes
+                    mt.__newindex = function(t, k, val)
+                        if k == key then
+                            print("Blocked recoil change:", val)
+                            return oldNewIndex(t, k, 0) -- Always set to 0
+                        end
+                        return oldNewIndex(t, k, val)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Alternative method using variable watching
+local function startRecoilWatcher()
+    -- Continuously monitor for recoil variables
+    spawn(function()
+        while wait(0.1) do  -- Check every 0.1 seconds
+            for _, env in pairs(getgc(true)) do
+                if type(env) == "table" then
+                    -- Look for recoil variables in tables
+                    for k, v in pairs(env) do
+                        if (type(k) == "string" and 
+                           (k:lower():find("recoil") or k == "yRecoil" or k == "xRecoil")) and 
+                           type(v) == "number" and v > 0 then
+                            
+                            -- Found a recoil value greater than 0, reset it
+                            print("Resetting recoil:", k, "from", v, "to 0")
+                            env[k] = 0
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Both methods to ensure one works
+setupRecoilRemover()
+startRecoilWatcher()
+
+-- Hook the camera shaker function to prevent recoil
+for _, v in pairs(getgc()) do
+    if type(v) == "function" and not is_synapse_function(v) and islclosure(v) then
+        local info = debug.getinfo(v)
+        if info.name == "ShakeOnce" or (info.source and info.source:find("cameraShaker")) then
+            -- Found the camera shaker function
+            local original = v
+            hookfunction(v, function(...)
+                local args = {...}
+                -- Check if this is a recoil shake
+                if args[1] and type(args[1]) == "number" and args[1] > 5 then
+                    -- This is likely a recoil shake, reduce it significantly
+                    args[1] = 0.1  -- Intensity
+                    if args[2] and type(args[2]) == "number" then
+                        args[2] = 0.1  -- Roughness
+                    end
+                end
+                return original(unpack(args))
+            end)
+            print("Camera shake hook enabled")
+            break
+        end
+    end
+end
+
+print("No ammo consumption and no recoil hooks enabled!")
