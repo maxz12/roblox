@@ -1,0 +1,30 @@
+--change reload speed:
+local plr = game.Players.LocalPlayer
+local backpack = plr.Backpack
+local foundPrimary = nil
+local Module
+
+if foundPrimary == nil then
+    backpack.ChildAdded:Connect(function()
+        for _, item in ipairs(backpack:GetDescendants()) do
+            if item.Name == "Primary" and item:IsA("Folder") then
+                local primary = item.Parent
+                foundPrimary = true
+
+                local success, result = pcall(function()
+                    return workspace.Criminals:WaitForChild(plr.Name):WaitForChild(primary.Name).Data
+                end)
+                if success then
+                    local Data = result
+                    print("Successfully found primary data")
+                    
+                    local module = require(Data)
+                    module.ReloadTime = 0.1
+                    print("changed reload speed to 0.1")
+                else
+                    print("Primary not found")
+                end
+            end
+        end
+    end)
+end
