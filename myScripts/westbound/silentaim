@@ -1,0 +1,77 @@
+-- Extreme Basic Silent Aim
+-- Simplest possible implementation that works
+
+-- Configuration
+local TOGGLE_KEY = "V"  -- Key to toggle
+local FOV_RADIUS = 250  -- FOV circle size in pixels
+
+-- Global state
+_G.SilentAimEnabled = true
+
+-- Helper function to find closest player in FOV
+local function getClosestPlayerToMouse()
+    local player = nil
+    local closestDistance = FOV_RADIUS
+    local mousePos = game:GetService("UserInputService"):GetMouseLocation()
+    local camera = workspace.CurrentCamera
+    
+    for _, p in pairs(game:GetService("Players"):GetPlayers()) do
+        -- Skip local player
+        if p == game:GetService("Players").LocalPlayer then
+            continue
+        end
+        
+        -- Check if player has a character with a head
+        if not (p.Character and p.Character:FindFirstChild("Head")) then
+            continue
+        end
+        
+        -- Check if on screen
+        local vector, onScreen = camera:WorldToScreenPoint(p.Character.Head.Position)
+        if not onScreen then
+            continue
+        end
+        
+        -- Calculate distance to mouse
+        local distance = (Vector2.new(vector.X, vector.Y) - mousePos).Magnitude
+        if distance < closestDistance then
+            closestDistance = distance
+            player = p
+        end
+    end
+    
+    return player
+end
+
+-- Hook the shootBullet function directly from the gun module
+local gunLocalModule = require(game:GetService("ReplicatedStorage").GunScripts.GunLocalModule)
+local oldShootBullet = gunLocalModule.shootBullet
+
+-- Replace with our modified version
+gunLocalModule.shootBullet = function(self, head, targetPos, fanFire)
+    -- Only modify behavior if enabled
+    if not _G.SilentAimEnabled then
+        return oldShootBullet(self, head, targetPos, fanFire)
+    end
+    
+    -- Try to find a target
+    local target = getClosestPlayerToMouse()
+    
+    -- If we found a target, use their head position instead
+    if target and target.Character and target.Character:FindFirstChild("Head") then
+        return oldShootBullet(self, head, target.Character.Head.Position, fanFire)
+    end
+    
+    -- Otherwise use original behavior
+    return oldShootBullet(self, head, targetPos, fanFire)
+end
+
+-- Toggle key
+game:GetService("UserInputService").InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode[TOGGLE_KEY] then
+        _G.SilentAimEnabled = not _G.SilentAimEnabled
+        print("Silent Aim: " .. (_G.SilentAimEnabled and "ON" or "OFF"))
+    end
+end)
+
+print("✓ Extreme Basic Silent Aim loaded - Press " .. TOGGLE_KEY .. " to toggle")
