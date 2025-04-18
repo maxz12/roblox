@@ -1,0 +1,39 @@
+-- Place this in StarterGui > ScreenGui as a LocalScript
+
+local player = game.Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Wait for RemoteEvent to exist before continuing
+local addScoreEvent
+while not addScoreEvent do
+	addScoreEvent = ReplicatedStorage:FindFirstChild("AddScoreEvent")
+	if not addScoreEvent then wait(0.1) end
+end
+
+-- Create a simple UI
+local screenGui = script.Parent
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 100)
+frame.Position = UDim2.new(0.5, -100, 0.8, -50)
+frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+frame.BorderSizePixel = 2
+frame.Parent = screenGui
+
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0.8, 0, 0.6, 0)
+button.Position = UDim2.new(0.1, 0, 0.2, 0)
+button.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+button.Text = "Add 10 Points!"
+button.TextSize = 20
+button.Parent = frame
+
+-- Connect the button click to send event to server
+button.MouseButton1Click:Connect(function()
+	-- Visual feedback
+	button.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+	addScoreEvent:FireServer(10)
+
+	-- Reset button color after a moment
+	wait(0.2)
+	button.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+end)
