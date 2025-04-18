@@ -1,0 +1,27 @@
+-- This hooks the FireServer method of the RemoteEvent using metamethods
+local remoteEvent = game:GetService("ReplicatedStorage"):WaitForChild("AddScoreEvent")
+
+-- Create metatable with __namecall metamethod
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    -- Get current method name being called
+    local method = getnamecallmethod()
+    local args = {...}
+    
+    -- Check if it's our target RemoteEvent and method
+    if self == remoteEvent and method == "FireServer" then
+        -- Original would send 10 points, let's send 10000 instead
+        args[1] = 10000
+        
+        -- Log what we're doing
+        print("Intercepted AddScoreEvent, boosting points to:", args[1])
+        
+        -- Call original with modified arguments
+        return oldNamecall(self, unpack(args))
+    end
+    
+    -- Default to original behavior for everything else
+    return oldNamecall(self, ...)
+end)
+
+print("Remote event FireServer hook active!")
