@@ -1,88 +1,99 @@
--- workspace.littletimmy2017a["Colt .45"].ColtLocal
+--game:GetService("Players").LocalPlayer.Backpack["Colt .45"].ColtLocal
 
-local tool = script.Parent
-local handle = tool:WaitForChild("Handle")
-
-local sounds = {
-	["Fire"] = handle:WaitForChild("Fire"),
-	["Reload"] = handle:WaitForChild("Reload"),
-	["Equip"] = handle:WaitForChild("Equip"),
-	["Prep"] = handle:WaitForChild("Prep"),
-	["Empty"] = handle:WaitForChild("Empty")
+local Parent = script.Parent
+local Handle = Parent:WaitForChild("Handle")
+local tbl_upvr = {
+	Fire = Handle:WaitForChild("Fire");
+	Reload = Handle:WaitForChild("Reload");
+	Equip = Handle:WaitForChild("Equip");
+	Prep = Handle:WaitForChild("Prep");
+	Empty = Handle:WaitForChild("Empty");
 }
-
-local animationIds = {
-	["Hold"] = "rbxassetid://03151590218",
-	["Reload"] = "rbxassetid://02536241233",
-	["Fire"] = "rbxassetid://02542178379",
-	["FanFire"] = "rbxassetid://2870647263",
-	["Equip"] = "rbxassetid://03151619079",
-	["Zoom"] = "rbxassetid://02536242563",
-	["Idle"] = "rbxassetid://03118841150"
-}
-
-for _, sound in next, sounds do
-	sound.Parent = handle
+for _, v in next, tbl_upvr do
+	v.Parent = Handle
 end
-
-local gunLocalModule = require(game.ReplicatedStorage:WaitForChild("GunScripts"):WaitForChild("GunLocalModule"))()
-local animations = gunLocalModule:LoadAnimations(animationIds)
-local gunStats = require(game.ReplicatedStorage.GunScripts.GunStats)[tool.Name]
-
-function gunLocalModule.PlayAnimation(toolInstance, animationName, condition)
-	spawn(function()
-		if toolInstance.Equipped then
-			if animationName == "Equip" then
-				animations.Equip:Play()
-				animations.Idle:Play()
-				return
-			elseif animationName == "Reload" then
-				if condition then
-					animations.Reload:Play(0.1, 1, gunStats.ReloadAnimationSpeed)
-				else
-					animations.Reload:Stop()
-				end
-			elseif animationName == "Zoom" then
-				if condition then
-					animations.Zoom:Play()
-				else
-					animations.Zoom:Stop()
-				end
-			elseif animationName == "Hold" then
-				animations.Hold:Play()
-				return
-			elseif animationName == "Fire" then
-				sounds.Fire.Pitch = math.random(10, 12) * 0.1
-				sounds.Fire:Play()
-				animations.Fire:Play()
-				animations.Idle:Stop()
-				wait(0.4)
-				if toolInstance.Equipped then
-					sounds.Prep:Play()
-					animations.Idle:Play()
-				end
-			elseif animationName == "FanFire" then
-				sounds.Fire.Pitch = math.random(10, 12) * 0.1
-				sounds.Fire:Play()
-				animations.FanFire:Play()
-				animations.Idle:Stop()
-				wait(0.2)
-				if toolInstance.Equipped then
-					sounds.Prep:Play()
-					animations.Idle:Play(0.05)
-				end
-			else
-				local _ = animationName == "Unequip"
+local var9 = require(game.ReplicatedStorage:WaitForChild("GunScripts"):WaitForChild("GunLocalModule"))()
+local var10_upvr = require(game.ReplicatedStorage.GunScripts.GunStats)[Parent.Name]
+local any_LoadAnimations_result1_upvw = var9:LoadAnimations({
+	Hold = "rbxassetid://03151590218";
+	Reload = "rbxassetid://02536241233";
+	Fire = "rbxassetid://02542178379";
+	FanFire = "rbxassetid://2870647263";
+	Equip = "rbxassetid://03151619079";
+	Zoom = "rbxassetid://02536242563";
+	Idle = "rbxassetid://03118841150";
+})
+function var9.PlayAnimation(arg1, arg2, arg3) -- Line 36
+	--[[ Upvalues[3]:
+		[1]: any_LoadAnimations_result1_upvw (read and write)
+		[2]: var10_upvr (readonly)
+		[3]: tbl_upvr (readonly)
+	]]
+	spawn(function() -- Line 37
+		--[[ Upvalues[6]:
+			[1]: arg1 (readonly)
+			[2]: arg2 (readonly)
+			[3]: any_LoadAnimations_result1_upvw (copied, read and write)
+			[4]: arg3 (readonly)
+			[5]: var10_upvr (copied, readonly)
+			[6]: tbl_upvr (copied, readonly)
+		]]
+		if not arg1.Equipped then
+		else
+			if arg2 == "Equip" then
+				any_LoadAnimations_result1_upvw.Equip:Play()
+				any_LoadAnimations_result1_upvw.Idle:Play()
 				return
 			end
-		else
-			return
+			if arg2 == "Reload" then
+				if arg3 then
+					any_LoadAnimations_result1_upvw.Reload:Play(0.1, 1, var10_upvr.ReloadAnimationSpeed)
+				else
+					any_LoadAnimations_result1_upvw.Reload:Stop()
+				end
+			end
+			if arg2 == "Zoom" then
+				if arg3 then
+					any_LoadAnimations_result1_upvw.Zoom:Play()
+				else
+					any_LoadAnimations_result1_upvw.Zoom:Stop()
+				end
+			end
+			if arg2 == "Hold" then
+				any_LoadAnimations_result1_upvw.Hold:Play()
+				return
+			end
+			if arg2 == "Fire" then
+				tbl_upvr.Fire.Pitch = math.random(10, 12) * 0.1
+				tbl_upvr.Fire:Play()
+				any_LoadAnimations_result1_upvw.Fire:Play()
+				any_LoadAnimations_result1_upvw.Idle:Stop()
+				wait(0.4)
+				if not arg1.Equipped then
+				else
+					tbl_upvr.Prep:Play()
+					any_LoadAnimations_result1_upvw.Idle:Play()
+				end
+			end
+			if arg2 == "FanFire" then
+				tbl_upvr.Fire.Pitch = math.random(10, 12) * 0.1
+				tbl_upvr.Fire:Play()
+				any_LoadAnimations_result1_upvw.FanFire:Play()
+				any_LoadAnimations_result1_upvw.Idle:Stop()
+				wait(0.2)
+				if not arg1.Equipped then
+				else
+					tbl_upvr.Prep:Play()
+					any_LoadAnimations_result1_upvw.Idle:Play(0.05)
+				end
+			end
+			if arg2 ~= "Unequip" then
+			end
 		end
 	end)
 end
-
-gunLocalModule:CreateGun({
-	["Tool"] = tool,
-	["GunStats"] = gunStats,
-	["Sounds"] = sounds
+var9:CreateGun({
+	Tool = Parent;
+	GunStats = var10_upvr;
+	Sounds = tbl_upvr;
 })
