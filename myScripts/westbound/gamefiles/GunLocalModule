@@ -1,0 +1,825 @@
+--game:GetService("ReplicatedStorage").GunScripts.GunLocalModule
+local v1 = require(game.ReplicatedStorage.General.LuaOO.class)
+local v_u_2 = require(script:WaitForChild("GunVariables"))
+local v_u_3 = game:GetService("RunService")
+local v_u_4 = game:GetService("TweenService")
+math.randomseed(tick())
+local v_u_5 = script.Parent:WaitForChild("AmmoHud")
+local v_u_6 = script:WaitForChild("Scope")
+local v_u_7 = 2
+local v_u_8 = 0.8
+local v10 = v1(function(p9)
+	-- upvalues: (copy) v_u_2
+	p9.Mobile = require(script.Parent:WaitForChild("MobileTools"))
+	p9.Character = v_u_2.player.Character
+	if not p9.Character or p9.Character.Parent == nil then
+		repeat
+			wait()
+		until v_u_2.player.Character and v_u_2.player.Character.Parent == workspace
+		p9.Character = v_u_2.player.Character
+	end
+	p9.Humanoid = p9.Character:WaitForChild("Humanoid")
+	p9.Root = p9.Character:WaitForChild("HumanoidRootPart")
+	return p9
+end)
+function v10.CreateGun(p11, p12)
+	p11.GunInfo = p12
+	p11.GunStats = p12.GunStats
+	p11.Tool = p12.Tool
+	p11.AmmoType = p12.GunStats.AmmoName
+	p11.Sounds = p12.Sounds
+	p11:SetUpGun()
+end
+function v10.SetUpGrip(p13)
+	local v14 = p13.Tool.Parent:FindFirstChild("RightHand")
+	v14:WaitForChild("RightGrip"):Destroy()
+	p13.Tool.Handle.RightGrip.Part0 = v14
+end
+function v10.StopAnimations(p15, p16)
+	for _, v17 in next, p15.Animations do
+		v17:Stop(p16)
+	end
+end
+function v10.LoadAnimations(p18, p19)
+	wait(0.5)
+	for v20, v21 in next, p19 do
+		local v22 = Instance.new("Animation")
+		v22.AnimationId = v21
+		v22.Parent = script.Parent
+		p19[v20] = p18.Humanoid:LoadAnimation(v22)
+	end
+	p18.Animations = p19
+	return p19
+end
+function v10.ChangeTransparency(_, p23, p24)
+	-- upvalues: (copy) v_u_2
+	p23.Transparency = p24
+	v_u_2.Events.ChangePropertyEvent:FireServer(p23, {
+		["Transparency"] = p24
+	})
+end
+function v10.SetToolTransparency(p25, p26, p27)
+	-- upvalues: (copy) v_u_2
+	local v28 = next
+	local v29, v30 = p25.Tool:GetChildren()
+	for _, v31 in v28, v29, v30 do
+		if v31:IsA("BasePart") then
+			v31.Transparency = p26
+			if not p27 then
+				v_u_2.Events.ChangePropertyEvent:FireServer(v31, {
+					["Transparency"] = p26
+				})
+			end
+		end
+	end
+end
+function v10.ToggleDisplayTool(p32, p33)
+	-- upvalues: (copy) v_u_2
+	local v34 = p33 and 0 or 1
+	if p32.Tool.ToolTip == "Main" and v_u_2.player.Loadout.Primary.Value == p32.Tool.Name then
+		local v35 = p32.Character:FindFirstChild("PrimaryDisplay")
+		if v35 then
+			local v36 = next
+			local v37, v38 = v35:GetChildren()
+			for _, v39 in v36, v37, v38 do
+				v39.Transparency = v34
+				v_u_2.Events.ChangePropertyEvent:FireServer(v39, {
+					["Transparency"] = v34
+				})
+			end
+			local v40 = v35:FindFirstChild("Bottom")
+			local v41 = v40 and v40:FindFirstChild("Beam")
+			if v41 then
+				v41.Enabled = p33
+				v_u_2.Events.ChangePropertyEvent:FireServer(v41, {
+					["Enabled"] = p33
+				})
+				return
+			end
+		end
+	else
+		local v42 = p32.Tool.ToolTip == "Pistol" and p32.Character:FindFirstChild("PistolDisplay")
+		if v42 then
+			local v43 = next
+			local v44, v45 = v42:GetChildren()
+			for _, v46 in v43, v44, v45 do
+				v46.Transparency = v34
+				v_u_2.Events.ChangePropertyEvent:FireServer(v46, {
+					["Transparency"] = v34
+				})
+			end
+		end
+	end
+end
+function v10.SetUpGun(p_u_47)
+	-- upvalues: (copy) v_u_6, (copy) v_u_2, (copy) v_u_5
+	if p_u_47.GunStats.ScopeGui then
+		p_u_47.GunStats.ScopeGui = v_u_6:Clone()
+		p_u_47.GunStats.Scope = p_u_47.GunStats.ScopeGui:WaitForChild("Scope")
+	end
+	p_u_47.Handle = p_u_47.Tool:WaitForChild("Handle")
+	p_u_47.AmmoVal = v_u_2.player:WaitForChild("Consumables"):WaitForChild(p_u_47.AmmoType)
+	p_u_47.TotalAmmoClient = p_u_47.AmmoVal.Value
+	p_u_47.NewAmmoGui = v_u_5:Clone()
+	p_u_47.NewFrame = p_u_47.NewAmmoGui:WaitForChild("Frame")
+	p_u_47.ImageLabel = p_u_47.NewFrame:WaitForChild("ImageLabel")
+	p_u_47.CurrentAmmo = p_u_47.ImageLabel:WaitForChild("Current")
+	p_u_47.TotalAmmo = p_u_47.ImageLabel:WaitForChild("Total")
+	p_u_47.isVibrationSupported = v_u_2.HapticService:IsVibrationSupported(Enum.UserInputType.Gamepad1)
+	p_u_47.Mouse = nil
+	p_u_47.Equipped = false
+	p_u_47.shotDebounce = false
+	p_u_47.reloading = false
+	p_u_47.reloadManual = false
+	p_u_47.cancelReloading = false
+	p_u_47.Shots = 0
+	if p_u_47.Tool:WaitForChild("FullyLoaded").Value then
+		p_u_47.Shots = p_u_47.GunStats.MaxShots
+	end
+	p_u_47.TotalAmmo.Text = p_u_47.TotalAmmoClient
+	p_u_47.CurrentAmmo.Text = p_u_47.Shots
+	p_u_47.AmmoChangedConnection = nil
+	local v_u_48 = p_u_47.AmmoVal.Value
+	p_u_47.AmmoChangedConnection = p_u_47.AmmoVal.Changed:connect(function()
+		-- upvalues: (copy) p_u_47, (ref) v_u_48
+		if v_u_48 < p_u_47.AmmoVal.Value then
+			p_u_47.TotalAmmoClient = p_u_47.AmmoVal.Value
+		end
+		v_u_48 = p_u_47.AmmoVal.Value
+		p_u_47.TotalAmmo.Text = p_u_47.TotalAmmoClient
+	end)
+	p_u_47.Tool.Equipped:connect(function(p49)
+		-- upvalues: (copy) p_u_47
+		p_u_47:OnEquipped(p49)
+	end)
+	p_u_47:SetToolTransparency(1)
+end
+function v10.changeAmmoGui(p50, _)
+	-- upvalues: (copy) v_u_2
+	local _ = p50.Shots
+	local v51 = p50.CurrentAmmo:Clone()
+	v51.Position = v51.Position - UDim2.new(0, 0, 0.55, 0)
+	v51.Text = p50.Shots
+	v51.Parent = p50.ImageLabel
+	p50.CurrentAmmo:TweenPosition(UDim2.new(0.075, 0, 1, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Sine, 0.2, true)
+	v51:TweenPosition(UDim2.new(0.075, 0, 0.25, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Sine, 0.2, true)
+	v_u_2.debris:AddItem(p50.CurrentAmmo, 1)
+	p50.CurrentAmmo = v51
+end
+function v10.shakeCam(p52)
+	-- upvalues: (copy) v_u_2
+	p52:updateHapticFeedback(60 / p52.GunStats.camShakeResist, "Both", 0.2, 120 / p52.GunStats.camShakeResist)
+	local v53 = math.random(8, 12) / p52.GunStats.camShakeResist
+	local v54 = math.random(-6, 6) / 400
+	local v55 = Vector3.new(v53, v54, 0)
+	v_u_2.CameraController:SetRecoil(v55, 0.08, 0.5)
+end
+function v10.shootBullet(p56, _, p57, p58)
+	-- upvalues: (ref) v_u_7, (copy) v_u_2
+	local v59 = p56.Handle.CFrame * p56.GunStats.FiringOffset.p
+	local v60
+	if p56.zooming then
+		v60 = p56.GunStats.ZoomAccuracy
+	elseif p58 then
+		v60 = p56.GunStats.HipFireAccuracy * v_u_7
+	elseif p56.GunStats.AutoFire then
+		if p56.zooming then
+			v60 = p56.GunStats.ZoomAccuracy * v_u_7
+		else
+			v60 = p56.GunStats.HipFireAccuracy * v_u_7
+		end
+	else
+		v60 = p56.GunStats.HipFireAccuracy
+	end
+	for _ = 1, not p56.GunStats.BulletCount and 1 or p56.GunStats.BulletCount do
+		local v61 = math.random(-v60, v60) / 1000
+		local v62 = math.random(-v60, v60) / 1000
+		local v63 = CFrame.new(v59, p57) * CFrame.Angles(v62, v61, 0)
+		local v64 = {
+			["AmmoType"] = p56.GunStats.AmmoName,
+			["cframe"] = v63,
+			["Speed"] = 80,
+			["Tool"] = p56.Tool,
+			["BulletOwner"] = v_u_2.player,
+			["PlayerRootPos"] = p56.Root.Position,
+			["GunType"] = p56.GunStats.GunType
+		}
+		v_u_2.CreateShot.CreateShot(v64)
+	end
+	p56:shakeCam()
+end
+function v10.MoveControlGuisUpOrDown(_, p65)
+	-- upvalues: (copy) v_u_2
+	local v66 = p65 == "Up" and 15 or (p65 == "Down" and 1 or nil)
+	if v_u_2.InputType.Value == "touch" and v_u_2.player.PlayerGui then
+		print("Moving:", p65)
+		local v67 = v_u_2.player.PlayerGui:FindFirstChild("TouchGui")
+		local v68 = v_u_2.player.PlayerGui:FindFirstChild("ContextActionGui")
+		if v67 then
+			v67.DisplayOrder = v66
+		end
+		if v68 then
+			v68.DisplayOrder = v66
+		end
+	end
+end
+function v10.enableSecondFireButton(_, _) end
+function v10.cycleZoom(p69, p70, _)
+	-- upvalues: (copy) v_u_2
+	if p70 then
+		if not p69.ZoomingIn then
+			if not (p69.reloading or p69.shotDebounce) then
+				v_u_2.animType.Value = p69.GunStats.toolZoomAnimationType
+				p69:PlayAnimation("Zoom", true)
+			end
+			if p69.GunStats.Scope then
+				p69.ZoomingIn = true
+				p69.WasInFirstPerson = (p69.Root.Position - workspace.CurrentCamera.CFrame.Position).magnitude < 2.5
+				v_u_2.UserInputService.MouseIconEnabled = false
+				v_u_2.player.CameraMaxZoomDistance = 0
+				wait(0.2)
+				if not (p69.Equipped and p69.Mouse) then
+					p69.ZoomingIn = false
+					return
+				end
+				local v71 = p69.Mouse.ViewSizeX
+				local v72 = p69.Mouse.ViewSizeY
+				if v72 * 1.6 < v71 then
+					p69.GunStats.Scope.Size = UDim2.new(0, v71, 0, v71 * 0.625)
+				else
+					p69.GunStats.Scope.Size = UDim2.new(0, v72 * 1.6, 0, v72)
+				end
+				p69:SetToolTransparency(1, true)
+				p69.GunStats.Scope.Visible = true
+				p69:MoveControlGuisUpOrDown("Up")
+				p69.ZoomingIn = false
+			end
+			p69.zooming = true
+			v_u_2.MouseLockEnabled.Value = true
+			v_u_2.UserInputService.MouseDeltaSensitivity = p69.GunStats.ZoomMouseSpeed
+			v_u_2.player.StateConfig.GamepadZoom.Value = p69.GunStats.ZoomMouseSpeed
+			v_u_2.CameraController:SetFOV(p69.GunStats.ZoomFOV, 0.25)
+			p69.Character.WalkState.Value = "Zooming"
+			p69:enableSecondFireButton(true)
+		end
+	else
+		p69:enableSecondFireButton(false)
+		p69.ZoomingIn = false
+		if p69.Drawing then
+			p69.Drawing = false
+			p69:PlayAnimation("Draw", false)
+		end
+		p69.zooming = false
+		if not (p69.reloading or p69.shotDebounce) then
+			v_u_2.animType.Value = p69.GunStats.toolIdleAnimationType
+			p69:PlayAnimation("Hold", true)
+		end
+		p69:PlayAnimation("Zoom", false)
+		if p69.Character.WalkState.Value == "Zooming" then
+			p69.Character.WalkState.Value = "Walking"
+		end
+		if p69.GunStats.Scope then
+			v_u_2.player.CameraMode = "Classic"
+			p69.GunStats.Scope.Visible = false
+			p69:MoveControlGuisUpOrDown("Down")
+			v_u_2.UserInputService.MouseIconEnabled = true
+			if p69.reloading then
+				p69.Mouse.Icon = "http://www.roblox.com/asset/?id=3836686743"
+			else
+				p69.Mouse.Icon = "http://www.roblox.com/asset/?id=3836685141"
+			end
+			p69:SetToolTransparency(0, true)
+			if v_u_2.player.CameraMaxZoomDistance < 9 then
+				v_u_2.player.CameraMaxZoomDistance = 9
+			end
+			if not p69.WasInFirstPerson then
+				v_u_2.player.CameraMinZoomDistance = 9
+				delay(0.01, function()
+					-- upvalues: (ref) v_u_2
+					v_u_2.player.CameraMinZoomDistance = 0
+				end)
+			end
+		end
+		v_u_2.UserInputService.MouseDeltaSensitivity = 0.5
+		v_u_2.player.StateConfig.GamepadZoom.Value = 0
+		v_u_2.MouseLockEnabled.Value = false
+		v_u_2.CameraController:SetFOV("Default", 0.5)
+		return
+	end
+end
+function v10.MuzzleFlash(p73)
+	-- upvalues: (copy) v_u_4
+	local v74 = p73.Handle:FindFirstChild("Flash")
+	if v74 then
+		v74.Image.ImageTransparency = 0
+		local v75 = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, 0, false, 0)
+		v_u_4:Create(v74.Image, v75, {
+			["ImageTransparency"] = 1
+		}):Play()
+	end
+end
+function v10.fireGun(p_u_76, p_u_77)
+	-- upvalues: (copy) v_u_2
+	local v78 = v_u_2.player.Character:FindFirstChild("Head")
+	if p_u_76.Handle and v78 then
+		v_u_2.MouseLockEnabled.Value = true
+		p_u_76.reloading = false
+		p_u_76.Shots = p_u_76.Shots - 1
+		local v79
+		if v_u_2.InputType.Value == "touch" then
+			v79 = p_u_76.Mobile:RaycastScreenCenter()
+		else
+			if p_u_76.Mouse.Target and p_u_76.Mouse.Target.CanCollide == false then
+				p_u_76.Mouse.TargetFilter = p_u_76.Mouse.Target
+			end
+			v79 = p_u_76.Mouse.Hit.p
+		end
+		p_u_76:changeAmmoGui()
+		if p_u_77 then
+			v_u_2.animType.Value = "Gun"
+			p_u_76:PlayAnimation("FanFire", true)
+		else
+			v_u_2.animType.Value = p_u_76.GunStats.FireAnimationType
+			p_u_76:PlayAnimation("Fire", true)
+		end
+		p_u_76:shootBullet(v78, v79, p_u_77)
+		p_u_76:MuzzleFlash()
+		if p_u_76.GunStats.GunType == "Shotgun" and (p_u_76.Mouse and p_u_76.Mouse.Hit) then
+			local v80 = Instance.new("Part")
+			v80.Anchored = true
+			v80.Transparency = 1
+			v80.Size = Vector3.new(0.1, 0.1, 0.1)
+			v80.CFrame = CFrame.new(p_u_76.Handle.CFrame * p_u_76.GunStats.FiringOffset.p, p_u_76.Mouse.Hit.p)
+			v80.CanCollide = false
+			local v_u_81 = Instance.new("Smoke", v80)
+			v_u_81.Opacity = 0.3
+			v_u_81.RiseVelocity = 3
+			v_u_81.Size = 1
+			v_u_81.Color = Color3.fromRGB(180, 180, 180)
+			delay(0.5, function()
+				-- upvalues: (copy) v_u_81
+				v_u_81.Enabled = false
+			end)
+			v_u_2.debris:AddItem(v80, 10)
+			v80.Parent = p_u_76.Tool.Parent
+		end
+		local v82
+		if p_u_77 then
+			v82 = p_u_76.Animations.FanFire.Length
+		else
+			v82 = p_u_76.Animations.Fire.Length
+		end
+		delay(v82, function()
+			-- upvalues: (copy) p_u_76, (copy) p_u_77, (ref) v_u_2
+			if not p_u_76.shotDebounce then
+				if not p_u_77 and (p_u_76.Equipped and not p_u_76.reloading) then
+					if p_u_76.zooming then
+						p_u_76:PlayAnimation("Zoom", true)
+						v_u_2.animType.Value = p_u_76.GunStats.toolZoomAnimationType
+					else
+						p_u_76:PlayAnimation("Hold", true)
+					end
+				end
+				if p_u_76.Equipped and not p_u_76.zooming then
+					v_u_2.MouseLockEnabled.Value = false
+				end
+			end
+		end)
+	end
+end
+function v10.updateHapticFeedback(p83, p84, p85, p_u_86, p87)
+	-- upvalues: (copy) v_u_2
+	if v_u_2.InputType.Value == "controller" and p83.isVibrationSupported then
+		if p84 == 0 then
+			v_u_2.HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0)
+			v_u_2.HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Large, 0)
+		else
+			if p85 == "Both" then
+				v_u_2.HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Large, p84)
+				v_u_2.HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, p87)
+			else
+				v_u_2.HapticService:SetMotor(Enum.UserInputType.Gamepad1, p85, p84)
+			end
+			spawn(function()
+				-- upvalues: (copy) p_u_86, (ref) v_u_2
+				wait(p_u_86)
+				v_u_2.HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0)
+				v_u_2.HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Large, 0)
+			end)
+		end
+	else
+		return
+	end
+end
+function v10.ReloadFull(p_u_88)
+	-- upvalues: (copy) v_u_2
+	p_u_88.reloading = true
+	p_u_88.Mouse.Icon = "http://www.roblox.com/asset/?id=3836686743"
+	if p_u_88.GunStats.ReloadAnimationType then
+		v_u_2.animType.Value = p_u_88.GunStats.ReloadAnimationType
+	else
+		v_u_2.animType.Value = "Gun"
+	end
+	p_u_88:PlayAnimation("Reload", true)
+	p_u_88.ReloadStopped = p_u_88.Animations.Reload.Stopped:Connect(function()
+		-- upvalues: (copy) p_u_88, (ref) v_u_2
+		p_u_88.ReloadStopped:Disconnect()
+		if p_u_88.Equipped then
+			if p_u_88.zooming then
+				p_u_88:PlayAnimation("Zoom", true)
+				v_u_2.animType.Value = p_u_88.GunStats.toolZoomAnimationType
+				return
+			end
+			p_u_88:PlayAnimation("Hold", true)
+			p_u_88:PlayAnimation("Zoom", false)
+			v_u_2.animType.Value = p_u_88.GunStats.toolIdleAnimationType
+		end
+	end)
+	local v89 = 0
+	while p_u_88.Equipped and v89 < p_u_88.GunStats.ReloadSpeed do
+		v89 = v89 + 0.1
+		wait(0.1)
+	end
+	if p_u_88.Equipped then
+		p_u_88:updateHapticFeedback(0.8, Enum.VibrationMotor.Small, 0.15)
+		p_u_88.reloading = false
+		local v90 = p_u_88.GunStats.MaxShots - p_u_88.Shots
+		if p_u_88.AmmoVal.Value < v90 then
+			v90 = p_u_88.AmmoVal.Value
+		end
+		p_u_88.Shots = p_u_88.Shots + v90
+		p_u_88:changeAmmoGui()
+		v_u_2.Events.useAmmoEvent:FireServer(p_u_88.AmmoVal, v90)
+		p_u_88.TotalAmmoClient = p_u_88.TotalAmmoClient - v90
+		p_u_88.TotalAmmo.Text = p_u_88.TotalAmmoClient
+		p_u_88.reloading = false
+		p_u_88.cancelReloading = false
+		p_u_88.reloadManual = false
+		p_u_88.Mouse.Icon = "http://www.roblox.com/asset/?id=3836685141"
+	end
+end
+function v10.reloadGun(p_u_91)
+	-- upvalues: (ref) v_u_7, (copy) v_u_2
+	p_u_91:cycleZoom(false)
+	if p_u_91.Mouse then
+		if p_u_91.GunStats.FullReload then
+			p_u_91:ReloadFull()
+			return
+		elseif p_u_91.Mouse then
+			v_u_7 = 0
+			spawn(function()
+				-- upvalues: (copy) p_u_91, (ref) v_u_2
+				p_u_91.reloading = true
+				p_u_91.Mouse.Icon = "http://www.roblox.com/asset/?id=3836686743"
+				v_u_2.animType.Value = "Gun"
+				p_u_91:PlayAnimation("Reload", true)
+				while p_u_91.Shots < p_u_91.GunStats.MaxShots and (p_u_91.reloading and (p_u_91.TotalAmmoClient > 0 and (p_u_91.AmmoVal.Value > 0 and not p_u_91.cancelReloading))) do
+					wait(p_u_91.GunStats.ReloadSpeed)
+					if not (p_u_91.Equipped and p_u_91.reloading) then
+						break
+					end
+					p_u_91.Sounds.Reload.Pitch = math.random(12, 13) * 0.1
+					p_u_91.Sounds.Reload:Play()
+					p_u_91.Shots = p_u_91.Shots + 1
+					p_u_91:changeAmmoGui()
+					v_u_2.Events.useAmmoEvent:FireServer(p_u_91.AmmoVal)
+					p_u_91.TotalAmmoClient = p_u_91.TotalAmmoClient - 1
+					p_u_91.TotalAmmo.Text = p_u_91.TotalAmmoClient
+					p_u_91:updateHapticFeedback(0.4, Enum.VibrationMotor.Small, 0.15)
+				end
+				if p_u_91.Equipped then
+					p_u_91:PlayAnimation("Reload", false)
+					p_u_91.reloading = false
+					p_u_91.cancelReloading = false
+					p_u_91.reloadManual = false
+					p_u_91.Mouse.Icon = "http://www.roblox.com/asset/?id=3836685141"
+					if p_u_91.zooming then
+						p_u_91:PlayAnimation("Zoom", true)
+						v_u_2.animType.Value = p_u_91.GunStats.toolZoomAnimationType
+						return
+					end
+					v_u_2.animType.Value = p_u_91.GunStats.toolIdleAnimationType
+				end
+			end)
+		end
+	else
+		return
+	end
+end
+function v10.setUpAnimations(p_u_92)
+	p_u_92:SetUpGrip()
+	p_u_92:PlayAnimation("Equip", true)
+	if p_u_92.GunStats.EquipDelay then
+		wait(p_u_92.GunStats.EquipDelay)
+	end
+	if p_u_92.Equipped then
+		p_u_92:ToggleDisplayTool(false)
+		p_u_92.Sounds.Equip.Pitch = math.random(9, 11) * 0.1
+		p_u_92.Sounds.Equip:Play()
+		p_u_92:SetToolTransparency(0)
+		wait(p_u_92.GunStats.equipTime)
+		if p_u_92.Equipped then
+			p_u_92:PlayAnimation("Hold")
+			if not p_u_92.humanoidDied then
+				p_u_92.humanoidDied = p_u_92.Humanoid.Died:Connect(function()
+					-- upvalues: (copy) p_u_92
+					p_u_92.Equipped = false
+					for _, v93 in next, p_u_92.Sounds do
+						v93:Stop()
+					end
+				end)
+			end
+			local v94 = p_u_92.Humanoid:GetPlayingAnimationTracks()
+			for _, v95 in next, v94 do
+				if v95.Name == "toolnone" then
+					v95:Stop()
+				end
+			end
+		end
+	else
+		return
+	end
+end
+function v10.unEquipped(p_u_96, _)
+	-- upvalues: (copy) v_u_2, (ref) v_u_8
+	p_u_96:ToggleDisplayTool(true)
+	if v_u_2.InputType.Value == "touch" then
+		p_u_96.Mobile:ToggleAimIcon(false)
+	end
+	if p_u_96.ReloadStopped then
+		p_u_96.ReloadStopped:Disconnect()
+	end
+	if p_u_96.AmmoChangedConnection then
+		p_u_96.AmmoChangedConnection:Disconnect()
+	end
+	if p_u_96.unequipConnection then
+		p_u_96.unequipConnection:Disconnect()
+	end
+	if p_u_96.walkStateChanged then
+		p_u_96.walkStateChanged:Disconnect()
+	end
+	if p_u_96.NewAmmoGui.Parent == v_u_2.player.PlayerGui then
+		p_u_96.NewFrame:TweenPosition(UDim2.new(1, 0, v_u_8, 0), Enum.EasingDirection.In, Enum.EasingStyle.Sine, 0.2, true, function()
+			-- upvalues: (copy) p_u_96
+			if p_u_96.NewAmmoGui then
+				p_u_96.NewAmmoGui.Parent = nil
+			end
+		end)
+	end
+	if p_u_96.Character.WalkState.Value == "Zooming" then
+		p_u_96.Character.WalkState.Value = "Walking"
+	end
+	v_u_2.UserInputService.MouseDeltaSensitivity = 1
+	v_u_2.MouseLockEnabled.Value = false
+	v_u_2.MouseRotateEnabled.Value = false
+	p_u_96.Firing = false
+	p_u_96.reloading = false
+	p_u_96.cancelReloading = false
+	p_u_96.zooming = false
+	v_u_2.CameraController:SetFOV("Default", 0.5)
+	if p_u_96.Mouse then
+		p_u_96.Mouse.Icon = ""
+	end
+	p_u_96.Mouse = nil
+	v_u_2.player.CameraMode = "Classic"
+	if p_u_96.GunStats.Scope then
+		p_u_96.GunStats.Scope.Visible = false
+	end
+	v_u_2.UserInputService.MouseDeltaSensitivity = 1
+	v_u_2.UserInputService.MouseIconEnabled = true
+	p_u_96:SetToolTransparency(1)
+	v_u_2.animType.Value = "Camera"
+	v_u_2.ContextActionService:UnbindAction("Reload")
+	v_u_2.ContextActionService:UnbindAction("Zoom")
+	v_u_2.ContextActionService:UnbindAction("Fire")
+	p_u_96:enableSecondFireButton(false)
+	if p_u_96.humanoidDied then
+		p_u_96.humanoidDied:Disconnect()
+	end
+	for _, v97 in next, p_u_96.Sounds do
+		v97:Stop()
+	end
+	p_u_96:StopAnimations()
+end
+function v10.Fire(p_u_98)
+	-- upvalues: (copy) v_u_2, (copy) v_u_3
+	if not (p_u_98.shotDebounce or p_u_98.ZoomingIn) then
+		if p_u_98.Humanoid and p_u_98.Humanoid.Health > 0 then
+			if p_u_98.Shots > 0 then
+				if p_u_98.reloading and p_u_98.Shots > 0 then
+					p_u_98.cancelReloading = true
+					return
+				end
+				if not p_u_98.zooming and (p_u_98.GunStats.ForceZoom and v_u_2.AimLockSetting.Value) then
+					p_u_98:cycleZoom(true)
+					v_u_3.RenderStepped:Wait()
+					if not p_u_98.Equipped then
+						return
+					end
+				end
+				p_u_98.shotDebounce = true
+				if p_u_98.zooming then
+					p_u_98:PlayAnimation("Zoom", true)
+				end
+				p_u_98.reloadManual = false
+				if p_u_98.GunStats.GunType ~= "Sniper" then
+					p_u_98.Mouse.Icon = "http://www.roblox.com/asset/?id=3836686743"
+				end
+				local v99 = p_u_98.GunStats.prepTime
+				local v100
+				if p_u_98.GunStats.FanFire and not p_u_98.zooming then
+					v100 = true
+					v99 = 0.16
+				else
+					v100 = false
+				end
+				p_u_98:fireGun(v100)
+				delay(v99, function()
+					-- upvalues: (copy) p_u_98, (ref) v_u_2
+					p_u_98.shotDebounce = false
+					if p_u_98.Equipped then
+						if p_u_98.GunStats.GunType ~= "Sniper" and not p_u_98.reloading then
+							if p_u_98.reloadManual and p_u_98.TotalAmmoClient > 0 then
+								if p_u_98.GunStats.GunType == "Sniper" then
+									p_u_98:cycleZoom(false)
+								end
+								p_u_98:reloadGun()
+								return
+							end
+							p_u_98.Mouse.Icon = "http://www.roblox.com/asset/?id=3836685141"
+							if not p_u_98.zooming then
+								v_u_2.animType.Value = p_u_98.GunStats.toolIdleAnimationType
+							end
+						end
+					end
+				end)
+				if p_u_98.Shots == 0 and p_u_98.TotalAmmoClient > 0 then
+					p_u_98.reloading = true
+					wait(v99)
+					if p_u_98.Equipped and not p_u_98.reloadManual then
+						if p_u_98.GunStats.GunType == "Sniper" then
+							p_u_98.reloading = true
+							p_u_98:cycleZoom(false)
+						end
+						p_u_98:reloadGun()
+					end
+				end
+			elseif p_u_98.Sounds.Empty and not (p_u_98.Sounds.Empty.Playing or (p_u_98.Animations.Reload.IsPlaying or p_u_98.reloading)) then
+				p_u_98.Sounds.Empty:Play()
+			end
+		end
+	end
+end
+function v10.MouseClick(p101, p102)
+	-- upvalues: (copy) v_u_2, (ref) v_u_7
+	if p101.shotDebounce or p101.Firing then
+		return
+	end
+	if not p101.GunStats.FanFire and (not p101.GunStats.AutoFire and v_u_2.InputType.Value ~= "touch") then
+		p101:Fire()
+		return
+	end
+	local v103 = 0
+	local v104 = nil
+	if p101.Shots == 0 then
+		p101:Fire()
+		return
+	end
+	p101.Firing = true
+	while p101.Firing and (p101.Shots > 0 and not p102) or p102 and not p101.Mobile:IsInputEnded(p102) do
+		p101:Fire()
+		local v105 = p101.GunStats.prepTime
+		local v106 = 1.6
+		local v107 = p101.GunStats.FanFire and 0.16 or v105
+		if p101.GunStats.FanFire and (v_u_2.InputType.Value ~= "touch" and p101.zooming) then
+			break
+		end
+		if p101.GunStats.AutoFire then
+			v107 = p101.GunStats.prepTime
+			v106 = 0.1
+		end
+		if p101.GunStats.FanFire or p101.GunStats.AutoFire then
+			if v_u_7 == 0 then
+				v104 = nil
+				v103 = 0
+			end
+			v103 = (not v104 or tick() - v104 >= p101.GunStats.prepTime + 0.1) and 0 or v103 + 1
+			v104 = tick()
+			v_u_7 = v103 * v106 + 3
+		end
+		wait(v107)
+	end
+	p101.Firing = false
+end
+function v10.MouseUp(p108)
+	p108.Firing = false
+end
+function v10.OnEquipped(p_u_109, p110)
+	-- upvalues: (copy) v_u_2, (ref) v_u_8
+	if p_u_109.Character and p_u_109.Humanoid then
+		if v_u_2.InputType.Value == "touch" then
+			p_u_109.Mobile:ToggleAimIcon(true)
+			v_u_8 = 0.48
+		end
+		p_u_109.Equipped = true
+		p_u_109.unequipConnection = p_u_109.Tool.Unequipped:Connect(function()
+			-- upvalues: (copy) p_u_109
+			p_u_109.Equipped = false
+			p_u_109:unEquipped()
+		end)
+		v_u_2.MouseRotateEnabled.Value = true
+		p_u_109:setUpAnimations()
+		if p_u_109.Equipped then
+			p_u_109.Mouse = p110
+			p_u_109.reloadManual = false
+			p_u_109.reloading = false
+			if p_u_109.AmmoVal.Clip.Value == 0 then
+				p_u_109.Shots = 0
+			end
+			p_u_109.TotalAmmoClient = p_u_109.AmmoVal.Value
+			p_u_109.TotalAmmo.Text = p_u_109.TotalAmmoClient
+			p_u_109.NewFrame:WaitForChild("AmmoType").Text = p_u_109.GunStats.AmmoName
+			p_u_109.CurrentAmmo.Text = p_u_109.Shots
+			p_u_109.NewAmmoGui.Parent = v_u_2.player.PlayerGui
+			p_u_109.NewFrame.Position = UDim2.new(1, 0, v_u_8, 0)
+			p_u_109.NewFrame:TweenPosition(UDim2.new(0.89, 0, v_u_8, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Sine, 0.2, true)
+			if p_u_109.GunStats.ScopeGui then
+				p_u_109.GunStats.ScopeGui.Parent = v_u_2.player.PlayerGui
+			end
+			if p_u_109.Shots == 0 and p_u_109.TotalAmmoClient > 0 then
+				p_u_109:reloadGun()
+			else
+				v_u_2.animType.Value = p_u_109.GunStats.toolIdleAnimationType
+			end
+			if p_u_109.Equipped then
+				p_u_109.Mouse.Icon = "http://www.roblox.com/asset/?id=3836685141"
+				v_u_2.ContextActionService:BindAction("Reload", function(_, p111)
+					-- upvalues: (copy) p_u_109
+					if p111 == Enum.UserInputState.Begin and (p_u_109.Equipped and (p_u_109.Shots < p_u_109.GunStats.MaxShots and (not p_u_109.reloading and (not p_u_109.reloadManual and (p_u_109.TotalAmmoClient > 0 and not p_u_109.cancelReloading))))) then
+						p_u_109.reloadManual = true
+						if not p_u_109.shotDebounce then
+							p_u_109:reloadGun()
+						end
+					end
+				end, true, Enum.KeyCode.R, Enum.KeyCode.ButtonX)
+				v_u_2.ContextActionService:BindAction("Zoom", function(_, p112, p113)
+					-- upvalues: (ref) v_u_2, (copy) p_u_109
+					if p113.KeyCode == "e" and v_u_2.AimLockSetting.Value or p113.UserInputType == Enum.UserInputType.MouseButton2 and not v_u_2.AimLockSetting.Value then
+						return Enum.ContextActionResult.Pass
+					end
+					if p_u_109.GunStats.Scope or (v_u_2.InputType.Value == "touch" or v_u_2.player.Settings.Aim.Value == false) then
+						if p112 == Enum.UserInputState.Begin then
+							if p_u_109.reloading then
+								return
+							elseif p_u_109.zooming then
+								p_u_109:cycleZoom(false)
+							else
+								p_u_109:cycleZoom(true)
+							end
+						end
+					else
+						if p112 == Enum.UserInputState.End and p_u_109.zooming then
+							p_u_109:cycleZoom(false)
+							return
+						end
+						if p112 == Enum.UserInputState.Begin and not p_u_109.zooming then
+							p_u_109:cycleZoom(true)
+						end
+					end
+				end, true, "e", Enum.UserInputType.MouseButton2, Enum.KeyCode.ButtonL2)
+				p_u_109.Firing = false
+				if v_u_2.InputType.Value == "touch" then
+					v_u_2.ContextActionService:BindAction("Fire", function(_, _, p114)
+						-- upvalues: (copy) p_u_109
+						if p114.UserInputState == Enum.UserInputState.Begin then
+							p_u_109:MouseClick(p114)
+						else
+							p_u_109.Firing = false
+						end
+					end, true)
+				else
+					p110.Button1Down:connect(function()
+						-- upvalues: (copy) p_u_109
+						p_u_109:MouseClick()
+					end)
+					p110.Button1Up:connect(function()
+						-- upvalues: (copy) p_u_109
+						p_u_109:MouseUp()
+					end)
+				end
+				v_u_2.MobileTouchButtons()
+				p_u_109.walkStateChanged = p_u_109.Character.WalkState.Changed:Connect(function()
+					-- upvalues: (copy) p_u_109
+					if p_u_109.Character.WalkState.Value == "Sprinting" then
+						p_u_109:cycleZoom(false)
+					end
+				end)
+			end
+		else
+			return
+		end
+	else
+		return
+	end
+end
+return v10
