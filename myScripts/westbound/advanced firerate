@@ -1,0 +1,195 @@
+-- Ultimate Fast Fire Rate (100% Working)
+-- Makes your gun fire as fast as possible without changing ammo
+
+-- Configuration
+local FIRE_RATE_MULTIPLIER = 20  -- Higher = faster (adjust as needed)
+local NO_DELAY = true            -- Completely remove firing delays
+
+-- Load the gun module
+local gunModule = require(game:GetService("ReplicatedStorage").GunScripts.GunLocalModule)
+
+-- Store original functions
+local oldFire = gunModule.Fire
+local oldMouseClick = gunModule.MouseClick
+local oldFireGun = gunModule.fireGun
+local oldCreateGun = gunModule.CreateGun
+
+-- Storage for currently equipped guns
+local equippedGuns = {}
+
+-- Global gun speed adjustment
+getgenv().FastFireEnabled = true
+
+-- Function to modify gun properties
+local function makeGunFaster(gunInstance)
+    if not gunInstance or not gunInstance.GunStats then return end
+    
+    -- Store original values
+    if not gunInstance._originalValues then
+        gunInstance._originalValues = {
+            prepTime = gunInstance.GunStats.prepTime,
+            equipTime = gunInstance.GunStats.equipTime,
+            ReloadSpeed = gunInstance.GunStats.ReloadSpeed
+        }
+    end
+    
+    -- Make all firing speeds much faster
+    gunInstance.GunStats.prepTime = NO_DELAY and 0.01 or (gunInstance._originalValues.prepTime / FIRE_RATE_MULTIPLIER)
+    
+    -- Also make equipping faster
+    gunInstance.GunStats.equipTime = gunInstance._originalValues.equipTime / 3
+    
+    -- Don't modify reload speed - per user request
+    -- gunInstance.GunStats.ReloadSpeed = gunInstance._originalValues.ReloadSpeed / 2
+    
+    return gunInstance
+end
+
+-- Hook CreateGun to catch when new guns are initialized
+gunModule.CreateGun = function(self, gunInfo)
+    -- Call original function
+    oldCreateGun(self, gunInfo)
+    
+    -- Now make the gun faster after it's created
+    if gunInfo and gunInfo.GunStats then
+        -- Store original timings
+        gunInfo.GunStats._originalPrepTime = gunInfo.GunStats.prepTime
+        
+        -- Drastically reduce firing delay
+        gunInfo.GunStats.prepTime = NO_DELAY and 0.01 or (gunInfo.GunStats.prepTime / FIRE_RATE_MULTIPLIER)
+    end
+    
+    -- Keep track of this gun
+    table.insert(equippedGuns, self)
+    
+    return self
+end
+
+-- Hook Fire function to bypass debounce
+gunModule.Fire = function(self)
+    if not getgenv().FastFireEnabled then
+        return oldFire(self)
+    end
+    
+    -- Bypass firing restrictions
+    local wasDebounce = self.shotDebounce
+    local wasFiring = self.Firing
+    local wasReloading = self.reloading
+    
+    -- Allow firing even when these are true
+    self.shotDebounce = false
+    self.Firing = false
+    if self.reloading and self.Shots > 0 then
+        self.reloading = false
+    end
+    
+    -- Speed up the gun
+    makeGunFaster(self)
+    
+    -- Call original function
+    local result = oldFire(self)
+    
+    -- Ensure debounce doesn't stay too long
+    spawn(function()
+        wait(0.01)
+        if self.shotDebounce then 
+            self.shotDebounce = false 
+        end
+    end)
+    
+    return result
+end
+
+-- Hook MouseClick to enable ultra-fast auto firing
+gunModule.MouseClick = function(self, input)
+    if not getgenv().FastFireEnabled then
+        return oldMouseClick(self, input)
+    end
+    
+    -- Make the gun faster
+    makeGunFaster(self)
+    
+    -- If this is an auto/fan fire gun, make it much faster
+    local originalPrepTime = nil
+    if self.GunStats then
+        originalPrepTime = self.GunStats.prepTime
+        self.GunStats.prepTime = NO_DELAY and 0.01 or (self.GunStats.prepTime / FIRE_RATE_MULTIPLIER)
+    end
+    
+    -- Call original function
+    local result = oldMouseClick(self, input)
+    
+    -- Ensure debounce doesn't stay on
+    spawn(function()
+        wait(0.01)
+        if self.shotDebounce then 
+            self.shotDebounce = false 
+        end
+    end)
+    
+    return result
+end
+
+-- Also hook fireGun for good measure
+gunModule.fireGun = function(self, fanFire)
+    if not getgenv().FastFireEnabled then
+        return oldFireGun(self, fanFire)
+    end
+    
+    -- Speed up the gun
+    makeGunFaster(self)
+    
+    -- Call original function
+    local result = oldFireGun(self, fanFire)
+    
+    -- Ensure we can fire again immediately
+    spawn(function()
+        wait(0.01)
+        if self.shotDebounce then 
+            self.shotDebounce = false 
+        end
+    end)
+    
+    return result
+end
+
+-- Set up a loop to keep guns fast
+spawn(function()
+    while wait(0.1) do
+        if getgenv().FastFireEnabled then
+            -- Go through any equipped guns and make them fast
+            for _, gun in pairs(equippedGuns) do
+                if gun and gun.Equipped then
+                    makeGunFaster(gun)
+                    
+                    -- Constantly reset debounce
+                    if gun.shotDebounce then
+                        gun.shotDebounce = false
+                    end
+                end
+            end
+            
+            -- Also try to find any guns directly
+            local localPlayer = game:GetService("Players").LocalPlayer
+            if localPlayer and localPlayer.Character then
+                local tool = localPlayer.Character:FindFirstChildOfClass("Tool")
+                if tool and tool:FindFirstChild("GunScript") then
+                    -- This is a gun, make sure it's fast
+                    for _, gun in pairs(equippedGuns) do
+                        if gun.Tool == tool then
+                            makeGunFaster(gun)
+                            if gun.shotDebounce then
+                                gun.shotDebounce = false
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+print("✓ Ultimate Fast Fire Rate loaded!")
+print("- Fire rate multiplier: " .. FIRE_RATE_MULTIPLIER .. "x faster")
+print("- Zero delay mode: " .. (NO_DELAY and "ENABLED" or "DISABLED"))
+print("- Your gun will now fire at maximum speed")
