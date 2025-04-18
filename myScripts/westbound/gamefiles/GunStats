@@ -1,5 +1,5 @@
---game:GetService("ReplicatedStorage").GunScripts.GunStats
-local v1 = {
+-- game:GetService("ReplicatedStorage").GunScripts.GunStats
+local gunStats = {
 	["Colt .45"] = {
 		["GunType"] = "Pistol",
 		["Damage"] = 23,
@@ -619,14 +619,16 @@ local v1 = {
 		["InstantFireAnimation"] = false
 	}
 }
-v1["Ornate Winchester"] = v1["Winchester Rifle"]
-v1["Ornate Colt"] = v1["Colt .45"]
-v1["Gold Schofield"] = v1["Schofield Revolver"]
-v1["Engraved Double-Action"] = v1["Double-Action Revolver"]
-v1["Volcanic Model 94"] = v1["Winchester Model 94"]
-v1["Volcanic Remington"] = v1.Remington
-v1["Winter\'s Bounty"] = v1["Gold Buffalo Rifle"]
-v1["Dark Colt Navy"] = v1["Colt Navy"]
-v1["Dark Mosin"] = v1["Mosin-Nagant"]
-v1["Ice Winchester 94"] = v1["Winchester Model 94"]
-return v1
+
+gunStats["Ornate Winchester"] = gunStats["Winchester Rifle"]
+gunStats["Ornate Colt"] = gunStats["Colt .45"]
+gunStats["Gold Schofield"] = gunStats["Schofield Revolver"]
+gunStats["Engraved Double-Action"] = gunStats["Double-Action Revolver"]
+gunStats["Volcanic Model 94"] = gunStats["Winchester Model 94"]
+gunStats["Volcanic Remington"] = gunStats.Remington
+gunStats["Winter's Bounty"] = gunStats["Gold Buffalo Rifle"]
+gunStats["Dark Colt Navy"] = gunStats["Colt Navy"]
+gunStats["Dark Mosin"] = gunStats["Mosin-Nagant"]
+gunStats["Ice Winchester 94"] = gunStats["Winchester Model 94"]
+
+return gunStats
