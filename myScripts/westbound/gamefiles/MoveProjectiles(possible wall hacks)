@@ -1,0 +1,75 @@
+--game:GetService("ReplicatedStorage").GunScripts.CreateShot.MoveProjectiles
+local v_u_1 = game.Players.LocalPlayer
+local v_u_2 = require(game.ReplicatedStorage.TimeSync.TimeSyncManager)
+local v_u_3 = Instance.new("Model")
+v_u_3.Name = "Bullets"
+v_u_3.Parent = workspace
+local v_u_4 = require(script.Parent:WaitForChild("Hit"))
+local v_u_5 = {
+	["IgnoreList"] = { v_u_3 },
+	["projectilesTable"] = {}
+}
+game:GetService("RunService").RenderStepped:Connect(function()
+	-- upvalues: (copy) v_u_5, (copy) v_u_2, (copy) v_u_4
+	for v6, v7 in pairs(v_u_5.projectilesTable) do
+		if v7.Shot.Parent == nil then
+			table.remove(v_u_5.projectilesTable, v6)
+		elseif v7.FirstFrame then
+			if v7.Lifetime < v_u_2:GetTime() - v7.StartTime then
+				table.remove(v_u_5.projectilesTable, v6)
+			elseif v7.EndPoint then
+				local v8 = (v7.Shot.Position - v7.EndPoint).magnitude
+				if v7.Speed < v8 then
+					v7.Shot.CFrame = v7.Shot.CFrame * CFrame.new(0, 0, -v7.Speed)
+				else
+					v7.Shot.CFrame = v7.Shot.CFrame * CFrame.new(0, 0, -v8)
+					table.remove(v_u_5.projectilesTable, v6)
+				end
+			else
+				v7.cframe = v7.Shot.CFrame
+				v7.MaxDistance = v7.Speed
+				local v9
+				if v7.ServerBullet then
+					v9 = nil
+				else
+					v9 = v_u_4(v7, v_u_5.IgnoreList)
+				end
+				if v9 then
+					table.remove(v_u_5.projectilesTable, v6)
+				else
+					v7.Shot.CFrame = v7.Shot.CFrame * CFrame.new(0, 0, -v7.Speed)
+					if v7.BulletDrop then
+						v7.Shot.CFrame = v7.Shot.CFrame * CFrame.Angles(-0.0010471975511965976, 0, 0)
+					end
+				end
+			end
+		else
+			v7.FirstFrame = true
+		end
+	end
+end)
+function v_u_5.Add(p10)
+	-- upvalues: (copy) v_u_5, (copy) v_u_3, (copy) v_u_1
+	if #v_u_5.projectilesTable <= 30 then
+		v_u_5.IgnoreList = { v_u_3, p10.Tool }
+		if v_u_1:WaitForChild("StateConfig"):WaitForChild("Horse").Value then
+			local v11 = v_u_5.IgnoreList
+			local v12 = v_u_1.StateConfig.Horse.Value
+			table.insert(v11, v12)
+		end
+		p10.Shot.Parent = v_u_3
+		p10.StartPoint = p10.Shot.CFrame
+		local v13 = v_u_5.projectilesTable
+		table.insert(v13, p10)
+	end
+end
+function v_u_5.Remove(p14)
+	-- upvalues: (copy) v_u_5
+	for v15, v16 in next, v_u_5.projectilesTable do
+		if v16.StartTime == p14.StartTime then
+			table.remove(v_u_5.projectilesTable, v15)
+			game:GetService("Debris"):AddItem(v16.Shot, 5)
+		end
+	end
+end
+return v_u_5
