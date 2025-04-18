@@ -1,0 +1,49 @@
+-- Get reference to the remote event
+local remoteEvent = game:GetService("ReplicatedStorage"):WaitForChild("AddScoreEvent")
+
+-- Step 1: Create a placeholder to store original functions
+local originalFunctions = {}
+
+-- Step 2: Get the real metatable of the RemoteEvent
+local eventMT = getrawmetatable(remoteEvent)
+if eventMT then
+    -- Need to make the metatable writeable first
+    setreadonly(eventMT, false)
+    
+    -- Step 3: Store original __namecall method
+    originalFunctions.__namecall = eventMT.__namecall
+    
+    -- Step 4: Create our custom __namecall method
+    eventMT.__namecall = function(self, ...)
+        -- Get the method name that was called
+        local method = getnamecallmethod()
+        local args = {...}
+        
+        -- Check if it's our target method
+        if self == remoteEvent and method == "FireServer" then
+            -- Get points value
+            local points = args[1]
+            
+            -- Call original multiple times to multiply effect
+            local result
+            for i = 1, 10 do  -- Will fire 10 times
+                -- Call original namecall (need to do this correctly)
+                result = originalFunctions.__namecall(self, ...)
+                wait(0.01) -- Small delay to avoid detection
+            end
+            
+            print("Multi-fired event 10 times with points:", points)
+            return result
+        end
+        
+        -- For any other method, use original behavior
+        return originalFunctions.__namecall(self, ...)
+    end
+    
+    -- Reset metatable to readonly to avoid detection
+    setreadonly(eventMT, true)
+    
+    print("Thread injection complete!")
+else
+    warn("Could not get metatable - exploit may not support this method")
+end
