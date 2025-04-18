@@ -1,0 +1,54 @@
+-- Super Simple Auto-Clicker
+-- Uses direct mouse input functions that should work on any executor
+
+-- Configuration
+local CLICK_INTERVAL = 0.1   -- Seconds between clicks
+local TOGGLE_KEY = "F"       -- Key to toggle auto-clicking
+
+-- Variables
+local enabled = false
+local lastClickTime = 0
+
+-- Main click loop function
+local function autoClickLoop()
+    while true do
+        if enabled then
+            -- Current time
+            local now = tick()
+            
+            -- Check if it's time to click
+            if now - lastClickTime >= CLICK_INTERVAL then
+                -- Use the mouse functions you provided
+                mouse1press()
+                wait(0.01) -- Brief delay between press and release
+                mouse1release()
+                
+                -- Update last click time
+                lastClickTime = now
+            end
+        end
+        
+        -- Short wait to prevent the loop from consuming too much CPU
+        wait(0.01)
+    end
+end
+
+-- Toggle function
+local function toggleAutoClick()
+    enabled = not enabled
+    print("Auto-Clicker: " .. (enabled and "ON" or "OFF"))
+end
+
+-- Set up toggle key
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode[TOGGLE_KEY] then
+        toggleAutoClick()
+    end
+end)
+
+-- Start the auto-click loop in a separate thread
+spawn(autoClickLoop)
+
+print("✓ Auto-Clicker loaded - Press " .. TOGGLE_KEY .. " to toggle")
