@@ -1,0 +1,154 @@
+-- Direct Gun Stats Editor - Zero Delay Firing
+-- Works by finding and modifying gun stats directly
+
+-- Target gun stats module
+local statsModule = game:GetService("ReplicatedStorage"):WaitForChild("GunScripts"):WaitForChild("GunStats")
+
+-- Function to modify stats recursively in any object
+local function setZeroDelays(obj)
+    -- Check if this is a table with gun stats
+    if type(obj) == "table" then
+        -- Look for timing values to modify
+        if obj.prepTime ~= nil then obj.prepTime = 0.01 end
+        if obj.equipTime ~= nil then obj.equipTime = 0.01 end
+        if obj.ReloadSpeed ~= nil then obj.ReloadSpeed = 0.01 end
+        
+        -- Check all children
+        for _, child in pairs(obj) do
+            if type(child) == "table" then
+                setZeroDelays(child)
+            end
+        end
+    end
+end
+
+-- Function to modify a gun directly
+local function modifyEquippedGun()
+    local player = game:GetService("Players").LocalPlayer
+    if not player or not player.Character then return end
+    
+    -- Find equipped tool
+    local tool = player.Character:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    
+    -- Find gun script
+    local gunScript = tool:FindFirstChild("GunScript")
+    if not gunScript then return end
+    
+    -- Try to find and modify gun values directly
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" and rawget(obj, "Tool") == tool then
+            -- Found gun object, modify it
+            if obj.GunStats then
+                print("Found equipped gun - applying zero delay")
+                obj.GunStats.prepTime = 0.01
+                obj.GunStats.equipTime = 0.01
+                obj.GunStats.ReloadSpeed = 0.01
+                
+                -- Also disable debounce
+                obj.shotDebounce = false
+            end
+        end
+    end
+end
+
+-- Try different methods to modify gun stats
+
+-- METHOD 1: Modify the stats module directly if it's a ModuleScript
+if statsModule:IsA("ModuleScript") then
+    print("Method 1: Modifying GunStats ModuleScript")
+    
+    -- Hook require to modify returned values
+    local oldReq = require
+    require = function(module)
+        local result = oldReq(module)
+        
+        -- Check if this is the gun stats module
+        if module == statsModule then
+            print("Successfully intercepted GunStats module!")
+            -- Modify all gun stats
+            for gunName, stats in pairs(result) do
+                if type(stats) == "table" then
+                    print("Setting zero delay for: " .. gunName)
+                    stats.prepTime = 0.01
+                    stats.equipTime = 0.01
+                    stats.ReloadSpeed = 0.01
+                    if stats.InstantFireAnimation ~= nil then
+                        stats.InstantFireAnimation = true
+                    end
+                end
+            end
+        end
+        
+        return result
+    end
+end
+
+-- METHOD 2: Search in game environment for gun stats
+print("Method 2: Searching game environment for gun stats")
+for _, obj in pairs(getgc(true)) do
+    if type(obj) == "table" then
+        -- Check if this looks like the gun stats table
+        local isGunStats = false
+        for k, v in pairs(obj) do
+            if k == "Colt .45" and type(v) == "table" and v.GunType == "Pistol" then
+                isGunStats = true
+                break
+            end
+        end
+        
+        -- If we found gun stats, modify them
+        if isGunStats then
+            print("Found gun stats table in memory!")
+            setZeroDelays(obj)
+            
+            -- Show modified values
+            if obj["Colt .45"] then
+                print("Colt .45 prepTime = " .. tostring(obj["Colt .45"].prepTime))
+            end
+        end
+    end
+end
+
+-- METHOD 3: Hook the game's prepTime getter/setter
+print("Method 3: Setting up continuous monitoring")
+spawn(function()
+    while wait(0.5) do
+        pcall(modifyEquippedGun)
+    end
+end)
+
+-- Also hook key gun-related globals if we can find them
+for _, v in pairs(getgenv()) do
+    if type(v) == "table" and rawget(v, "Fire") and rawget(v, "fireGun") then
+        print("Found gun module in globals - hooking key functions")
+        
+        -- Hook Fire function to remove debounce
+        local oldFire = v.Fire
+        v.Fire = function(self, ...)
+            if type(self) == "table" then
+                self.shotDebounce = false
+                if self.GunStats then
+                    self.GunStats.prepTime = 0.01
+                end
+            end
+            return oldFire(self, ...)
+        end
+        
+        -- Hook fireGun function similarly
+        local oldFireGun = v.fireGun
+        v.fireGun = function(self, ...)
+            if type(self) == "table" then
+                self.shotDebounce = false
+                if self.GunStats then
+                    self.GunStats.prepTime = 0.01
+                end
+            end
+            return oldFireGun(self, ...)
+        end
+    end
+end
+
+print("✓ Zero-Delay Firing script loaded")
+print("- Using multiple methods to ensure gun fires fast")
+print("- Continuous monitoring will keep fixing gun speed")
