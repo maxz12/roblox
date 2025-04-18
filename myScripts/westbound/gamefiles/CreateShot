@@ -1,0 +1,55 @@
+--game:GetService("ReplicatedStorage").GunScripts.CreateShot
+local v_u_1 = {
+	["CreateGunShot"] = game.ReplicatedStorage:WaitForChild("GunScripts"):WaitForChild("Events"):WaitForChild("GunShot")
+}
+local v_u_2 = require(script:WaitForChild("HitCallbacks"))
+local v_u_3 = require(script:WaitForChild("MakeBullet"))
+local v_u_4 = require(script:WaitForChild("MakeArrow"))
+local v_u_5 = require(game.ReplicatedStorage.TimeSync.TimeSyncManager)
+local v_u_6 = require(script:WaitForChild("MoveProjectiles"))
+local v_u_7 = require(script:WaitForChild("Hit"))
+return {
+	["CreateShot"] = function(p8)
+		-- upvalues: (copy) v_u_5, (copy) v_u_4, (copy) v_u_2, (copy) v_u_3, (copy) v_u_7, (copy) v_u_6, (copy) v_u_1
+		if p8.Tool then
+			p8.MaxDistance = 1000
+			p8.ToolName = p8.Tool.Name
+			p8.Lifetime = 1
+			if not p8.StartTime then
+				p8.StartTime = v_u_5:GetTime()
+			end
+			p8.Delay = v_u_5:GetPing()
+			if p8.AmmoType == "Arrows" then
+				p8.Shot = v_u_4.Create(p8)
+				p8.BulletDrop = true
+				p8.Lifetime = 4
+				p8.HitCallback = v_u_2.Callbacks.Arrow
+			else
+				p8.Shot = v_u_3.Create(p8)
+				if p8.ServerBullet then
+					print(p8.HitPart, p8.HitPosition)
+					if p8.HitPart and p8.HitPosition then
+						v_u_2:RunHitCallback(p8.HitCallback, p8)
+					end
+				else
+					p8.HitCallback = v_u_2.Callbacks.Bullet
+					local v9 = v_u_7(p8, v_u_6.IgnoreList)
+					if v9 and p8.Shot then
+						p8.EndPoint = v9.EndPoint
+					end
+				end
+			end
+			if not p8.ServerBullet then
+				v_u_1.CreateGunShot:FireServer(p8)
+			end
+			if p8.Shot then
+				v_u_6.Add(p8)
+			end
+		end
+	end,
+	["RemoveProjectile"] = function(p10)
+		-- upvalues: (copy) v_u_2, (copy) v_u_6
+		v_u_2:RunHitCallback(p10.HitCallback, p10)
+		v_u_6.Remove(p10)
+	end
+}
