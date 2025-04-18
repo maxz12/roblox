@@ -1,0 +1,117 @@
+--game:GetService("ReplicatedStorage").GunScripts.CreateShot.Hit
+local v_u_1 = game.Players.LocalPlayer
+local v_u_2 = v_u_1:WaitForChild("StateConfig"):WaitForChild("InputType")
+require(game.ReplicatedStorage.TimeSync.TimeSyncManager)
+local v_u_3 = require(script.Parent:WaitForChild("HitCallbacks"))
+local v_u_4 = require(script.Parent:WaitForChild("GetHorseRiders"))
+local v_u_5 = {
+	["HitEvent"] = game.ReplicatedStorage:WaitForChild("GunScripts"):WaitForChild("Events").Hit
+}
+local function v_u_10(p6)
+	-- upvalues: (copy) v_u_1, (copy) v_u_2
+	local v7 = v_u_1.PlayerGui:FindFirstChild("AimingIcon")
+	local v_u_8
+	if v7 then
+		v_u_8 = v7:FindFirstChild("HitMarker")
+	else
+		v_u_8 = nil
+	end
+	if v_u_8 and not v_u_8.Visible then
+		print("Headshot:", p6)
+		v_u_8.Crit.Visible = p6
+		if v_u_2.Value == "touch" then
+			v7.IgnoreGuiInset = true
+			v_u_8.Position = UDim2.new(0.5, 0, 0.5, 0)
+		else
+			v7.IgnoreGuiInset = false
+			local v9 = v_u_1:GetMouse()
+			v_u_8.Position = UDim2.new(0, v9.X, 0, v9.Y)
+		end
+		v_u_8.Visible = true
+		delay(0.2, function()
+			-- upvalues: (ref) v_u_8
+			v_u_8.Visible = false
+		end)
+	end
+end
+local function v_u_22(p11, p12, p13, p14, p15)
+	-- upvalues: (copy) v_u_1, (copy) v_u_3, (copy) v_u_10, (copy) v_u_5
+	local v16 = p11.Parent:FindFirstChild("Humanoid")
+	if v16 and v16:IsDescendantOf(v_u_1.Character) then
+		return false
+	end
+	local v17 = nil
+	if p11.Parent.Name == "Window" then
+		local v18 = p11.Parent:FindFirstChild("Union")
+		if p11.Parent:FindFirstChild("Part") and (v18 and v18.CanCollide) then
+			v17 = p11.Parent
+		end
+	end
+	local v19
+	if p11.Parent.Name == "Frying Pan" and (p11.Parent:IsA("Tool") and p11.Name == "Handle") then
+		v19 = v_u_3.Callbacks.PanHit
+	else
+		v19 = nil
+	end
+	if not v19 and (not v17 and (not v16 and (p11.Parent:IsA("Accessory") or p11.CanCollide == false))) then
+		return false
+	end
+	if v19 then
+		p15.HitCallback = v19
+	end
+	p15.HitPosition = p12
+	p15.HitPart = p11
+	if v16 then
+		local v20 = v16.Parent
+		local v21 = v20:FindFirstChild("HumanoidRootPart") or v20:FindFirstChild("UpperTorso")
+		if not v21 then
+			return false
+		end
+		p15.HitHum = v16
+		p15.RootPosition = v21.Position
+		print("Hit part name:", p11.Name)
+		v_u_10((p11.Name == "Head" or p11.Name == "Eyes") and true or p11.Name == "Rein")
+	end
+	p15.Material = p14
+	p15.Window = v17
+	p15.Normal = p13
+	v_u_3:RunHitCallback(p15.HitCallback, p15)
+	if p15.BulletDrop or p15.HitHum then
+		v_u_5.HitEvent:FireServer(p15)
+	end
+	return {
+		["Hit"] = p11,
+		["EndPoint"] = p12
+	}
+end
+function Raycast(p23, p24)
+	-- upvalues: (copy) v_u_4, (copy) v_u_22
+	local v25 = p23.cframe.lookVector * p23.MaxDistance
+	local v26 = Ray.new(p23.cframe.p, v25)
+	local v27 = 0
+	local v28 = v_u_4.GetPassengerOnHorse(p23.BulletOwner)
+	local v29 = v_u_4.GetRiderOnHorse(p23.BulletOwner)
+	if v28 then
+		table.insert(p24, v28)
+	end
+	if v29 then
+		table.insert(p24, v29)
+	end
+	while true do
+		v27 = v27 + 1
+		local v30, v31, v32, v33 = workspace:FindPartOnRayWithIgnoreList(v26, p24)
+		if v30 then
+			local v34 = v_u_22(v30, v31, v32, v33, p23)
+			if v34 then
+				return v34
+			end
+			table.insert(p24, v30)
+		else
+			v27 = 4
+		end
+		if v27 >= 4 then
+			return nil
+		end
+	end
+end
+return Raycast
