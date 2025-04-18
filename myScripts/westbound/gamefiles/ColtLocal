@@ -1,0 +1,83 @@
+--workspace.littletimmy2017a["Colt .45"].ColtLocal
+local v1 = script.Parent
+local v2 = v1:WaitForChild("Handle")
+local v_u_3 = {
+	["Fire"] = v2:WaitForChild("Fire"),
+	["Reload"] = v2:WaitForChild("Reload"),
+	["Equip"] = v2:WaitForChild("Equip"),
+	["Prep"] = v2:WaitForChild("Prep"),
+	["Empty"] = v2:WaitForChild("Empty")
+}
+local v4 = {
+	["Hold"] = "rbxassetid://03151590218",
+	["Reload"] = "rbxassetid://02536241233",
+	["Fire"] = "rbxassetid://02542178379",
+	["FanFire"] = "rbxassetid://2870647263",
+	["Equip"] = "rbxassetid://03151619079",
+	["Zoom"] = "rbxassetid://02536242563",
+	["Idle"] = "rbxassetid://03118841150"
+}
+for _, v5 in next, v_u_3 do
+	v5.Parent = v2
+end
+local v6 = require(game.ReplicatedStorage:WaitForChild("GunScripts"):WaitForChild("GunLocalModule"))()
+local v_u_7 = v6:LoadAnimations(v4)
+local v_u_8 = require(game.ReplicatedStorage.GunScripts.GunStats)[v1.Name]
+function v6.PlayAnimation(p_u_9, p_u_10, p_u_11)
+	-- upvalues: (ref) v_u_7, (copy) v_u_8, (copy) v_u_3
+	spawn(function()
+		-- upvalues: (copy) p_u_9, (copy) p_u_10, (ref) v_u_7, (copy) p_u_11, (ref) v_u_8, (ref) v_u_3
+		if p_u_9.Equipped then
+			if p_u_10 == "Equip" then
+				v_u_7.Equip:Play()
+				v_u_7.Idle:Play()
+				return
+			elseif p_u_10 == "Reload" then
+				if p_u_11 then
+					v_u_7.Reload:Play(0.1, 1, v_u_8.ReloadAnimationSpeed)
+				else
+					v_u_7.Reload:Stop()
+				end
+			elseif p_u_10 == "Zoom" then
+				if p_u_11 then
+					v_u_7.Zoom:Play()
+				else
+					v_u_7.Zoom:Stop()
+				end
+			elseif p_u_10 == "Hold" then
+				v_u_7.Hold:Play()
+				return
+			elseif p_u_10 == "Fire" then
+				v_u_3.Fire.Pitch = math.random(10, 12) * 0.1
+				v_u_3.Fire:Play()
+				v_u_7.Fire:Play()
+				v_u_7.Idle:Stop()
+				wait(0.4)
+				if p_u_9.Equipped then
+					v_u_3.Prep:Play()
+					v_u_7.Idle:Play()
+				end
+			elseif p_u_10 == "FanFire" then
+				v_u_3.Fire.Pitch = math.random(10, 12) * 0.1
+				v_u_3.Fire:Play()
+				v_u_7.FanFire:Play()
+				v_u_7.Idle:Stop()
+				wait(0.2)
+				if p_u_9.Equipped then
+					v_u_3.Prep:Play()
+					v_u_7.Idle:Play(0.05)
+				end
+			else
+				local _ = p_u_10 == "Unequip"
+				return
+			end
+		else
+			return
+		end
+	end)
+end
+v6:CreateGun({
+	["Tool"] = v1,
+	["GunStats"] = v_u_8,
+	["Sounds"] = v_u_3
+})
