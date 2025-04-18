@@ -997,6 +997,146 @@ GunModsSection:Label({Text = "and back to apply some effects"})
 -- Set up gun modifiers as soon as the script loads
 setupGunModifiers()
 
+-- Create a new section for cameras
+local CameraSection = MainTab:Section({Name = "Camera Controls", Side = "Left"})
+
+-- Camera highlight feature (yellow)
+local cameraHighlights = {}
+local cameraHighlightConnection = nil
+local cameraChildRemovedConnection = nil
+local CameraHighlight = CameraSection:Toggle({
+    Name = "Highlight Cameras (Yellow)",
+    Value = false,
+    Callback = function(enabled)
+        -- Function to apply highlight
+        local function addHighlight(camera)
+            if not enabled then 
+                if cameraHighlights[camera] then
+                    cameraHighlights[camera]:Destroy()
+                    cameraHighlights[camera] = nil
+                end
+                return 
+            end
+            
+            if not cameraHighlights[camera] then
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = Color3.fromRGB(255, 255, 0) -- Yellow
+                highlight.OutlineColor = Color3.fromRGB(200, 200, 0) -- Darker yellow
+                highlight.FillTransparency = 0.5
+                highlight.Parent = camera
+                cameraHighlights[camera] = highlight
+            end
+        end
+        
+        -- Apply to existing cameras
+        for _, camera in pairs(workspace.Cameras:GetChildren()) do
+            if enabled then
+                addHighlight(camera)
+            else
+                if cameraHighlights[camera] then
+                    cameraHighlights[camera]:Destroy()
+                    cameraHighlights[camera] = nil
+                end
+            end
+        end
+        
+        -- Connect to future cameras
+        if enabled then
+            cameraHighlightConnection = workspace.Cameras.ChildAdded:Connect(addHighlight)
+            table.insert(connections, cameraHighlightConnection)
+            
+            cameraChildRemovedConnection = workspace.Cameras.ChildRemoved:Connect(function(camera)
+                if cameraHighlights[camera] then
+                    cameraHighlights[camera]:Destroy()
+                    cameraHighlights[camera] = nil
+                end
+            end)
+            table.insert(connections, cameraChildRemovedConnection)
+        else
+            if cameraHighlightConnection then
+                cameraHighlightConnection:Disconnect()
+                cameraHighlightConnection = nil
+            end
+            
+            if cameraChildRemovedConnection then
+                cameraChildRemovedConnection:Disconnect()
+                cameraChildRemovedConnection = nil
+            end
+            
+            -- Remove all highlights
+            for camera, highlight in pairs(cameraHighlights) do
+                highlight:Destroy()
+            end
+            cameraHighlights = {}
+        end
+    end
+})
+CameraHighlight:ToolTip("Adds yellow highlights to all security cameras")
+CameraHighlight:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"},
+    Callback = function(_, _)
+        -- This will be called when the keybind is pressed
+    end
+})
+
+-- Camera remove feature
+local cameraRemoveConnection = nil
+local CameraRemove = CameraSection:Toggle({
+    Name = "Remove Cameras (9999,9999,9999)",
+    Value = false,
+    Callback = function(enabled)
+        if enabled then
+            -- Create a new connection when enabled
+            cameraRemoveConnection = RunService.Heartbeat:Connect(function()
+                -- Far away position
+                local farPosition = Vector3.new(9999, 9999, 9999)
+                
+                -- Teleport all cameras to this far away position
+                for _, camera in pairs(workspace.Cameras:GetChildren()) do
+                    if camera:IsA("Model") or camera:IsA("BasePart") then
+                        if camera:IsA("Model") and camera.PrimaryPart then
+                            camera:SetPrimaryPartCFrame(CFrame.new(farPosition))
+                        elseif camera:IsA("BasePart") then
+                            camera.CFrame = CFrame.new(farPosition)
+                        end
+                    end
+                end
+            end)
+            table.insert(connections, cameraRemoveConnection)
+            
+            Bracket:Notification({
+                Title = "Cameras Removed",
+                Description = "Cameras teleported far away",
+                Duration = 2
+            })
+        else
+            -- Disconnect when disabled
+            if cameraRemoveConnection then
+                cameraRemoveConnection:Disconnect()
+                cameraRemoveConnection = nil
+            end
+            
+            Bracket:Notification({
+                Title = "Camera Remove Disabled",
+                Description = "Cameras will appear normally now",
+                Duration = 2
+            })
+        end
+    end
+})
+CameraRemove:ToolTip("Teleports all cameras to 9999,9999,9999 (effectively removing them)")
+CameraRemove:Keybind({
+    Key = "NONE",
+    Mouse = false,
+    Blacklist = {"W","A","S","D","Slash","Tab","Backspace","Escape","Space","Delete","Unknown","Backquote"},
+    Callback = function(_, _)
+        -- This will be called when the keybind is pressed
+    end
+})
+
+
 -- MONEY BAGS SECTION
 local BagsSection = MainTab:Section({Name = "Money Bags", Side = "Right"})
 
