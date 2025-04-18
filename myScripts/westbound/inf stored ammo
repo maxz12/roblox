@@ -1,0 +1,38 @@
+-- 9999 Stored Ammo Script
+-- Sets all your stored ammo to 9999
+
+-- Get the player
+local player = game:GetService("Players").LocalPlayer
+
+-- Set ammo now
+local function setMaxAmmo()
+    -- Look for ammo in Consumables folder
+    for _, item in pairs(player:GetChildren()) do
+        if item:IsA("IntValue") and item.Name:find("Ammo") then
+            item.Value = 9999
+        end
+    end
+    
+    -- Also check for the specific folder structure
+    local consumables = player:FindFirstChild("Consumables")
+    if consumables then
+        for _, item in pairs(consumables:GetChildren()) do
+            if item:IsA("IntValue") then
+                item.Value = 9999
+            end
+        end
+    end
+end
+
+-- Set ammo now
+setMaxAmmo()
+
+-- Keep resetting ammo periodically
+spawn(function()
+    while wait(3) do
+        setMaxAmmo()
+    end
+end)
+
+print("✓ Ammo set to 9999")
+print("- Will keep resetting every few seconds")
