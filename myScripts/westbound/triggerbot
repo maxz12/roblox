@@ -1,0 +1,87 @@
+-- Auto-Trigger using specific mouse input functions
+-- Automatically shoots when aiming at enemy players
+
+-- Configuration
+local FIRE_INTERVAL = 0.1    -- Seconds between shots
+local TOGGLE_KEY = "T"       -- Key to toggle on/off
+local MAX_DISTANCE = 500     -- Max distance to detect enemies
+
+-- State variables
+local enabled = true
+local lastFireTime = 0
+local players = game:GetService("Players")
+local localPlayer = players.LocalPlayer
+local userInputService = game:GetService("UserInputService")
+
+-- Function to check if we're looking at an enemy
+local function isAimingAtEnemy()
+    -- Get camera and mouse position
+    local camera = workspace.CurrentCamera
+    local mousePos = userInputService:GetMouseLocation()
+    
+    -- Create ray from camera through mouse position
+    local ray = camera:ScreenPointToRay(mousePos.X, mousePos.Y)
+    
+    -- Cast ray
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {localPlayer.Character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    
+    local result = workspace:Raycast(ray.Origin, ray.Direction * MAX_DISTANCE, raycastParams)
+    
+    if result and result.Instance then
+        -- Find character model from hit part
+        local model = result.Instance
+        while model and not model:FindFirstChild("Humanoid") do
+            model = model.Parent
+        end
+        
+        -- Check if we hit a player character
+        if model and model:FindFirstChild("Humanoid") then
+            local player = players:GetPlayerFromCharacter(model)
+            if player and player ~= localPlayer then
+                return true -- We're aiming at an enemy player
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Function to simulate firing using the provided functions
+local function fireWeapon()
+    -- Use the exact functions provided by your executor
+    mouse1press()
+    wait(0.02) -- Very small delay to simulate click
+    mouse1release()
+end
+
+-- Main loop
+game:GetService("RunService").RenderStepped:Connect(function()
+    if not enabled then return end
+    
+    -- Only fire if enough time has passed
+    local now = tick()
+    if now - lastFireTime < FIRE_INTERVAL then return end
+    
+    -- Check if player has a tool equipped
+    if not localPlayer.Character or not localPlayer.Character:FindFirstChildOfClass("Tool") then return end
+    
+    -- Check if aiming at enemy
+    if isAimingAtEnemy() then
+        fireWeapon()
+        lastFireTime = now
+    end
+end)
+
+-- Toggle with T key
+userInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode[TOGGLE_KEY] then
+        enabled = not enabled
+        print("Auto-Trigger: " .. (enabled and "ON" or "OFF"))
+    end
+end)
+
+print("✓ Auto-Trigger loaded - Press " .. TOGGLE_KEY .. " to toggle")
