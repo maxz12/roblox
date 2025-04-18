@@ -1,0 +1,72 @@
+-- No Recoil & No Spread Script
+-- Removes all gun recoil and bullet spread for perfect accuracy
+
+-- Load the gun module
+local gunModule = require(game:GetService("ReplicatedStorage").GunScripts.GunLocalModule)
+
+-- Store original functions
+local oldShootBullet = gunModule.shootBullet
+local oldShakeCam = gunModule.shakeCam
+
+-- Replace camera shake (recoil) function with no-op
+gunModule.shakeCam = function(self)
+    -- Do nothing instead of shaking the camera
+    -- Still call updateHapticFeedback but with 0 values
+    self:updateHapticFeedback(0, "Both", 0, 0)
+    
+    -- No camera recoil
+    -- Original code was:
+    -- v_u_2.CameraController:SetRecoil(v55, 0.08, 0.5)
+end
+
+-- Replace bullet shooting with perfect accuracy version
+gunModule.shootBullet = function(self, head, targetPos, fanFire)
+    -- Get the handle position
+    local bulletOrigin = self.Handle.CFrame * self.GunStats.FiringOffset.p
+    
+    -- Create a ray directly to the target with no spread
+    local bulletDirection = CFrame.new(bulletOrigin, targetPos)
+    
+    -- Create the bullet with perfect accuracy (no random spread values)
+    for _ = 1, not self.GunStats.BulletCount and 1 or self.GunStats.BulletCount do
+        -- No random offset, just direct aim
+        local bulletData = {
+            ["AmmoType"] = self.GunStats.AmmoName,
+            ["cframe"] = bulletDirection, -- Perfect accuracy
+            ["Speed"] = 80,
+            ["Tool"] = self.Tool,
+            ["BulletOwner"] = game:GetService("Players").LocalPlayer,
+            ["PlayerRootPos"] = self.Root.Position,
+            ["GunType"] = self.GunStats.GunType
+        }
+        
+        -- Fire the shot
+        require(game:GetService("ReplicatedStorage").GunScripts.CreateShot).CreateShot(bulletData)
+    end
+    
+    -- Skip the camera shake
+    -- Original code was: p56:shakeCam()
+end
+
+-- Fix weapon stats when guns are created
+local oldCreateGun = gunModule.CreateGun
+gunModule.CreateGun = function(self, gunInfo)
+    -- Call original function
+    oldCreateGun(self, gunInfo)
+    
+    -- Remove all spread/accuracy values
+    if gunInfo and gunInfo.GunStats then
+        -- Perfect accuracy in all states
+        gunInfo.GunStats.HipFireAccuracy = 0
+        gunInfo.GunStats.ZoomAccuracy = 0
+        
+        -- Disable camera shake
+        gunInfo.GunStats.camShakeResist = math.huge
+    end
+    
+    return self
+end
+
+print("✓ No Recoil & No Spread loaded!")
+print("- Your gun now has perfect accuracy")
+print("- No camera shake/recoil when firing")
