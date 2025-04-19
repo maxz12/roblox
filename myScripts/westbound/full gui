@@ -1,0 +1,560 @@
+-- Performance-Optimized Combat GUI
+-- Version: 2025-04-19
+
+-- Configuration
+local FOV_RADIUS = 250  -- FOV circle size in pixels
+local FIRE_RATE_MULTIPLIER = 20  -- Higher = faster
+
+-- Global state variables
+_G.SilentAimEnabled = true
+_G.FastFireEnabled = true
+_G.NoRecoilEnabled = true
+_G.ZeroDelayEnabled = true
+
+-- Create FOV circle
+local circle = Drawing.new("Circle")
+circle.Visible = _G.SilentAimEnabled
+circle.Transparency = 0.7
+circle.Color = Color3.new(1, 0, 0)  -- Red circle
+circle.Thickness = 1.5
+circle.NumSides = 36  -- Reduced for better performance
+circle.Radius = FOV_RADIUS
+circle.Filled = false
+
+-- Performance optimization - cache services
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- Cache for closest player
+local closestPlayerCache = nil
+local lastCacheTime = 0
+local CACHE_DURATION = 0.05  -- Update target every 50ms instead of every frame
+
+-- Helper function to find closest player in FOV (optimized)
+local function getClosestPlayerToMouse()
+    -- Use cached result if recent enough
+    local currentTime = os.clock()
+    if closestPlayerCache and currentTime - lastCacheTime < CACHE_DURATION then
+        return closestPlayerCache
+    end
+    
+    local player = nil
+    local closestDistance = FOV_RADIUS
+    local mousePos = UserInputService:GetMouseLocation()
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        -- Skip local player
+        if p == LocalPlayer then continue end
+        
+        -- Check if player has a character with a head
+        local character = p.Character
+        if not (character and character:FindFirstChild("Head")) then continue end
+        
+        -- Check if on screen - use pcall to prevent errors
+        local success, vector, onScreen = pcall(function()
+            return camera:WorldToScreenPoint(character.Head.Position)
+        end)
+        
+        if not (success and onScreen) then continue end
+        
+        -- Calculate distance to mouse
+        local distance = (Vector2.new(vector.X, vector.Y) - mousePos).Magnitude
+        if distance < closestDistance then
+            closestDistance = distance
+            player = p
+        end
+    end
+    
+    -- Cache the result
+    closestPlayerCache = player
+    lastCacheTime = currentTime
+    return player
+end
+
+-- Gun modification cache to prevent excessive looping
+local lastModifiedGun = nil
+local gunModule = nil
+
+-- Function to modify gun directly (optimized)
+local function modifyEquippedGun()
+    if not _G.ZeroDelayEnabled and not _G.NoRecoilEnabled and not _G.FastFireEnabled then return end
+    
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local tool = character:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    
+    -- Don't modify the same gun repeatedly
+    if lastModifiedGun == tool then return end
+    
+    -- Find the gun object only once per tool change
+    local gunObject = nil
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" and rawget(obj, "Tool") == tool and rawget(obj, "GunStats") then
+            gunObject = obj
+            break
+        end
+    end
+    
+    if gunObject then
+        -- Apply modifications based on enabled features
+        if _G.ZeroDelayEnabled or _G.FastFireEnabled then
+            gunObject.GunStats.prepTime = 0.01
+            gunObject.GunStats.equipTime = 0.01
+            gunObject.shotDebounce = false
+        end
+        
+        if _G.NoRecoilEnabled then
+            if gunObject.GunStats.HipFireAccuracy ~= nil then
+                gunObject.GunStats.HipFireAccuracy = 0
+            end
+            if gunObject.GunStats.ZoomAccuracy ~= nil then
+                gunObject.GunStats.ZoomAccuracy = 0
+            end
+        end
+        
+        lastModifiedGun = tool
+    end
+end
+
+-- Try to get gun module only once
+pcall(function()
+    gunModule = require(game:GetService("ReplicatedStorage").GunScripts.GunLocalModule)
+    
+    if gunModule then
+        -- Hook shootBullet for silent aim (if it exists)
+        if typeof(gunModule.shootBullet) == "function" then
+            local originalShootBullet = gunModule.shootBullet
+            gunModule.shootBullet = function(self, head, targetPos, fanFire)
+                if not _G.SilentAimEnabled then
+                    return originalShootBullet(self, head, targetPos, fanFire)
+                end
+                
+                local target = getClosestPlayerToMouse()
+                if target and target.Character and target.Character:FindFirstChild("Head") then
+                    return originalShootBullet(self, head, target.Character.Head.Position, fanFire)
+                end
+                
+                return originalShootBullet(self, head, targetPos, fanFire)
+            end
+        end
+        
+        -- Hook shakeCam for no recoil (if it exists)
+        if typeof(gunModule.shakeCam) == "function" then
+            local originalShakeCam = gunModule.shakeCam
+            gunModule.shakeCam = function(self)
+                if not _G.NoRecoilEnabled then
+                    return originalShakeCam(self)
+                end
+                
+                -- Just return without doing anything
+                return
+            end
+        end
+        
+        -- Hook Fire for fast fire (if it exists)
+        if typeof(gunModule.Fire) == "function" then
+            local originalFire = gunModule.Fire
+            gunModule.Fire = function(self, ...)
+                if _G.FastFireEnabled and self then
+                    self.shotDebounce = false
+                    if self.GunStats then
+                        self.GunStats.prepTime = 0.01
+                    end
+                end
+                
+                return originalFire(self, ...)
+            end
+        end
+    end
+end)
+
+-- Gun modification loop - runs at a slower rate to reduce overhead
+local lastCheckTime = 0
+RunService.Heartbeat:Connect(function(deltaTime)
+    local now = os.clock()
+    
+    -- Only check every 0.2 seconds instead of every frame
+    if now - lastCheckTime >= 0.2 then
+        pcall(modifyEquippedGun)
+        lastCheckTime = now
+    end
+end)
+
+-- Update circle position - optimized to run less frequently
+local lastCircleUpdate = 0
+local targetDetected = false
+RunService.Heartbeat:Connect(function(deltaTime)
+    local now = os.clock()
+    
+    -- Only update circle every 0.03 seconds (about 30fps) instead of every frame
+    if now - lastCircleUpdate >= 0.03 then
+        pcall(function()
+            if _G.SilentAimEnabled then
+                circle.Position = UserInputService:GetMouseLocation()
+                circle.Visible = true
+                
+                -- Only check for target when necessary
+                local target = getClosestPlayerToMouse()
+                local newTargetDetected = target ~= nil
+                
+                -- Only update color when target status changes
+                if targetDetected ~= newTargetDetected then
+                    circle.Color = newTargetDetected and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
+                    targetDetected = newTargetDetected
+                end
+            else
+                circle.Visible = false
+            end
+        end)
+        lastCircleUpdate = now
+    end
+end)
+
+-- Create Simple GUI - Parented to CoreGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "CombatGUI"
+ScreenGui.ResetOnSpawn = false
+
+-- Try to parent to CoreGui, fall back to PlayerGui if needed
+pcall(function()
+    ScreenGui.Parent = game:GetService("CoreGui")
+end)
+
+if not ScreenGui.Parent then
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Create main frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 180, 0, 200)
+MainFrame.Position = UDim2.new(0.85, -100, 0.5, -100)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+-- Title bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 25)
+TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+-- Title text
+local TitleText = Instance.new("TextLabel")
+TitleText.Name = "Title"
+TitleText.Size = UDim2.new(1, 0, 1, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Font = Enum.Font.SourceSansBold
+TitleText.Text = "Combat Helper"
+TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleText.TextSize = 16
+TitleText.Parent = TitleBar
+
+-- Content frame
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Size = UDim2.new(1, 0, 1, -25)
+ContentFrame.Position = UDim2.new(0, 0, 0, 25)
+ContentFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ContentFrame.BorderSizePixel = 0
+ContentFrame.Parent = MainFrame
+
+-- Create toggle buttons for each feature (all at once to reduce instance creation)
+local features = {
+    {name = "Silent Aim", value = _G.SilentAimEnabled, position = UDim2.new(0, 0, 0, 10)},
+    {name = "Fast Fire", value = _G.FastFireEnabled, position = UDim2.new(0, 0, 0, 45)},
+    {name = "No Recoil", value = _G.NoRecoilEnabled, position = UDim2.new(0, 0, 0, 80)},
+    {name = "Zero Delay", value = _G.ZeroDelayEnabled, position = UDim2.new(0, 0, 0, 115)}
+}
+
+local buttons = {}
+
+for i, feature in ipairs(features) do
+    -- Feature label
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.6, 0, 0, 25)
+    label.Position = UDim2.new(0.05, 0, 0, feature.position.Y.Offset)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.SourceSans
+    label.Text = feature.name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = ContentFrame
+    
+    -- Toggle button
+    local toggle = Instance.new("TextButton")
+    toggle.Size = UDim2.new(0, 60, 0, 25)
+    toggle.Position = UDim2.new(0.67, 0, 0, feature.position.Y.Offset)
+    toggle.BackgroundColor3 = feature.value and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+    toggle.BorderSizePixel = 0
+    toggle.Font = Enum.Font.SourceSansBold
+    toggle.Text = feature.value and "ON" or "OFF"
+    toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggle.TextSize = 14
+    toggle.Parent = ContentFrame
+    buttons[i] = toggle
+    
+    -- Set up click handler
+    toggle.MouseButton1Click:Connect(function()
+        if feature.name == "Silent Aim" then
+            _G.SilentAimEnabled = not _G.SilentAimEnabled
+            feature.value = _G.SilentAimEnabled
+            circle.Visible = _G.SilentAimEnabled
+        elseif feature.name == "Fast Fire" then
+            _G.FastFireEnabled = not _G.FastFireEnabled
+            feature.value = _G.FastFireEnabled
+        elseif feature.name == "No Recoil" then
+            _G.NoRecoilEnabled = not _G.NoRecoilEnabled
+            feature.value = _G.NoRecoilEnabled
+        elseif feature.name == "Zero Delay" then
+            _G.ZeroDelayEnabled = not _G.ZeroDelayEnabled
+            feature.value = _G.ZeroDelayEnabled
+        end
+        
+        toggle.BackgroundColor3 = feature.value and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+        toggle.Text = feature.value and "ON" or "OFF"
+    end)
+end
+
+-- FOV slider (optimized)
+local fovLabel = Instance.new("TextLabel")
+fovLabel.Size = UDim2.new(0.9, 0, 0, 20)
+fovLabel.Position = UDim2.new(0.05, 0, 0, 150)
+fovLabel.BackgroundTransparency = 1
+fovLabel.Font = Enum.Font.SourceSans
+fovLabel.Text = "FOV: " .. FOV_RADIUS
+fovLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+fovLabel.TextSize = 14
+fovLabel.TextXAlignment = Enum.TextXAlignment.Left
+fovLabel.Parent = ContentFrame
+
+local fovSlider = Instance.new("Frame")
+fovSlider.Size = UDim2.new(0.9, 0, 0, 6)
+fovSlider.Position = UDim2.new(0.05, 0, 0, 170)
+fovSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+fovSlider.BorderSizePixel = 0
+fovSlider.Parent = ContentFrame
+
+local fovFill = Instance.new("Frame")
+fovFill.Size = UDim2.new(FOV_RADIUS / 800, 0, 1, 0)
+fovFill.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+fovFill.BorderSizePixel = 0
+fovFill.Parent = fovSlider
+
+local fovButton = Instance.new("TextButton")
+fovButton.Size = UDim2.new(1, 0, 1, 0)
+fovButton.BackgroundTransparency = 1
+fovButton.Text = ""
+fovButton.Parent = fovSlider
+
+-- Optimize slider by handling drag more efficiently
+local isDragging = false
+local debounce = false
+local lastUpdateTime = 0
+
+fovButton.MouseButton1Down:Connect(function()
+    isDragging = true
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if not isDragging or input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+    
+    local now = os.clock()
+    if now - lastUpdateTime < 0.03 then return end  -- Limit updates to about 30fps
+    
+    local mouse = UserInputService:GetMouseLocation()
+    local sliderPosition = fovSlider.AbsolutePosition.X
+    local sliderSize = fovSlider.AbsoluteSize.X
+    local relativeX = math.clamp((mouse.X - sliderPosition) / sliderSize, 0, 1)
+    
+    FOV_RADIUS = math.floor(relativeX * 800)
+    if FOV_RADIUS < 10 then FOV_RADIUS = 10 end
+    
+    fovFill.Size = UDim2.new(FOV_RADIUS / 800, 0, 1, 0)
+    fovLabel.Text = "FOV: " .. FOV_RADIUS
+    circle.Radius = FOV_RADIUS
+    
+    lastUpdateTime = now
+end)
+
+-- Add corner rounding
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 6)
+UICorner.Parent = MainFrame
+
+local UICornerTitleBar = Instance.new("UICorner")
+UICornerTitleBar.CornerRadius = UDim.new(0, 6)
+UICornerTitleBar.Parent = TitleBar
+
+-- Direct Gun Stats Editor - Zero Delay Firing
+-- Works by finding and modifying gun stats directly
+
+-- Target gun stats module
+local statsModule = game:GetService("ReplicatedStorage"):WaitForChild("GunScripts"):WaitForChild("GunStats")
+
+-- Function to modify stats recursively in any object
+local function setZeroDelays(obj)
+    -- Check if this is a table with gun stats
+    if type(obj) == "table" then
+        -- Look for timing values to modify
+        if obj.prepTime ~= nil then obj.prepTime = 0.01 end
+        if obj.equipTime ~= nil then obj.equipTime = 0.01 end
+        if obj.ReloadSpeed ~= nil then obj.ReloadSpeed = 0.01 end
+        
+        -- Check all children
+        for _, child in pairs(obj) do
+            if type(child) == "table" then
+                setZeroDelays(child)
+            end
+        end
+    end
+end
+
+-- Function to modify a gun directly
+local function modifyEquippedGun()
+    local player = game:GetService("Players").LocalPlayer
+    if not player or not player.Character then return end
+    
+    -- Find equipped tool
+    local tool = player.Character:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    
+    -- Find gun script
+    local gunScript = tool:FindFirstChild("GunScript")
+    if not gunScript then return end
+    
+    -- Try to find and modify gun values directly
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" and rawget(obj, "Tool") == tool then
+            -- Found gun object, modify it
+            if obj.GunStats then
+                print("Found equipped gun - applying zero delay")
+                obj.GunStats.prepTime = 0.01
+                obj.GunStats.equipTime = 0.01
+                obj.GunStats.ReloadSpeed = 0.01
+                
+                -- Also disable debounce
+                obj.shotDebounce = false
+            end
+        end
+    end
+end
+
+-- Try different methods to modify gun stats
+
+-- METHOD 1: Modify the stats module directly if it's a ModuleScript
+if statsModule:IsA("ModuleScript") then
+    print("Method 1: Modifying GunStats ModuleScript")
+    
+    -- Hook require to modify returned values
+    local oldReq = require
+    require = function(module)
+        local result = oldReq(module)
+        
+        -- Check if this is the gun stats module
+        if module == statsModule then
+            print("Successfully intercepted GunStats module!")
+            -- Modify all gun stats
+            for gunName, stats in pairs(result) do
+                if type(stats) == "table" then
+                    print("Setting zero delay for: " .. gunName)
+                    stats.prepTime = 0.01
+                    stats.equipTime = 0.01
+                    stats.ReloadSpeed = 0.01
+                    if stats.InstantFireAnimation ~= nil then
+                        stats.InstantFireAnimation = true
+                    end
+                end
+            end
+        end
+        
+        return result
+    end
+end
+
+-- METHOD 2: Search in game environment for gun stats
+print("Method 2: Searching game environment for gun stats")
+for _, obj in pairs(getgc(true)) do
+    if type(obj) == "table" then
+        -- Check if this looks like the gun stats table
+        local isGunStats = false
+        for k, v in pairs(obj) do
+            if k == "Colt .45" and type(v) == "table" and v.GunType == "Pistol" then
+                isGunStats = true
+                break
+            end
+        end
+        
+        -- If we found gun stats, modify them
+        if isGunStats then
+            print("Found gun stats table in memory!")
+            setZeroDelays(obj)
+            
+            -- Show modified values
+            if obj["Colt .45"] then
+                print("Colt .45 prepTime = " .. tostring(obj["Colt .45"].prepTime))
+            end
+        end
+    end
+end
+
+-- METHOD 3: Hook the game's prepTime getter/setter
+print("Method 3: Setting up continuous monitoring")
+spawn(function()
+    while wait(0.5) do
+        pcall(modifyEquippedGun)
+    end
+end)
+
+-- Also hook key gun-related globals if we can find them
+for _, v in pairs(getgenv()) do
+    if type(v) == "table" and rawget(v, "Fire") and rawget(v, "fireGun") then
+        print("Found gun module in globals - hooking key functions")
+        
+        -- Hook Fire function to remove debounce
+        local oldFire = v.Fire
+        v.Fire = function(self, ...)
+            if type(self) == "table" then
+                self.shotDebounce = false
+                if self.GunStats then
+                    self.GunStats.prepTime = 0.01
+                end
+            end
+            return oldFire(self, ...)
+        end
+        
+        -- Hook fireGun function similarly
+        local oldFireGun = v.fireGun
+        v.fireGun = function(self, ...)
+            if type(self) == "table" then
+                self.shotDebounce = false
+                if self.GunStats then
+                    self.GunStats.prepTime = 0.01
+                end
+            end
+            return oldFireGun(self, ...)
+        end
+    end
+end
+
+print("✓ Zero-Delay Firing script loaded")
+print("- Using multiple methods to ensure gun fires fast")
+print("- Continuous monitoring will keep fixing gun speed")
+
+print("✓ Performance-Optimized Combat GUI loaded!")
