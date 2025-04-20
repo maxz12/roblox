@@ -1,0 +1,323 @@
+-- Optimized script to highlight all "Male" objects using Drawing library
+-- Includes proper cleanup and performance optimizations
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
+
+-- ESP Configuration
+local ESP = {
+    Enabled = true,
+    BoxColor = Color3.fromRGB(0, 162, 255),
+    BoxThickness = 2,
+    BoxTransparency = 0.7,
+    NameColor = Color3.fromRGB(255, 255, 255),
+    NameSize = 13,
+    NameFont = Drawing.Fonts.UI,
+    
+    -- Performance settings
+    MaxRenderDistance = 500, -- Max distance to render ESP
+    UpdateRate = 0.1, -- Update positions every X seconds (0.1 = 10 times per second)
+    RescanRate = 10  -- Rescan for new Males every X seconds
+}
+
+-- Objects in cache
+local MaleCache = {}
+local RenderConnection = nil
+local RescanConnection = nil
+local Cleaning = false
+
+-- Clean up function - call this when script is unloaded
+local function CleanupESP()
+    if Cleaning then return end
+    Cleaning = true
+    
+    -- Disconnect update loops
+    if RenderConnection then
+        RenderConnection:Disconnect()
+        RenderConnection = nil
+    end
+    
+    if RescanConnection then
+        RescanConnection:Disconnect()
+        RescanConnection = nil
+    end
+    
+    -- Remove all drawings
+    for model, data in pairs(MaleCache) do
+        if data.Box then data.Box:Remove() end
+        if data.Name then data.Name:Remove() end
+    end
+    
+    -- Clear cache
+    MaleCache = {}
+    
+    -- Clear drawing cache
+    if cleardrawcache then
+        cleardrawcache()
+    end
+    
+    print("Male ESP cleaned up successfully")
+    Cleaning = false
+end
+
+-- Function to create ESP for a model
+local function CreateESP(model)
+    if MaleCache[model] then return end
+    
+    -- Create minimal drawings for performance
+    local Box = Drawing.new("Square")
+    Box.Visible = false
+    Box.Thickness = ESP.BoxThickness
+    Box.Color = ESP.BoxColor
+    Box.Transparency = ESP.BoxTransparency
+    Box.Filled = false
+    
+    local Name = Drawing.new("Text")
+    Name.Visible = false
+    Name.Text = model.Name
+    Name.Size = ESP.NameSize
+    Name.Center = true
+    Name.Outline = true
+    Name.Color = ESP.NameColor
+    Name.Font = ESP.NameFont
+    
+    -- Store the reference points for this model
+    local referencePoints = {}
+    -- Try to find significant parts to use as reference
+    local torso = model:FindFirstChild("LowerTorso") or model:FindFirstChild("HumanoidRootPart") or
+                  model:FindFirstChild("Torso") or model:FindFirstChild("UpperTorso")
+    local head = model:FindFirstChild("Head")
+    
+    -- If we found key parts, use them as reference
+    if torso then 
+        referencePoints.Torso = torso 
+    end
+    if head then 
+        referencePoints.Head = head 
+    end
+    
+    -- If we didn't find the key parts, use the first 3 parts we can find
+    if #referencePoints == 0 then
+        for _, part in pairs(model:GetDescendants()) do
+            if part:IsA("BasePart") then
+                table.insert(referencePoints, part)
+                if #referencePoints >= 3 then break end
+            end
+        end
+    end
+    
+    MaleCache[model] = {
+        Box = Box,
+        Name = Name,
+        Model = model,
+        ReferencePoints = referencePoints,
+        LastUpdate = 0,
+        LastVisible = false
+    }
+end
+
+-- Function to remove ESP
+local function RemoveESP(model)
+    if not MaleCache[model] then return end
+    
+    -- Remove drawings
+    if MaleCache[model].Box then 
+        MaleCache[model].Box:Remove() 
+    end
+    if MaleCache[model].Name then 
+        MaleCache[model].Name:Remove() 
+    end
+    
+    -- Remove from cache
+    MaleCache[model] = nil
+end
+
+-- Efficient box calculation using reference points instead of full bounds
+local function CalculateBox(referencePoints)
+    local minX, minY = math.huge, math.huge
+    local maxX, maxY = -math.huge, -math.huge
+    local onScreen = false
+    local closestDistance = math.huge
+    
+    -- For torso + head reference system
+    if referencePoints.Torso or referencePoints.Head then
+        -- Use torso position and approximate size
+        local torso = referencePoints.Torso or referencePoints.Head
+        local pos, vis = Camera:WorldToViewportPoint(torso.Position)
+        
+        if vis then
+            onScreen = true
+            -- Get distance for scaling
+            local distance = (Camera.CFrame.Position - torso.Position).Magnitude
+            closestDistance = distance
+            -- Scale box size based on distance
+            local scaleFactor = 500 / (distance + 10) -- Adjust 500 to change box size
+            local width = 4 * scaleFactor
+            local height = 7 * scaleFactor
+            
+            minX = pos.X - width/2
+            maxX = pos.X + width/2
+            minY = pos.Y - height/2
+            maxY = pos.Y + height
+        end
+    else
+        -- Use all available reference points
+        for _, part in pairs(referencePoints) do
+            local pos, vis = Camera:WorldToViewportPoint(part.Position)
+            local distance = (Camera.CFrame.Position - part.Position).Magnitude
+            
+            if vis then
+                onScreen = true
+                minX = math.min(minX, pos.X)
+                minY = math.min(minY, pos.Y)
+                maxX = math.max(maxX, pos.X)
+                maxY = math.max(maxY, pos.Y)
+                
+                closestDistance = math.min(closestDistance, distance)
+            end
+        end
+    end
+    
+    return onScreen, minX, minY, maxX, maxY, closestDistance
+end
+
+-- Function to update ESP (only called at the specified update rate)
+local function UpdateESP()
+    -- Update Camera reference in case it changed
+    Camera = Workspace.CurrentCamera
+    
+    for model, data in pairs(MaleCache) do
+        -- Check if model still exists
+        if not model or not model.Parent then
+            RemoveESP(model)
+            continue
+        end
+        
+        -- Don't update if we just did so recently
+        local now = tick()
+        if now - data.LastUpdate < ESP.UpdateRate then
+            continue
+        end
+        data.LastUpdate = now
+        
+        -- Get model bounds using efficient method
+        local onScreen, minX, minY, maxX, maxY, distance = 
+            CalculateBox(data.ReferencePoints)
+        
+        -- Only show ESP if within render distance
+        if distance > ESP.MaxRenderDistance then
+            data.Box.Visible = false
+            data.Name.Visible = false
+            continue
+        end
+        
+        -- Update visibility
+        if onScreen and ESP.Enabled then
+            -- Update box
+            data.Box.Size = Vector2.new(maxX - minX, maxY - minY)
+            data.Box.Position = Vector2.new(minX, minY)
+            data.Box.Visible = true
+            
+            -- Update name
+            data.Name.Position = Vector2.new((minX + maxX) / 2, minY - 15)
+            data.Name.Visible = true
+            
+            -- Store last visible state
+            data.LastVisible = true
+        else
+            data.Box.Visible = false
+            data.Name.Visible = false
+            data.LastVisible = false
+        end
+    end
+end
+
+-- Function to scan for all "Male" objects in workspace
+local function ScanForMales()
+    for _, child in pairs(Workspace:GetChildren()) do
+        if child.Name == "Male" and not MaleCache[child] then
+            CreateESP(child)
+        end
+    end
+    
+    -- Clean up removed Males
+    for model in pairs(MaleCache) do
+        if not model or not model.Parent then
+            RemoveESP(model)
+        end
+    end
+end
+
+-- Watch for new Males added to workspace
+local function SetupConnections()
+    Workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Male" then
+            task.delay(0.2, function() -- Small delay to let model load, using task.delay for efficiency
+                if child and child.Parent then
+                    CreateESP(child)
+                end
+            end)
+        end
+    end)
+    
+    -- Set up render loop with throttling for performance
+    if RenderConnection then RenderConnection:Disconnect() end
+    
+    RenderConnection = RunService.Heartbeat:Connect(function()
+        UpdateESP()
+    end)
+    
+    -- Set up periodic rescanning
+    if RescanConnection then RescanConnection:Disconnect() end
+    
+    RescanConnection = RunService.Heartbeat:Connect(function()
+        -- Only run every ESP.RescanRate seconds
+        if tick() % ESP.RescanRate < 0.1 then
+            ScanForMales()
+        end
+    end)
+end
+
+-- Main initialization
+local function Initialize()
+    print("Initializing Male ESP")
+    
+    -- Set up connections
+    SetupConnections()
+    
+    -- Initial scan
+    ScanForMales()
+    
+    print("Male ESP activated - All 'Male' objects will be highlighted with minimal lag")
+end
+
+-- Provide a way to toggle ESP
+getgenv().ToggleMaleESP = function(enabled)
+    if enabled == nil then
+        ESP.Enabled = not ESP.Enabled
+    else
+        ESP.Enabled = enabled
+    end
+    
+    -- Update visibility
+    for _, data in pairs(MaleCache) do
+        data.LastUpdate = 0 -- Force update on next cycle
+    end
+    
+    return ESP.Enabled
+end
+
+-- Provide cleanup function
+getgenv().CleanupMaleESP = CleanupESP
+
+-- Run initialization
+Initialize()
+
+-- Return control table for script
+return {
+    Toggle = getgenv().ToggleMaleESP,
+    Cleanup = CleanupESP,
+    Config = ESP
+}
