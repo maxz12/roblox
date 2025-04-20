@@ -4,7 +4,7 @@
 print("=== MAX SCROLL DISTANCE MODIFIER ACTIVATED ===")
 
 -- Target maximum scroll distance (make it really far)
-local NEW_MAX_DISTANCE = 1000  -- 1000 studs is extremely far
+local NEW_MAX_DISTANCE = 30  -- 1000 studs is extremely far
 
 -- Get the player
 local player = game:GetService("Players").LocalPlayer
