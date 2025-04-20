@@ -1,0 +1,73 @@
+-- Max Scroll Distance Modifier
+-- Created for maxz12ok on 2025-04-20 00:41:32
+
+print("=== MAX SCROLL DISTANCE MODIFIER ACTIVATED ===")
+
+-- Target maximum scroll distance (make it really far)
+local NEW_MAX_DISTANCE = 1000  -- 1000 studs is extremely far
+
+-- Get the player
+local player = game:GetService("Players").LocalPlayer
+print("Player found: " .. player.Name)
+
+-- First approach: Modify player attribute directly
+if player:GetAttribute("ScrollDistance") ~= nil then
+    local originalValue = player:GetAttribute("ScrollDistance")
+    print("Found ScrollDistance attribute: " .. tostring(originalValue))
+    
+    -- Set to our new value
+    player:SetAttribute("ScrollDistance", NEW_MAX_DISTANCE)
+    print("Set ScrollDistance to " .. NEW_MAX_DISTANCE)
+end
+
+-- Second approach: Get the Building module and hook its functions
+local module = game:GetService("Players").LocalPlayer.PlayerScripts.source.client.PickupSystem.System
+local system = require(module)
+
+-- Try to find Building module
+local building = nil
+for key, value in pairs(system) do
+    if type(value) == "table" and value.SetScrollDistance and value.GetScrollDistance then
+        building = value
+        print("Found Building module with scroll distance functions")
+        break
+    end
+end
+
+-- If we found the Building module
+if building then
+    -- Store original function
+    local originalSetScrollDistance = building.SetScrollDistance
+    
+    -- Hook the function to remove the upper limit
+    building.SetScrollDistance = function(self, distance)
+        print("SetScrollDistance called with: " .. tostring(distance))
+        
+        -- Only apply the minimum limit, not the maximum
+        local newDistance = math.max(2.1, distance)
+        print("Using distance: " .. newDistance)
+        
+        return originalSetScrollDistance(self, newDistance)
+    end
+    
+    print("Successfully hooked SetScrollDistance to remove upper limit")
+    
+    -- Also try to set the current distance directly
+    local currentDistance = building:GetScrollDistance()
+    if currentDistance then
+        print("Current scroll distance: " .. currentDistance)
+        building:SetScrollDistance(NEW_MAX_DISTANCE / 2) -- Set to half our max to start
+        print("Set initial scroll distance to " .. NEW_MAX_DISTANCE / 2)
+    end
+end
+
+-- Third approach: Try to find the LocalPlayer reference directly
+if system.LocalPlayer then
+    print("Found LocalPlayer reference in system")
+    system.LocalPlayer:SetAttribute("ScrollDistance", NEW_MAX_DISTANCE)
+    print("Set LocalPlayer.ScrollDistance to " .. NEW_MAX_DISTANCE)
+end
+
+print("=== MAX SCROLL DISTANCE MODIFIER COMPLETE ===")
+print("You should now be able to move objects much farther away")
+print("Try scrolling with the mouse wheel while holding an object")
