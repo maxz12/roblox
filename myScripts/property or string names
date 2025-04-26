@@ -1,0 +1,45 @@
+--pirates vs ninjas
+totalammo - set to 9999999 for all
+kick - set to 0 for all
+reloadtime - setr to 0 for all
+spread - set to 0 for all
+fire - set to 0 for all
+
+--weird gun game
+ammo - set to 99999
+recoil - set to 999
+
+--deadline
+--MAKE SURE TO SET VALUE TYPE TO NUMBER OR IT BREAKS
+rounds_in - set all to 999 
+recoil - set all to 0
+swaymult - set all to 0
+spread - set all to 0
+
+--combat masters
+stamina - set all 999
+
+--saber showdown
+swingspeed - set all 3
+
+--apoc 2
+
+work - set all 999, have to redo w each equip
+veloc - set all 999
+
+
+--lootify
+
+attack - set all to 5
+energy, set all to 0
+
+--westbound
+
+ammo- set all to 999
+shots(exact match) - set to 99999
+accu - set all to 0
+camshake- set all 0
+
+--notoriety
+
+reload- set all to 0.1
