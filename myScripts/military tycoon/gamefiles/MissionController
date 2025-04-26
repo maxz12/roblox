@@ -1,0 +1,377 @@
+--game:GetService("Players").LocalPlayer.PlayerScripts.Controllers.MissionController
+---- Decompiler will be improved VERY SOON!
+---- Decompiled with Konstant V2.1, a fast Luau decompiler made in Luau by plusgiant5 (https://discord.gg/wyButjTMhM)
+---- Decompiled on 2025-04-25 20:47:02
+---- Luau version 6, Types version 3
+---- Time taken: 0.009391 seconds
+
+local ReplicatedStorage_upvr = game:GetService("ReplicatedStorage")
+local Players_upvr = game:GetService("Players")
+local LocalPlayer_upvr = Players_upvr.LocalPlayer
+local Knit_upvr = require(ReplicatedStorage_upvr.Packages.Knit)
+local Name_upvr = LocalPlayer_upvr.Name
+local any_CreateController_result1_upvr = Knit_upvr.CreateController({
+	Name = "MissionController";
+})})
+function any_CreateController_result1_upvr.Typewrite(arg1, arg2) ---- Line 17
+	--[[--[[ Upvalues[1]:
+		[1]: LocalPlayer_upvr (readonly)
+	]]]]
+	local module_upvr = {{
+		UI = Instance.new("ScreenGui");
+	}}
+	LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR = Enum.ScreenInsets.None
+	module_upvr.Frame = Instance.new("Frame")
+	LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR = UDim2.new(0.2, 0, 0.1, 0)
+	module_upvr.Frame.Size = UDim2.new(0.6, 0, 0.2, 0)
+	LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR = Color3.new(0, 0, 0)
+	module_upvr.Frame.BackgroundTransparency = 0.5
+	module_upvr.Frame.Parent = module_upvr.UI
+	module_upvr.Label = Instance.new("TextLabel")
+	module_upvr.Label.Size = UDim2.new(0.8, 0, 0.6, 0)
+	LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR = UDim2.new(0.1, 0, 0.2, 0)
+	LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR = Color3.new(1, 1, 1)
+	module_upvr.Label.Text = """"
+	module_upvr.Label.BackgroundTransparency = 1
+	LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR = true
+	module_upvr.Label.Parent = module_upvr.Frame
+	module_upvr.Sound = script.Sound:Clone()
+	module_upvr.Sound.Parent = module_upvr.UI
+	module_upvr.UI.Parent = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR
+	module_upvr.Sound:Play()
+	function module_upvr.Wait() ---- Line 44
+		--[[--[[ Upvalues[1]:
+			[1]: module_upvr (readonly)
+		]]]]
+		repeat
+			task.wait()
+		until module_upvr.Finished
+	end
+	task.spawn(function() ---- Line 50
+		--[[--[[ Upvalues[2]:
+			[1]: arg2 (readonly)
+			[2]: module_upvr (readonly)
+		]]]]
+		local var10 = 0
+		while var10 < string.len(arg2) do
+			task.wait(0.02)
+			module_upvr.Label.Text = string.sub(arg2, 1, var10 + 1)
+		end
+		module_upvr.Sound:Stop()
+		task.wait(3)
+		module_upvr.Finished = true
+		module_upvr.UI:Destroy()
+	end)
+	return module_upvr
+end
+function any_CreateController_result1_upvr.Cutscene(arg1, arg2) ---- Line 68
+	--[[--[[ Upvalues[2]:
+		[1]: LocalPlayer_upvr (readonly)
+		[2]: any_CreateController_result1_upvr (readonly)
+	]]]]
+	---- KONSTANTERROR: [0] 1. Error Block 34 start (CF ANALYSIS FAILED)
+	local clone = script.Cutscenes[tostring(arg2)]:Clone()
+	local __3_upvr = clone['1']
+	local __2_upvr = clone['2']
+	clone.Parent = workspace
+	__3_upvr.Parent = nil
+	__2_upvr.Parent = nil
+	local CurrentCamera_upvr = game.Workspace.CurrentCamera
+	local ScreenGui = Instance.new("ScreenGui")
+	ScreenGui.ScreenInsets = Enum.ScreenInsets.None
+	ScreenGui.IgnoreGuiInset = true
+	ScreenGui.Parent = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR
+	local Frame_upvr = Instance.new("Frame")
+	Frame_upvr.Size = UDim2.new(1, 0, 1, 0)
+	Frame_upvr.BackgroundColor3 = Color3.new(0, 0, 0)
+	Frame_upvr.Transparency = 1
+	Frame_upvr.Parent = ScreenGui
+	local function fade_upvr(arg1_2) ---- Line 87, Named "fade"
+		--[[--[[ Upvalues[1]:
+			[1]: Frame_upvr (readonly)
+		]]]]
+		local var19
+		if arg1_2 then
+			var19 = 0
+		else
+			var19 = 1
+		end
+		Frame_upvr.Transparency = var19
+		var19 = 1
+		for i = 1, 30, var19 do
+			task.wait()
+			local var20
+			if arg1_2 then
+				var20 = i // 30
+			else
+				var20 = 1 -- i // 30
+			end
+			Frame_upvr.Transparency = var20
+		end
+	end
+	fade_upvr()
+	__3_upvr.Parent = clone
+	local any_LoadAnimation_result1 = __3_upvr.AnimationController:LoadAnimation(__3_upvr.Animation)
+	any_LoadAnimation_result1:GetMarkerReachedSignal("Show"):Connect(function() ---- Line 104
+		--[[--[[ Upvalues[1]:
+			[1]: fade_upvr (readonly)
+		]]]]
+		fade_upvr(true)
+	end)
+	any_LoadAnimation_result1:GetMarkerReachedSignal("Next"):Connect(function() ---- Line 107
+		--[[--[[ Upvalues[1]:
+			[1]: fade_upvr (readonly)
+		]]]]
+		fade_upvr()
+	end)
+	any_LoadAnimation_result1:Play()
+	if arg2 == 1 then
+		any_CreateController_result1_upvr:Typewrite("Soldier! Saber Fox has been taken hostage and locked up in this highly guarded prison island. We need to get him out of there!")
+		---- KONSTANTWARNING: GOTO [146] #102
+	end
+	---- KONSTANTERROR: [0] 1. Error Block 34 end (CF ANALYSIS FAILED)
+	---- KONSTANTERROR: [131] 91. Error Block 39 start (CF ANALYSIS FAILED)
+	if arg2 == 2 then
+		any_CreateController_result1_upvr:Typewrite("Soldier! We're intercepting a surfacing typhoon submarine, seems like it's planning to launch missiles. ")")
+	elseif arg2 == 3 then
+		any_CreateController_result1_upvr:Typewrite("Soldier! Commander X is transporting weapons of mass-destruction with his super guarded train! ")")
+	end
+	repeat
+		task.wait()
+	until not any_LoadAnimation_result1.IsPlaying
+	any_LoadAnimation_result1:Stop()
+	game:GetService("RunService").RenderStepped:Connect(function() ---- Line 98
+		--[[--[[ Upvalues[2]:
+			[1]: CurrentCamera_upvr (readonly)
+			[2]: __3_upvr (readonly)
+		]]]]
+		CurrentCamera_upvr.CameraType = "Scriptable"
+		CurrentCamera_upvr.CFrame = __3_upvr.CameraPart.CFrame
+	end):Disconnect()
+	__2_upvr.Parent = clone
+	local any_LoadAnimation_result1_2 = __2_upvr.AnimationController:LoadAnimation(__2_upvr.Animation)
+	any_LoadAnimation_result1_2:GetMarkerReachedSignal("Show"):Connect(function() ---- Line 139
+		--[[--[[ Upvalues[1]:
+			[1]: fade_upvr (readonly)
+		]]]]
+		fade_upvr(true)
+	end)
+	any_LoadAnimation_result1_2:GetMarkerReachedSignal("Next"):Connect(function() ---- Line 142
+		--[[--[[ Upvalues[1]:
+			[1]: fade_upvr (readonly)
+		]]]]
+		fade_upvr()
+	end)
+	any_LoadAnimation_result1_2:Play()
+	if arg2 == 1 then
+		any_CreateController_result1_upvr:Typewrite("Weâ€™re going to send you and any men you can muster off to the island. Fight your way in there!")
+	elseif arg2 == 2 then
+		any_CreateController_result1_upvr:Typewrite("We must infiltrate and stop the submarine, good luck!")
+	elseif arg2 == 3 then
+		any_CreateController_result1_upvr:Typewrite("Disconnect the wagons from the train, good luck!")
+	end
+	repeat
+		task.wait()
+	until not any_LoadAnimation_result1_2.IsPlaying
+	any_LoadAnimation_result1_2:Stop()
+	game:GetService("RunService").RenderStepped:Connect(function() ---- Line 133
+		--[[--[[ Upvalues[2]:
+			[1]: CurrentCamera_upvr (readonly)
+			[2]: __2_upvr (readonly)
+		]]]]
+		CurrentCamera_upvr.CameraType = "Scriptable"
+		CurrentCamera_upvr.CFrame = __2_upvr.CameraPart.CFrame
+	end):Disconnect()
+	CurrentCamera_upvr.CameraType = Enum.CameraType.Custom
+	fade_upvr(true)
+	task.wait(1)
+	ScreenGui:Destroy()
+	clone:Destroy()
+	---- KONSTANTERROR: [131] 91. Error Block 39 end (CF ANALYSIS FAILED)
+end
+local var29_upvw
+function any_CreateController_result1_upvr._CacheClientMissionModules(arg1) ---- Line 172
+	--[[--[[ Upvalues[2]:
+		[1]: ReplicatedStorage_upvr (readonly)
+		[2]: var29_upvw (read and write)
+	]]]]
+	local Modules = ReplicatedStorage_upvr:FindFirstChild("Modules")
+	if not Modules then
+		return warn("'Modules' folder not found!")
+	end
+	for i_2, __ in var29_upvw do
+		local SOME = Modules:FindFirstChild(`Mission{i_2}Client`)
+		if SOME then
+			({})[i_2] = SOME
+		else
+			---- KONSTANTERROR: Expression was reused, decompilation is incorrect
+			;({})[i_2] = false
+		end
+	end
+	---- KONSTANTERROR: Expression was reused, decompilation is incorrect
+	arg1.cachedClientMissionModules = {}{}
+end
+local Trove_upvr = require(ReplicatedStorage_upvr.Packages.Trove)
+function any_CreateController_result1_upvr.HandleClientMissionLogic(arg1) ---- Line 194
+	--[[--[[ Upvalues[3]:
+		[1]: var29_upvw (read and write)
+		[2]: Name_upvr (readonly)
+		[3]: Trove_upvr (readonly)
+	]]]]
+	---- KONSTANTERROR: [0] 1. Error Block 45 start (CF ANALYSIS FAILED)
+	if not arg1.cachedClientMissionModules then
+		arg1:_CacheClientMissionModules()
+	end
+	---- KONSTANTERROR: [0] 1. Error Block 45 end (CF ANALYSIS FAILED)
+	---- KONSTANTERROR: [49] 37. Error Block 15 start (CF ANALYSIS FAILED)
+	---- KONSTANTERROR: [49] 37. Error Block 15 end (CF ANALYSIS FAILED)
+	---- KONSTANTERROR: [16] 13. Error Block 4 start (CF ANALYSIS FAILED)
+	---- KONSTANTWARNING: Failed to evaluate expression, replaced with nil [49.10]
+	---- KONSTANTERROR: [16] 13. Error Block 4 end (CF ANALYSIS FAILED)
+end
+local TextUtil_upvr = require(ReplicatedStorage_upvr.Shared.Util.TextUtil)
+function any_CreateController_result1_upvr.KnitStart(arg1) ---- Line 266
+	--[[--[[ Upvalues[7]:
+		[1]: Knit_upvr (readonly)
+		[2]: var29_upvw (read and write)
+		[3]: LocalPlayer_upvr (readonly)
+		[4]: TextUtil_upvr (readonly)
+		[5]: any_CreateController_result1_upvr (readonly)
+		[6]: Name_upvr (readonly)
+		[7]: Players_upvr (readonly)
+	]]]]
+	local any_GetController_result1_upvr_2 = Knit_upvr.GetController("InterfaceController")
+	local MissionService_upvr = Knit_upvr.GetService("MissionService")
+	var29_upvw = MissionService_upvr:Get()
+	local EliteMissionUI_upvr = LocalPlayer_upvr.PlayerGui:WaitForChild("EliteMissionUI", 9)
+	local Music_upvr = EliteMissionUI_upvr.Music
+	local Title_upvr = EliteMissionUI_upvr.Title
+	task.spawn(function() ---- Line 275
+		--[[--[[ Upvalues[5]:
+			[1]: LocalPlayer_upvr (copied, readonly)
+			[2]: Music_upvr (readonly)
+			[3]: Title_upvr (readonly)
+			[4]: TextUtil_upvr (copied, readonly)
+			[5]: EliteMissionUI_upvr (readonly)
+		]]]]
+		---- KONSTANTWARNING: Variable analysis failed. Output will have some incorrect variable assignments
+		while true do
+			local var42
+			if not task.wait(1) then break end
+			var42 = LocalPlayer_upvr
+			local Character = var42.Character
+			var42 = Character
+			if var42 then
+				var42 = Character:GetAttribute("EliteMission")
+				local var44
+			end
+			local var45
+			if Character and var42 then
+				if not var45 then
+					var44 = Music_upvr:Play
+					var44()
+					var45 = true
+					---- KONSTANTWARNING: GOTO [30] #26
+				end
+			elseif var45 then
+				var44 = Music_upvr:Stop
+				var44()
+				var45 = false
+			end
+			var44 = var42
+			if var44 then
+				var44 = workspace:GetAttribute("Mission"..var42.."TimeLeft")
+			end
+			if var44 then
+				Title_upvr.Text = TQETHLJsLwbRHLu7eezG3EybjmSq5vCfJt)
+			end
+			if var44 == nil then
+			else
+			end
+			EliteMissionUI_upvr.Enabled = true
+		end
+	end)
+	MissionService_upvr.SendData:Connect(function(arg1_3) ---- Line 298
+		--[[--[[ Upvalues[2]:
+			[1]: var29_upvw (copied, read and write)
+			[2]: arg1 (readonly)
+		]]]]
+		var29_upvw = arg1_3
+		arg1:HandleClientMissionLogic()
+	end)
+	MissionService_upvr.Cutscene:Connect(function(arg1_4) ---- Line 302
+		--[[--[[ Upvalues[1]:
+			[1]: any_CreateController_result1_upvr (copied, readonly)
+		]]]]
+		any_CreateController_result1_upvr:Cutscene(arg1_4)
+	end)
+	local any_GetController_result1_upvr = Knit_upvr.GetController("ActionPromptController")
+	MissionService_upvr.MissionStarted:Connect(function(arg1_5, arg2, arg3) ---- Line 305
+		--[[--[[ Upvalues[7]:
+			[1]: Name_upvr (copied, readonly)
+			[2]: LocalPlayer_upvr (copied, readonly)
+			[3]: Knit_upvr (copied, readonly)
+			[4]: Players_upvr (copied, readonly)
+			[5]: any_GetController_result1_upvr (readonly)
+			[6]: MissionService_upvr (readonly)
+			[7]: any_GetController_result1_upvr_2 (readonly)
+		]]]]
+		if Name_upvr == arg1_5 then
+		else
+			if LocalPlayer_upvr:GetAttribute("BorderService_PlayerMap") ~= "Default" then return end
+			if Knit_upvr.GetController("DataController"):Get("Rebirth") < 1 then return end
+			if qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek") then return end
+			local tbl_2 = {{
+				title = "Mission Invite";
+				text = arg3 or "";"";
+			}}
+			local tbl = {}{}
+			local tbl_3 = {{
+				label = "Yes";
+				color = Color3.fromRGB(1, 225, 39);
+				keyCodes = {{
+					[Enum.KeyCode.ButtonA] = true;
+				};};
+			}}
+			local function actionCallback() ---- Line 332
+				--[[--[[ Upvalues[3]:
+					[1]: MissionService_upvr (copied, readonly)
+					[2]: arg2 (readonly)
+					[3]: any_GetController_result1_upvr_2 (copied, readonly)
+				]]]]
+				if LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR) then
+					any_GetController_result1_upvr_2:SetMenu("EliteMissions")
+					return true
+				end
+			end
+			tbl_3.actionCallback = actionCallback
+			tbl[1] = tbl_3
+			tbl[2] = {{
+				label = "No";
+				color = Color3.fromRGB(221, 60, 60);
+				keyCodes = {{
+					[Enum.KeyCode.ButtonB] = true;
+				};};
+				actionCallback = function() ---- Line 346, Named "actionCallback"
+					return true
+				end;
+			}}
+			tbl_2.choices = tbl
+			any_GetController_result1_upvr:Prompt(tbl_2)
+		end
+	end)
+	MissionService_upvr.Victory:Connect(function(arg1_6, arg2, arg3, arg4) ---- Line 354
+		--[[--[[ Upvalues[2]:
+			[1]: any_GetController_result1_upvr_2 (readonly)
+			[2]: TextUtil_upvr (copied, readonly)
+		]]]]
+		game.Players.LocalPlayer.PlayerGui.Sounds.EventCompleted:Play()
+		local Background = any_GetController_result1_upvr_2.Menus.MissionSummary.Object.Background
+		Background.Rewards.Bear.RewardText.Text = arg4
+		Background.Rewards.Cash.RewardText.Text = arg2
+		Background.Rewards.Diamonds.RewardText.Text = arg3
+		Background.Time.Time.Text = TextUtil_upvr.formatTimeDHMS(arg1_6)
+		any_GetController_result1_upvr_2:SetMenu("MissionSummary")
+	end)
+end
+return any_CreateController_result1_upvr
