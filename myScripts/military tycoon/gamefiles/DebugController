@@ -1,0 +1,66 @@
+--game:GetService("Players").LocalPlayer.PlayerScripts.Controllers.DebugController
+---- Decompiler will be improved VERY SOON!
+---- Decompiled with Konstant V2.1, a fast Luau decompiler made in Luau by plusgiant5 (https://discord.gg/wyButjTMhM)
+---- Decompiled on 2025-04-25 20:40:09
+---- Luau version 6, Types version 3
+---- Time taken: 0.001640 seconds
+
+local Knit_upvr = require(game:GetService("ReplicatedStorage").Packages.Knit)
+local function _(arg1) ---- Line 9, Named "ToTrueDictionary"
+	local module = {}{}
+	for _,_, v in arg1 do
+		module[v] = true
+	end
+	return module
+end
+local any_CreateController_result1_upvr = Knit_upvr.CreateController({
+	Name = "DebugController";
+})})
+local tbl = {}{}
+for _,_, v_2 in {Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.Space, Enum.KeyCode.LeftShift, Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.R} do
+	tbl[v_2] = true
+end
+any_CreateController_result1_upvr.CommonKeyCodes = tbl
+any_CreateController_result1_upvr.KeyCodeCallbacks = {}{}
+function any_CreateController_result1_upvr.OnKeyDown(arg1, arg2, arg3) ---- Line 36
+	if arg1.KeyCodeCallbacks[arg2] then
+		warn("Overwriting existing callback for key", arg2)
+	elseif arg1.CommonKeyCodes[arg2] then
+		warn("It's better to avoid using key", arg2, "due to it being used for common actions.")
+	end
+	arg1.KeyCodeCallbacks[arg2] = arg3
+end
+local UserInputService_upvr = game:GetService("UserInputService")
+local RunService_upvr = game:GetService("RunService")
+local Players_upvr = game:GetService("Players")
+function any_CreateController_result1_upvr.KnitInit(arg1) ---- Line 47
+	--[[--[[ Upvalues[5]:
+		[1]: UserInputService_upvr (readonly)
+		[2]: RunService_upvr (readonly)
+		[3]: Players_upvr (readonly)
+		[4]: any_CreateController_result1_upvr (readonly)
+		[5]: Knit_upvr (readonly)
+	]]]]
+	UserInputService_upvr.InputBegan:Connect(function(arg1_2, arg2) ---- Line 48
+		--[[--[[ Upvalues[3]:
+			[1]: RunService_upvr (copied, readonly)
+			[2]: Players_upvr (copied, readonly)
+			[3]: arg1 (readonly)
+		]]]]
+		if not RunService_upvr:IsStudio() and not qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek") then
+		else
+			if arg2 then return end
+			local var19 = arg1.KeyCodeCallbacks[arg1_2.KeyCode]
+			if var19 then
+				var19(arg1_2)
+			end
+		end
+	end)
+	any_CreateController_result1_upvr:OnKeyDown(Enum.KeyCode.J, function() ---- Line 63
+		--[[--[[ Upvalues[1]:
+			[1]: Knit_upvr (copied, readonly)
+		]]]]
+		Knit_upvr.GetController("InterfaceController"):SetMenu("BaseCustomization")
+	end)
+end
+return any_CreateController_result1_upvr
