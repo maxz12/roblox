@@ -1,0 +1,82 @@
+-- Simple Chat Bypass for TextChatService
+-- Only modifies chat appearance without touching rank functions
+
+-- Configuration
+local TOGGLE_KEY = "P"  -- Key to toggle chat bypass
+local CUSTOM_TAG = "👑" -- Custom emoji to show before your name
+local DEV_MODE = true   -- Show as developer (true) or moderator (false)
+
+-- Global state
+_G.ChatBypassEnabled = true
+
+-- Get required services and objects
+local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+-- Fix the malformed function in original script to prevent errors
+if not _G.qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek then
+    _G.qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek = function(userId)
+        return Players:GetPlayerByUserId(userId)
+    end
+end
+
+-- Function to enable chat modifications
+local function enableChatExploit()
+    -- Set the OnIncomingMessage callback directly
+    TextChatService.OnIncomingMessage = function(message)
+        -- Only modify our own messages
+        if message.TextSource and message.TextSource.UserId == LocalPlayer.UserId and _G.ChatBypassEnabled then
+            local properties = Instance.new("TextChatMessageProperties")
+            
+            -- Apply appropriate formatting based on configuration
+            if DEV_MODE then
+                properties.PrefixText = "<font color='#FFFFFF'>[🛠️ DEV] </font> " .. CUSTOM_TAG .. " " .. LocalPlayer.DisplayName .. ":"
+            else
+                properties.PrefixText = "<font color='#FFFFFF'>[🛡 Mod] </font> " .. CUSTOM_TAG .. " " .. LocalPlayer.DisplayName .. ":"
+            end
+            
+            -- Keep the original text - this helps bypass filtering
+            properties.Text = message.Text
+            
+            return properties
+        end
+        
+        -- For other messages, just return default properties
+        return Instance.new("TextChatMessageProperties")
+    end
+    
+    -- Set attributes that the original script checks
+    LocalPlayer:SetAttribute("IsVIP", true)
+    LocalPlayer:SetAttribute("Emoji", CUSTOM_TAG)
+    LocalPlayer:SetAttribute("FactionRank", 10)
+    
+    print("Chat exploit enabled!")
+end
+
+-- Function to disable chat modifications
+local function disableChatExploit()
+    TextChatService.OnIncomingMessage = nil -- Reset the callback
+    print("Chat exploit disabled!")
+end
+
+-- Toggle with key
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessedEvent)
+    if not gameProcessedEvent and input.KeyCode == Enum.KeyCode[TOGGLE_KEY] then
+        _G.ChatBypassEnabled = not _G.ChatBypassEnabled
+        
+        if _G.ChatBypassEnabled then
+            enableChatExploit()
+        else
+            disableChatExploit()
+        end
+        
+        print("Chat Bypass: " .. (_G.ChatBypassEnabled and "ON" or "OFF"))
+    end
+end)
+
+-- Initial setup
+enableChatExploit()
+
+print("✓ Chat Bypass loaded - Press " .. TOGGLE_KEY .. " to toggle")
