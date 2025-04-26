@@ -1,0 +1,8 @@
+--game:GetService("ReplicatedStorage").Modules.AIModule.FemaleNames
+---- Decompiler will be improved VERY SOON!
+---- Decompiled with Konstant V2.1, a fast Luau decompiler made in Luau by plusgiant5 (https://discord.gg/wyButjTMhM)
+---- Decompiled on 2025-04-25 20:56:52
+---- Luau version 6, Types version 3
+---- Time taken: 0.000411 seconds
+
+return {"Abbey", "Abbie", "Ali", "Alister", "Ambrose", "Ambrosi", "Thain", "Thaine", "Muffin", "Olivia", "Emma", "Amelia", "Ava", "Sophia", "Isabella", "Mia", "Nyra", "Destiny", "Addilyn", "Elaine", "Allyson", "Pearl", "Jaylah", "Nyra", "Zendaya", "Jaycee", "Zayla", "Crystal", "Loyalty", "Rhea", "Xiomara", "Mylah", "Miracle", "Celine", "Dream"}
