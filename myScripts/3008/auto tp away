@@ -1,73 +1,568 @@
--- Max Scroll Distance Modifier
--- Created for maxz12ok on 2025-04-20 00:41:32
+-- Enhanced ESP with Reliable Status Display and Visible View Lines
+-- Created for maxz12ok on 2025-04-21 02:00:52
 
-print("=== MAX SCROLL DISTANCE MODIFIER ACTIVATED ===")
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
--- Target maximum scroll distance (make it really far)
-local NEW_MAX_DISTANCE = 30  -- 1000 studs is extremely far
+-- Variables
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local PlayerESP = {}
+local LastTeleport = 0
+local FloatingUntil = 0
+local NeedsESPRefresh = false
+local LastTriggerPlayer = nil
 
--- Get the player
-local player = game:GetService("Players").LocalPlayer
-print("Player found: " .. player.Name)
-
--- First approach: Modify player attribute directly
-if player:GetAttribute("ScrollDistance") ~= nil then
-    local originalValue = player:GetAttribute("ScrollDistance")
-    print("Found ScrollDistance attribute: " .. tostring(originalValue))
+-- Basic settings
+local Settings = {
+    -- ESP settings
+    ESP = true,                -- ESP enabled (boxes, names)
+    Lines = true,              -- Show look direction lines
+    BoxColor = Color3.fromRGB(0, 255, 0),   -- Normal box color
+    WatchingColor = Color3.fromRGB(255, 0, 0),  -- Color when looking at you
+    LineColor = Color3.fromRGB(255, 0, 0),  -- Line color (now RED)
+    MaxRange = 500,            -- Maximum range to show players (studs)
+    LineThickness = 2.5,       -- Line thickness (increased)
+    LineLength = 8,            -- Line length multiplier (increased)
     
-    -- Set to our new value
-    player:SetAttribute("ScrollDistance", NEW_MAX_DISTANCE)
-    print("Set ScrollDistance to " .. NEW_MAX_DISTANCE)
+    -- Teleport settings
+    TeleportEnabled = true,    -- Auto teleport when detected
+    TeleportHeight = 300,      -- How high to teleport (studs)
+    TeleportCooldown = 3,      -- Seconds between teleports
+    
+    -- Detection time settings
+    CloseDetectionTime = 0.3,  -- How quickly to teleport when detected up close (seconds)
+    LongDetectionTime = 0.7,   -- How quickly to teleport when detected at range (seconds)
+    CloseRangeThreshold = 30,  -- Distance considered "close range" for detection time (studs)
+    
+    -- Floating settings
+    FloatDuration = 5,         -- How long to float after teleport (seconds)
+    FloatSpeed = -1,           -- Downward speed while floating (-1 = very slow fall)
+    ForceFloating = true,      -- Use CFrame manipulation for more reliable floating
+    
+    -- Detection settings
+    CloseRange = 20,           -- Distance considered "close range" for sensitivity
+    NormalLookThreshold = 0.7, -- Threshold for normal range detection (0-1)
+    CloseLookThreshold = 0.5,  -- Easier detection at close range (0-1)
+    VeryCloseLookThreshold = 0.3, -- For extremely close encounters (under 10 studs)
+    HeadOnBonus = 0.1,         -- Extra detection bonus when players are facing each other
+    
+    -- Display settings
+    ShowStatus = true,         -- Show status text
+    TextSize = 18,             -- Status text size (increased)
+    StatusBgOpacity = 0.7      -- Background opacity for status
+}
+
+-- Status background
+local StatusBg = Drawing.new("Square")
+StatusBg.Filled = true
+StatusBg.Transparency = Settings.StatusBgOpacity
+StatusBg.Color = Color3.fromRGB(0, 0, 0)
+StatusBg.Size = Vector2.new(250, 25)
+StatusBg.Position = Vector2.new(10, 10)
+StatusBg.Visible = Settings.ShowStatus
+
+-- Status text
+local StatusText = Drawing.new("Text")
+StatusText.Size = Settings.TextSize
+StatusText.Color = Color3.fromRGB(255, 255, 255)
+StatusText.Outline = true
+StatusText.Text = "[ESP: ON | Teleport: ON | Range: 500]"
+StatusText.Position = Vector2.new(15, 13)
+StatusText.Visible = Settings.ShowStatus
+
+-- Floating status text
+local FloatingText = Drawing.new("Text")
+FloatingText.Size = Settings.TextSize
+FloatingText.Color = Color3.fromRGB(0, 255, 255)
+FloatingText.Outline = true
+FloatingText.Text = "FLOATING: Press any movement key to cancel"
+FloatingText.Position = Vector2.new(10, 40)
+FloatingText.Visible = false
+
+-- Alert text (for who triggered teleport)
+local AlertText = Drawing.new("Text")
+AlertText.Size = Settings.TextSize + 2
+AlertText.Color = Color3.fromRGB(255, 50, 50)
+AlertText.Outline = true
+AlertText.Center = true
+AlertText.Text = ""
+AlertText.Position = Vector2.new(Camera.ViewportSize.X/2, 50)
+AlertText.Visible = false
+
+-- Create ESP function declaration
+local function CreateESP(player)
+    local esp = {
+        Box = Drawing.new("Square"),
+        Name = Drawing.new("Text"),
+        Line = Drawing.new("Line")
+    }
+    
+    -- Box settings
+    esp.Box.Thickness = 1
+    esp.Box.Filled = false
+    esp.Box.Color = Settings.BoxColor
+    esp.Box.Visible = false
+    
+    -- Name settings
+    esp.Name.Size = 14
+    esp.Name.Center = true
+    esp.Name.Outline = true
+    esp.Name.Visible = false
+    
+    -- Line settings
+    esp.Line.Thickness = Settings.LineThickness
+    esp.Line.Color = Settings.LineColor
+    esp.Line.Visible = false
+    
+    return esp
 end
 
--- Second approach: Get the Building module and hook its functions
-local module = game:GetService("Players").LocalPlayer.PlayerScripts.source.client.PickupSystem.System
-local system = require(module)
-
--- Try to find Building module
-local building = nil
-for key, value in pairs(system) do
-    if type(value) == "table" and value.SetScrollDistance and value.GetScrollDistance then
-        building = value
-        print("Found Building module with scroll distance functions")
-        break
+-- Update status display
+local function UpdateDisplay()
+    -- Force redraw status by recreating it
+    if StatusText then
+        StatusText:Remove()
     end
+    
+    StatusText = Drawing.new("Text")
+    StatusText.Size = Settings.TextSize
+    StatusText.Color = Color3.fromRGB(255, 255, 255)
+    StatusText.Outline = true
+    StatusText.Text = "[ESP: " .. (Settings.ESP and "ON" or "OFF") .. 
+                      " | Teleport: " .. (Settings.TeleportEnabled and "ON" or "OFF") ..
+                      " | Range: " .. Settings.MaxRange .. "]"
+    StatusText.Position = Vector2.new(15, 13)
+    StatusText.Visible = Settings.ShowStatus
+    
+    -- Adjust background
+    StatusBg.Size = Vector2.new(StatusText.TextBounds.X + 10, StatusText.TextBounds.Y + 10)
+    StatusBg.Visible = Settings.ShowStatus
+    
+    -- Update positions based on current viewport size
+    StatusBg.Position = Vector2.new(10, 10)
+    FloatingText.Position = Vector2.new(10, 40)
+    AlertText.Position = Vector2.new(Camera.ViewportSize.X/2, 50)
+    
+    -- Print status to output as well
+    print("Status updated: ESP=" .. (Settings.ESP and "ON" or "OFF") .. 
+          ", Teleport=" .. (Settings.TeleportEnabled and "ON" or "OFF") ..
+          ", Range=" .. Settings.MaxRange)
 end
 
--- If we found the Building module
-if building then
-    -- Store original function
-    local originalSetScrollDistance = building.SetScrollDistance
+-- Function to completely rebuild all ESP objects
+local function RebuildESP()
+    -- Remove all existing ESP elements
+    for player, esp in pairs(PlayerESP) do
+        for _, drawing in pairs(esp) do
+            pcall(function() drawing:Remove() end)
+        end
+    end
     
-    -- Hook the function to remove the upper limit
-    building.SetScrollDistance = function(self, distance)
-        print("SetScrollDistance called with: " .. tostring(distance))
+    -- Clear ESP table
+    PlayerESP = {}
+    
+    -- Recreate ESP for all players
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            PlayerESP[player] = CreateESP(player)
+        end
+    end
+    
+    print("ESP elements rebuilt")
+    NeedsESPRefresh = false
+    UpdateDisplay()
+end
+
+-- Show teleport alert with player name
+local function ShowTeleportAlert(player)
+    if player then
+        AlertText.Text = "⚠️ TELEPORTED AWAY FROM: " .. player.Name .. " ⚠️"
+        AlertText.Visible = true
         
-        -- Only apply the minimum limit, not the maximum
-        local newDistance = math.max(2.1, distance)
-        print("Using distance: " .. newDistance)
+        -- Hide after 4 seconds
+        spawn(function()
+            wait(4)
+            AlertText.Visible = false
+        end)
+    end
+end
+
+-- Teleport function with safe landing
+local function Teleport(triggerPlayer)
+    if tick() - LastTeleport < Settings.TeleportCooldown then return end
+    
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if humanoidRootPart then
+        -- Store who triggered this teleport
+        LastTriggerPlayer = triggerPlayer
         
-        return originalSetScrollDistance(self, newDistance)
-    end
-    
-    print("Successfully hooked SetScrollDistance to remove upper limit")
-    
-    -- Also try to set the current distance directly
-    local currentDistance = building:GetScrollDistance()
-    if currentDistance then
-        print("Current scroll distance: " .. currentDistance)
-        building:SetScrollDistance(NEW_MAX_DISTANCE / 2) -- Set to half our max to start
-        print("Set initial scroll distance to " .. NEW_MAX_DISTANCE / 2)
+        -- Show alert
+        ShowTeleportAlert(triggerPlayer)
+        
+        -- Teleport upward
+        humanoidRootPart.CFrame = humanoidRootPart.CFrame + Vector3.new(0, Settings.TeleportHeight, 0)
+        
+        -- Set floating state
+        LastTeleport = tick()
+        FloatingUntil = tick() + Settings.FloatDuration
+        FloatingText.Visible = true
+        
+        -- Apply initial zero velocity
+        humanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+        
+        -- Mark that ESP needs to be refreshed
+        NeedsESPRefresh = true
+        
+        -- Wait a brief moment for the camera to catch up
+        spawn(function()
+            wait(0.2)
+            if NeedsESPRefresh then
+                RebuildESP()
+            end
+        end)
     end
 end
 
--- Third approach: Try to find the LocalPlayer reference directly
-if system.LocalPlayer then
-    print("Found LocalPlayer reference in system")
-    system.LocalPlayer:SetAttribute("ScrollDistance", NEW_MAX_DISTANCE)
-    print("Set LocalPlayer.ScrollDistance to " .. NEW_MAX_DISTANCE)
+-- Check if movement keys are pressed
+local function IsMoving()
+    return UserInputService:IsKeyDown(Enum.KeyCode.W) or
+           UserInputService:IsKeyDown(Enum.KeyCode.A) or
+           UserInputService:IsKeyDown(Enum.KeyCode.S) or
+           UserInputService:IsKeyDown(Enum.KeyCode.D) or
+           UserInputService:IsKeyDown(Enum.KeyCode.Space)
 end
 
-print("=== MAX SCROLL DISTANCE MODIFIER COMPLETE ===")
-print("You should now be able to move objects much farther away")
-print("Try scrolling with the mouse wheel while holding an object")
+-- Enhanced floating function - more reliable
+local function MaintainFloating()
+    local character = LocalPlayer.Character
+    if not character then return false end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return false end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    
+    -- Ensure we're not falling fast
+    if Settings.ForceFloating then
+        -- Directly manipulate CFrame to ensure consistent floating
+        local currentPos = humanoidRootPart.CFrame
+        humanoidRootPart.CFrame = CFrame.new(
+            currentPos.X,
+            currentPos.Y + Settings.FloatSpeed * 0.01, -- Very small increment to maintain height
+            currentPos.Z
+        )
+    end
+    
+    -- Also control velocity as backup method
+    humanoidRootPart.Velocity = Vector3.new(
+        humanoidRootPart.Velocity.X * 0.8,
+        Settings.FloatSpeed,
+        humanoidRootPart.Velocity.Z * 0.8
+    )
+    
+    -- Prevent jumping/falling states if humanoid exists
+    if humanoid then
+        -- Set the state to make movement feel normal
+        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+    end
+    
+    return true
+end
+
+-- Improved player detection - better for head-on and close range
+local function IsLookingAtYou(player)
+    local character = player.Character
+    if not character then return false end
+    
+    -- Get player parts
+    local head = character:FindFirstChild("Head")
+    local torso = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+    if not head or not torso then return false end
+    
+    -- Get local character parts
+    local localCharacter = LocalPlayer.Character
+    if not localCharacter then return false end
+    
+    local localHead = localCharacter:FindFirstChild("Head")
+    local localTorso = localCharacter:FindFirstChild("HumanoidRootPart") or localCharacter:FindFirstChild("Torso")
+    if not localHead or not localTorso then return false end
+    
+    -- Calculate distance
+    local distance = (head.Position - localHead.Position).Magnitude
+    
+    -- Skip if beyond max range
+    if distance > Settings.MaxRange then return false end
+    
+    -- Direction vectors - use a combination of head direction and torso direction for better accuracy
+    local lookVector = (head.CFrame.LookVector + torso.CFrame.LookVector).Unit
+    local toTarget = (localTorso.Position - head.Position).Unit
+    
+    -- Check if local player is also looking at them (for head-on detection)
+    local localLookVector = (localHead.CFrame.LookVector + localTorso.CFrame.LookVector).Unit
+    local isHeadOn = localLookVector:Dot(toTarget * -1) > 0.5
+    local headOnBonus = isHeadOn and Settings.HeadOnBonus or 0
+    
+    -- Check dot product (are they looking towards you?)
+    local dot = lookVector:Dot(toTarget)
+    
+    -- Use different threshold based on distance with head-on bonus
+    local threshold
+    if distance < 10 then
+        threshold = Settings.VeryCloseLookThreshold - headOnBonus -- Very forgiving at extreme close range
+    elseif distance < Settings.CloseRange then
+        threshold = Settings.CloseLookThreshold - headOnBonus -- More forgiving at close range
+    else
+        threshold = Settings.NormalLookThreshold - headOnBonus
+    end
+    
+    if dot < threshold then return false end -- Not looking at you
+    
+    -- Simple raycast to check visibility - use a shorter ray for close range
+    local rayLength = math.min(distance * 1.1, 100) -- Cap ray length to prevent issues
+    local ray = Ray.new(head.Position, toTarget * rayLength)
+    local hit, _ = workspace:FindPartOnRayWithIgnoreList(ray, {character, LocalPlayer.Character})
+    
+    return hit == nil or hit:IsDescendantOf(LocalPlayer.Character)
+end
+
+-- Draw the look direction line more visibly (now red and thicker)
+local function DrawLookLine(player, esp, headPos)
+    local character = player.Character
+    if not character then return end
+    
+    local head = character:FindFirstChild("Head")
+    if not head then return end
+    
+    -- Calculate screen positions
+    local viewStart = Vector2.new(headPos.X, headPos.Y)
+    
+    -- Calculate end point for viewing direction (longer line)
+    local lookEnd = head.CFrame * CFrame.new(0, 0, -Settings.LineLength).Position
+    local viewEnd, onScreen = Camera:WorldToViewportPoint(lookEnd)
+    
+    if onScreen then
+        esp.Line.From = viewStart
+        esp.Line.To = Vector2.new(viewEnd.X, viewEnd.Y)
+        esp.Line.Color = Settings.LineColor -- Always red now
+        esp.Line.Thickness = Settings.LineThickness -- Thicker line
+        esp.Line.Visible = true
+    else
+        esp.Line.Visible = false
+    end
+end
+
+-- Detection system with dual timers
+local DetectionTimers = {}
+
+-- Update loop
+RunService:BindToRenderStep("SimpleESP", 1, function()
+    -- Fix camera reference if needed (important for teleport recovery)
+    if Camera ~= workspace.CurrentCamera then
+        Camera = workspace.CurrentCamera
+        UpdateDisplay() -- Update display when camera changes
+    end
+    
+    -- Handle floating state
+    if tick() < FloatingUntil then
+        -- Use more reliable floating implementation
+        local floatingActive = MaintainFloating()
+        FloatingText.Visible = floatingActive
+        
+        -- Check if player is trying to move
+        if IsMoving() then
+            -- Cancel floating
+            FloatingUntil = 0
+            FloatingText.Visible = false
+        end
+    else
+        FloatingText.Visible = false
+    end
+    
+    -- Update each player's ESP
+    for player, esp in pairs(PlayerESP) do
+        -- Check if player still exists
+        if not player or not player.Parent then
+            for _, drawing in pairs(esp) do
+                pcall(function() drawing:Remove() end)
+            end
+            PlayerESP[player] = nil
+            continue
+        end
+        
+        -- Skip if player has no character
+        local character = player.Character
+        if not character then continue end
+        
+        -- Get head position
+        local head = character:FindFirstChild("Head")
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if not head or not humanoidRootPart then continue end
+        
+        -- Calculate distance for display and range check
+        local distance = 0
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            distance = (humanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+        end
+        
+        -- Skip if beyond max range
+        if distance > Settings.MaxRange then
+            esp.Box.Visible = false
+            esp.Name.Visible = false
+            esp.Line.Visible = false
+            continue
+        end
+        
+        -- Convert to screen position
+        local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+        
+        -- Skip if not on screen
+        if not onScreen then
+            esp.Box.Visible = false
+            esp.Name.Visible = false
+            esp.Line.Visible = false
+            continue
+        end
+        
+        -- Check if looking at you
+        local isLooking = IsLookingAtYou(player)
+        
+        -- Handle detection for teleport with dual detection times
+        if isLooking and Settings.TeleportEnabled then
+            -- Determine detection time based on distance
+            local detectionTime
+            if distance <= Settings.CloseRangeThreshold then
+                detectionTime = Settings.CloseDetectionTime
+            else
+                detectionTime = Settings.LongDetectionTime
+            end
+            
+            if not DetectionTimers[player] then
+                DetectionTimers[player] = tick()
+            elseif tick() - DetectionTimers[player] > detectionTime then
+                Teleport(player)  -- Pass the player who triggered teleport
+                DetectionTimers[player] = nil
+            end
+        else
+            DetectionTimers[player] = nil
+        end
+        
+        -- Only update if ESP is on
+        if Settings.ESP then
+            -- Size calculations
+            local torsoPos = Camera:WorldToViewportPoint(humanoidRootPart.Position)
+            local size = (headPos.Y - torsoPos.Y) * 4
+            
+            -- Update box
+            esp.Box.Size = Vector2.new(size * 0.6, size)
+            esp.Box.Position = Vector2.new(headPos.X - size * 0.3, headPos.Y - size * 0.5)
+            esp.Box.Color = isLooking and Settings.WatchingColor or Settings.BoxColor
+            esp.Box.Visible = true
+            
+            -- Update name with distance
+            esp.Name.Position = Vector2.new(headPos.X, headPos.Y - size * 0.5 - 15)
+            esp.Name.Text = player.Name .. " [" .. math.floor(distance) .. "m]"
+            esp.Name.Color = isLooking and Settings.WatchingColor or Color3.fromRGB(255, 255, 255)
+            esp.Name.Visible = true
+            
+            -- Update line with improved look direction
+            if Settings.Lines then
+                DrawLookLine(player, esp, {X = headPos.X, Y = headPos.Y})
+            else
+                esp.Line.Visible = false
+            end
+        else
+            esp.Box.Visible = false
+            esp.Name.Visible = false
+            esp.Line.Visible = false
+        end
+    end
+end)
+
+-- Create ESP for existing players
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        PlayerESP[player] = CreateESP(player)
+    end
+end
+
+-- Handle player joining
+Players.PlayerAdded:Connect(function(player)
+    if player ~= LocalPlayer then
+        PlayerESP[player] = CreateESP(player)
+    end
+end)
+
+-- Handle player leaving
+Players.PlayerRemoving:Connect(function(player)
+    if PlayerESP[player] then
+        for _, drawing in pairs(PlayerESP[player]) do
+            pcall(function() drawing:Remove() end)
+        end
+        PlayerESP[player] = nil
+    end
+end)
+
+-- Toggle controls with IMMEDIATE status update
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.RightControl then
+        Settings.ESP = not Settings.ESP
+        UpdateDisplay() -- Force immediate update
+        
+        -- Visual feedback
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "ESP",
+            Text = Settings.ESP and "ENABLED" or "DISABLED",
+            Duration = 1.5
+        })
+    elseif input.KeyCode == Enum.KeyCode.RightAlt then
+        Settings.TeleportEnabled = not Settings.TeleportEnabled
+        UpdateDisplay() -- Force immediate update
+        
+        -- Visual feedback
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Auto-Teleport",
+            Text = Settings.TeleportEnabled and "ENABLED" or "DISABLED",
+            Duration = 1.5
+        })
+    elseif input.KeyCode == Enum.KeyCode.RightShift then
+        Settings.Lines = not Settings.Lines
+        
+        -- Visual feedback
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "View Lines",
+            Text = Settings.Lines and "ENABLED" or "DISABLED",
+            Duration = 1.5
+        })
+    elseif input.KeyCode == Enum.KeyCode.LeftBracket then
+        -- Decrease range by 100
+        Settings.MaxRange = math.max(50, Settings.MaxRange - 100)
+        UpdateDisplay() -- Force immediate update
+    elseif input.KeyCode == Enum.KeyCode.RightBracket then
+        -- Increase range by 100
+        Settings.MaxRange = Settings.MaxRange + 100
+        UpdateDisplay() -- Force immediate update
+    elseif input.KeyCode == Enum.KeyCode.End then
+        -- Force rebuild ESP (in case it breaks)
+        RebuildESP()
+    end
+end)
+
+-- Handle viewport size changes
+Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateDisplay)
+
+-- Initial status update
+UpdateDisplay()
+
+print("Enhanced ESP with Fixed Display and Red View Lines loaded")
+print("Created for maxz12ok on 2025-04-21 02:00:52")
+print("- Press Right Ctrl to toggle ESP")
+print("- Press Right Alt to toggle auto-teleport")
+print("- Press Right Shift to toggle view lines")
+print("- Press [ or ] to decrease/increase max range")
+print("- Press End to force rebuild ESP if it breaks")
