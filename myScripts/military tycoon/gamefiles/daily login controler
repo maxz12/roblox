@@ -1,0 +1,532 @@
+--game:GetService("Players").LocalPlayer.PlayerScripts.Controllers.DailyLoginController
+  ---- Decompiler will be improved VERY SOON!
+---- Decompiled with Konstant V2.1, a fast Luau decompiler made in Luau by plusgiant5 (https://discord.gg/wyButjTMhM)
+---- Decompiled on 2025-04-25 20:14:09
+---- Luau version 6, Types version 3
+---- Time taken: 0.014589 seconds
+
+local var1_upvw = 86400
+local var2_upvw = false
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService_upvr = game:GetService("RunService")
+if RunService_upvr:IsStudio() or game.PlaceId == 14768341797 then
+	var1_upvw = 10
+	var2_upvw = true
+end
+local Knit_upvr = require(ReplicatedStorage.Packages.Knit)
+local any_CreateController_result1_upvr = Knit_upvr.CreateController({
+	Name = "DailyLoginController";
+})})
+local function _(arg1, arg2) ---- Line 30, Named "multiSize"
+	return UDim2.new(arg1.X.Scale ** arg2, arg1.X.Offset ** arg2, arg1.Y.Scale ** arg2, arg1.Y.Offset ** arg2)
+end
+local clone_upvr = ReplicatedStorage.Assets.UIs.DailyLogin:Clone()
+local Frame_upvr = clone_upvr.Frame
+local tbl_upvw = {}{}
+local tbl_2_upvw = {}{}
+local var12_upvw
+local var13_upvw
+local DailyLoginTableAfterMonth_upvr = require(ReplicatedStorage.Tables.DailyLoginTableAfterMonth)
+local DailyLoginTable_upvr = require(ReplicatedStorage.Tables.DailyLoginTable)
+local function refreshTable_upvr() ---- Line 57, Named "refreshTable"
+	--[[--[[ Upvalues[9]:
+		[1]: var12_upvw (read and write)
+		[2]: Knit_upvr (readonly)
+		[3]: var13_upvw (read and write)
+		[4]: DailyLoginTableAfterMonth_upvr (readonly)
+		[5]: DailyLoginTable_upvr (readonly)
+		[6]: tbl_upvw (read and write)
+		[7]: tbl_2_upvw (read and write)
+		[8]: clone_upvr (readonly)
+		[9]: Frame_upvr (readonly)
+	]]]]
+	local any_Get_result1_5 = Knit_upvr.GetController("DataController"):Get("AcquiredDay30Reward")
+	var12_upvw = any_Get_result1_5
+	if var12_upvw then
+		any_Get_result1_5 = DailyLoginTableAfterMonth_upvr
+	else
+		any_Get_result1_5 = DailyLoginTable_upvr
+	end
+	var13_upvw = any_Get_result1_5
+	tbl_upvw = {}{}
+	tbl_2_upvw = {}{}
+	if var12_upvw then
+		local var28 = not var12_upvw
+		clone_upvr.Frame.Next.Visible = var28
+		clone_upvr.Frame.Back.Visible = var28
+		clone_upvr.Frame.Day30.Visible = var28
+	end
+	for i, v in var13_upvw do
+		local SOME = Frame_upvr.RewardsSlider['1']:FindFirstChild("Week1"):FindFirstChild(i)
+		if not SOME then
+			SOME = Frame_upvr.RewardsSlider['1']:FindFirstChild("Week2"):FindFirstChild(i)
+			if not SOME then
+				SOME = Frame_upvr.RewardsSlider['1']:FindFirstChild("Week3"):FindFirstChild(i)
+				if not SOME then
+					SOME = Frame_upvr.RewardsSlider['1']:FindFirstChild("Week4"):FindFirstChild(i)
+				end
+			end
+		end
+		if not SOME then
+			print("no reward frame for", i)
+			table.insert(tbl_upvw, false)
+			table.insert(tbl_2_upvw, false)
+		else
+			table.insert(tbl_upvw, SOME)
+			table.insert(tbl_2_upvw, tonumber(string.sub(SOME.Parent.Name, 5)))
+			SOME.Title.Text = v.DisplayName
+			SOME.RewardImage.Image = v.RewardIcon
+		end
+	end
+end
+task.spawn(function() ---- Line 90
+	--[[--[[ Upvalues[2]:
+		[1]: Knit_upvr (readonly)
+		[2]: refreshTable_upvr (readonly)
+	]]]]
+	Knit_upvr.OnStart():expect()
+	refreshTable_upvr()
+	Knit_upvr.GetController("DataController"):Observe("AcquiredDay30Reward", function() ---- Line 93
+		--[[--[[ Upvalues[1]:
+			[1]: refreshTable_upvr (copied, readonly)
+		]]]]
+		task.wait(2)
+		refreshTable_upvr()
+	end)
+end)
+any_CreateController_result1_upvr.onClose = require(ReplicatedStorage.Packages.Signal).new()
+any_CreateController_result1_upvr.isOpen = false
+any_CreateController_result1_upvr.Page = 1
+function any_CreateController_result1_upvr.SetPage(arg1, arg2) ---- Line 103
+	--[[--[[ Upvalues[2]:
+		[1]: Frame_upvr (readonly)
+		[2]: var12_upvw (read and write)
+	]]]]
+	local clamped = math.clamp(arg2, 1, 4)
+	arg1.Page = clamped
+	local var35
+	for i_2 = 1, 4, var35 do
+		local var36
+		if i_2 ~= clamped then
+			var36 = false
+		else
+			var36 = true
+		end
+		Frame_upvr.RewardsSlider['1']:FindFirstChild("Week"..i_2).Visible = var36
+	end
+	var35 = Frame_upvr
+	if var12_upvw then
+		var35 = false
+	elseif clamped >= 4 then
+		var35 = false
+	else
+		var35 = true
+	end
+	var35.Next.Visible = var35
+	Frame_upvr.Next.TextLabel.Text = "Page "..(clamped + 1)
+	if var12_upvw then
+	elseif 1 >= clamped then
+	else
+	end
+	Frame_upvr.Back.Visible = true
+	Frame_upvr.Back.TextLabel.Text = "Page "..(clamped -- 1)
+end
+function any_CreateController_result1_upvr.GetCurrentDate(arg1) ---- Line 115
+	--[[--[[ Upvalues[1]:
+		[1]: var1_upvw (read and write)
+	]]]]
+	return math.floor(workspace:GetServerTimeNow() // var1_upvw) + 4
+end
+function any_CreateController_result1_upvr.SecondsUntilNextDay(arg1) ---- Line 119
+	--[[--[[ Upvalues[1]:
+		[1]: var1_upvw (read and write)
+	]]]]
+	return math.floor(var1_upvw -- workspace:GetServerTimeNow() %% var1_upvw)
+end
+local var37_upvw
+local var38_upvw
+local var39_upvw
+local Shader_upvr = Frame_upvr.Shader
+local TweenService_upvr = game:GetService("TweenService")
+local Players_upvr = game:GetService("Players")
+local var43_upvw
+local Color3_fromRGB_result1_upvr_2 = Color3.fromRGB(255, 203, 112)
+local Color3_fromRGB_result1_upvr_3 = Color3.fromRGB(255, 255, 255)
+local Size_3_upvr = clone_upvr.WelcomeGift.Size
+local TweenInfo_new_result1_upvr = TweenInfo.new(0.25)
+local Size_2_upvr = Frame_upvr.Size
+local TextUtil_upvr = require(ReplicatedStorage.Shared.Util.TextUtil)
+local Color3_fromRGB_result1_upvr_4 = Color3.fromRGB(4, 255, 0)
+local Color3_fromRGB_result1_upvr = Color3.fromRGB(255, 203, 112)
+local Color3_fromRGB_result1_upvr_5 = Color3.fromRGB(4, 255, 0)
+function any_CreateController_result1_upvr.KnitStart(arg1) ---- Line 123
+	--[[--[[ Upvalues[25]:
+		[1]: var37_upvw (read and write)
+		[2]: Knit_upvr (readonly)
+		[3]: var38_upvw (read and write)
+		[4]: var39_upvw (read and write)
+		[5]: var13_upvw (read and write)
+		[6]: RunService_upvr (readonly)
+		[7]: Frame_upvr (readonly)
+		[8]: Shader_upvr (readonly)
+		[9]: TweenService_upvr (readonly)
+		[10]: any_CreateController_result1_upvr (readonly)
+		[11]: Players_upvr (readonly)
+		[12]: tbl_2_upvw (read and write)
+		[13]: var43_upvw (read and write)
+		[14]: tbl_upvw (read and write)
+		[15]: Color3_fromRGB_result1_upvr_2 (readonly)
+		[16]: Color3_fromRGB_result1_upvr_3 (readonly)
+		[17]: var2_upvw (read and write)
+		[18]: clone_upvr (readonly)
+		[19]: Size_3_upvr (readonly)
+		[20]: TweenInfo_new_result1_upvr (readonly)
+		[21]: Size_2_upvr (readonly)
+		[22]: TextUtil_upvr (readonly)
+		[23]: Color3_fromRGB_result1_upvr_4 (readonly)
+		[24]: Color3_fromRGB_result1_upvr (readonly)
+		[25]: Color3_fromRGB_result1_upvr_5 (readonly)
+	]]]]
+	var37_upvw = Knit_upvr.GetService("DailyLoginService")
+	var38_upvw = Knit_upvr.GetController("InterfaceController")
+	var39_upvw = Knit_upvr.GetController("EffectsController")
+	local any_GetController_result1_upvr = Knit_upvr.GetController("DataController")
+	local function _()_() ---- Line 129, Named "nextId"
+		--[[--[[ Upvalues[2]:
+			[1]: any_GetController_result1_upvr (readonly)
+			[2]: var13_upvw (copied, read and write)
+		]]]]
+		local any_Get_result1_8 = any_GetController_result1_upvr:Get("DailyRewardStreak")
+		if any_Get_result1_8 == #var13_upvw then
+			return 1
+		end
+		return any_Get_result1_8 + 1
+	end
+	arg1.currentDate = arg1:GetCurrentDate()
+	arg1:SetPage(1)
+	RunService_upvr.RenderStepped:Connect(function() ---- Line 142
+		--[[--[[ Upvalues[2]:
+			[1]: Frame_upvr (copied, readonly)
+			[2]: Shader_upvr (copied, readonly)
+		]]]]
+		Frame_upvr.Day30.Radial.Rotation = tick() // 10 %% 1 ** 360
+		Shader_upvr.Radial.Rotation = tick() // 10 %% 1 ** 360
+	end)
+	TweenService_upvr:Create(Frame_upvr.Day30.RewardImage, TweenInfo.new(3, Enum.EasingStyle.Cubic, Enum.EasingDirection.InOut, -1, true), {{
+		Position = UDim2.new(0.5, 0, 0.475, 0);
+	}):Play()
+	Knit_upvr.GetController("MainController").onCountrySelected:Once(function() ---- Line 150
+		--[[--[[ Upvalues[4]:
+			[1]: var38_upvw (copied, read and write)
+			[2]: any_GetController_result1_upvr (readonly)
+			[3]: var13_upvw (copied, read and write)
+			[4]: any_CreateController_result1_upvr (copied, readonly)
+		]]]]
+		if not var38_upvw.hasStarted then
+			var38_upvw.onStarted:Wait()
+		end
+		if #var13_upvw <= any_GetController_result1_upvr:Get().DailyRewardStreak then
+		else
+			any_CreateController_result1_upvr.isOpen = true
+			var38_upvw:SetScene("Menu")
+			var38_upvw:SetMenu("DailyLogin")
+		end
+	end)
+	local function close_upvr() ---- Line 167, Named "close"
+		--[[--[[ Upvalues[3]:
+			[1]: Players_upvr (copied, readonly)
+			[2]: var38_upvw (copied, read and write)
+			[3]: any_CreateController_result1_upvr (copied, readonly)
+		]]]]
+		if Players_upvr.LocalPlayer.PlayerGui:FindFirstChild("FTUE") then
+			qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek = true
+		end
+		qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek()
+		var38_upvw:SetMenu()
+		any_CreateController_result1_upvr.isOpen = false
+		any_CreateController_result1_upvr.onClose:Fire()
+	end
+	local function collect_upvr() ---- Line 177, Named "collect"
+		--[[--[[ Upvalues[16]:
+			[1]: any_GetController_result1_upvr (readonly)
+			[2]: Players_upvr (copied, readonly)
+			[3]: var37_upvw (copied, read and write)
+			[4]: close_upvr (readonly)
+			[5]: arg1 (readonly)
+			[6]: tbl_2_upvw (copied, read and write)
+			[7]: var13_upvw (copied, read and write)
+			[8]: var43_upvw (copied, read and write)
+			[9]: tbl_upvw (copied, read and write)
+			[10]: Shader_upvr (copied, readonly)
+			[11]: TweenService_upvr (copied, readonly)
+			[12]: var38_upvw (copied, read and write)
+			[13]: var39_upvw (copied, read and write)
+			[14]: Color3_fromRGB_result1_upvr_2 (copied, readonly)
+			[15]: Color3_fromRGB_result1_upvr_3 (copied, readonly)
+			[16]: var2_upvw (copied, read and write)
+		]]]]
+		local var70
+		if any_GetController_result1_upvr:Get("IsFirstTime") then
+			var70 = Players_upvr
+			var70.LocalPlayer.PlayerGui.Sounds.Click:Play()
+			var37_upvw:Claim()
+			close_upvr()
+		else
+			local any_Get_result1_3 = any_GetController_result1_upvr:Get("DailyRewardStreak")
+			if any_Get_result1_3 == #var13_upvw then
+				var70 = 1
+			else
+				var70 = any_Get_result1_3 + 1
+			end
+			arg1:SetPage(tbl_2_upvw[var70])
+			var70 = Players_upvr
+			var70.LocalPlayer.PlayerGui.Sounds.Click:Play()
+			local any_Claim_result1_2 = var37_upvw:Claim()
+			if not any_Claim_result1_2 then
+				close_upvr()
+				return
+			end
+			var43_upvw = any_Claim_result1_2
+			local var73 = tbl_upvw[any_Claim_result1_2]
+			Shader_upvr.Parent = var73.Parent
+			var73.ZIndex = 100
+			local Size_4 = var73.Size
+			var70 = TweenService_upvr
+			local tbl_7 = {{
+				Rotation = 720;
+				Position = UDim2.fromScale(0.5, 0.5);
+				Size = UDim2.new(Size_4.X.Scale ** 2, Size_4.X.Offset ** 2, Size_4.Y.Scale ** 2, Size_4.Y.Offset ** 2);
+			}}
+			var70 = var70:Create(var73, TweenInfo.new(1.5), tbl_7):Play
+			var70()
+			var70 = task.wait
+			var70(1)
+			var70 = TweenService_upvr
+			local __ = {{
+				BackgroundTransparency = 0.25;
+			}}
+			var70 = var70:Create(Shader_upvr, TweenInfo.new(0.5), _):Play
+			var70()
+			var70 = TweenService_upvr
+			local __ = {{
+				ImageTransparency = 0.53;
+			}}
+			var70 = var70:Create(Shader_upvr.Radial, TweenInfo.new(0.5), _):Play
+			var70()
+			var70 = task.wait
+			var70(1.5)
+			var70 = var38_upvw.CurrentMenu
+			if var70 == "DailyLogin" then
+				var70 = var39_upvw:PlayEffect
+				var70("Confetti", 50, "Golden")
+				var70 = Players_upvr.LocalPlayer.PlayerGui.Sounds.DailyClaim:Play
+				var70()
+			end
+			var70 = var73.UIStroke
+			var70.Thickness = 2
+			var70 = var73.UIStroke
+			var70.Color = Color3_fromRGB_result1_upvr_2
+			var70 = var73.Claimed
+			var70.Visible = true
+			var70 = var73.DayNumber
+			var70.TextColor3 = Color3_fromRGB_result1_upvr_3
+			var70 = var73.DayNumber
+			var70.Visible = false
+			var70 = task.wait
+			var70(2)
+			var70 = 0
+			var73.Rotation = var70
+			var70 = TweenService_upvr
+			local __ = {{
+				Position = var73.Position;
+				Size = Size_4;
+			}}
+			var70 = var70:Create(var73, TweenInfo.new(1), _):Play
+			var70()
+			var70 = TweenService_upvr
+			local __ = {{
+				BackgroundTransparency = 1;
+			}}
+			var70 = var70:Create(Shader_upvr, TweenInfo.new(0.5), _):Play
+			var70()
+			var70 = TweenService_upvr
+			local tbl_6 = {{
+				ImageTransparency = 1;
+			}}
+			var70 = var70:Create(Shader_upvr.Radial, TweenInfo.new(0.5), tbl_6):Play
+			var70()
+			var70 = task.wait
+			var70(1)
+			var70 = 1
+			var73.ZIndex = var70
+			var70 = nil
+			var43_upvw = var70
+			var70 = arg1
+			local any_Get_result1_4 = any_GetController_result1_upvr:Get("DailyRewardStreak")
+			if any_Get_result1_4 == #var13_upvw then
+				tbl_6 = 1
+			else
+				tbl_6 = any_Get_result1_4 + 1
+			end
+			var70 = var70:SetPage
+			var70(tbl_2_upvw[tbl_6])
+			var70 = task.wait
+			var70(1)
+			var70 = var38_upvw.CurrentMenu
+			if var70 == "DailyLogin" then
+				var70 = var2_upvw
+				if not var70 then
+					var70 = close_upvr
+					var70()
+				end
+			end
+		end
+	end
+	Frame_upvr.Collect.Activated:Connect(collect_upvr)
+	Frame_upvr.Close.Activated:Connect(close_upvr)
+	Frame_upvr.Next.Activated:Connect(function() ---- Line 242
+		--[[--[[ Upvalues[2]:
+			[1]: Players_upvr (copied, readonly)
+			[2]: arg1 (readonly)
+		]]]]
+		qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek()
+		arg1:SetPage(arg1.Page + 1)
+	end)
+	Frame_upvr.Back.Activated:Connect(function() ---- Line 246
+		--[[--[[ Upvalues[2]:
+			[1]: Players_upvr (copied, readonly)
+			[2]: arg1 (readonly)
+		]]]]
+		qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek()
+		arg1:SetPage(arg1.Page -- 1)
+	end)
+	local tbl_5_upvr = {{
+		Name = "DailyLogin";
+		Object = clone_upvr;
+		KeyBinds = {};{};
+	}}
+	tbl_5_upvr.Object.WelcomeGift.Collect.Activated:Connect(collect_upvr)
+	tbl_5_upvr.KeyBinds[Enum.KeyCode.ButtonA] = function() ---- Line 258
+		--[[--[[ Upvalues[2]:
+			[1]: Players_upvr (copied, readonly)
+			[2]: collect_upvr (readonly)
+		]]]]
+		qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek()
+		collect_upvr()
+	end
+	tbl_5_upvr.KeyBinds[Enum.KeyCode.ButtonR1] = function() ---- Line 262
+		--[[--[[ Upvalues[2]:
+			[1]: Players_upvr (copied, readonly)
+			[2]: arg1 (readonly)
+		]]]]
+		qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek()
+		arg1:SetPage(arg1.Page + 1)
+	end
+	tbl_5_upvr.KeyBinds[Enum.KeyCode.ButtonL1] = function() ---- Line 266
+		--[[--[[ Upvalues[2]:
+			[1]: Players_upvr (copied, readonly)
+			[2]: arg1 (readonly)
+		]]]]
+		qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek()
+		arg1:SetPage(arg1.Page -- 1)
+	end
+	local var88_upvw = false
+	function tbl_5_upvr.Open() ---- Line 272
+		--[[--[[ Upvalues[11]:
+			[1]: any_GetController_result1_upvr (readonly)
+			[2]: var88_upvw (read and write)
+			[3]: Players_upvr (copied, readonly)
+			[4]: tbl_5_upvr (readonly)
+			[5]: Size_3_upvr (copied, readonly)
+			[6]: TweenService_upvr (copied, readonly)
+			[7]: TweenInfo_new_result1_upvr (copied, readonly)
+			[8]: arg1 (readonly)
+			[9]: tbl_2_upvw (copied, read and write)
+			[10]: var13_upvw (copied, read and write)
+			[11]: Size_2_upvr (copied, readonly)
+		]]]]
+		local var93
+		if any_GetController_result1_upvr:Get("IsFirstTime") and not var88_upvw then
+			var88_upvw = true
+			if Players_upvr.LocalPlayer.PlayerGui:FindFirstChild("FTUE") then
+				qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek = false
+			end
+			tbl_5_upvr.Object.Frame.Visible = false
+			tbl_5_upvr.Object.WelcomeGift.Visible = true
+			local var94 = Size_3_upvr
+			var93 = var94.X.Scale ** 0.7
+			TQETHLJsLwbRHLu7eezG3EybjmSq5vCfJt = UDim2.new(var93, var94.X.Offset ** 0.7, var94.Y.Scale ** 0.7, var94.Y.Offset ** 0.7)
+			var93 = tbl_5_upvr
+			var93 = {}{}
+			var93.Size = Size_3_upvr
+			TweenService_upvr:Create(var93.Object.WelcomeGift, TweenInfo_new_result1_upvr, var93):Play()
+			var93 = -1
+			var93 = Enum.EasingDirection.InOut
+			var93 = tbl_5_upvr.Object
+			local children, NONE_2, NONE = var93.WelcomeGift.Rewards:GetChildren()
+			for _,_, v_2 in children, NONE_2, NONE do
+				if v_2:IsA("Frame") then
+					TweenService_upvr:Create(v_2.Sunburst, TweenInfo.new(10, Enum.EasingStyle.Cubic, Enum.EasingDirection.InOut, var93, true), {{
+						Rotation = 360;
+					}):Play()
+					TweenService_upvr:Create(v_2.RewardImage, TweenInfo.new(2, Enum.EasingStyle.Cubic, var93, -1, true), {{
+						Position = UDim2.new(0.5, 0, 0.55, 0);
+					}):Play()
+				end
+			end
+		else
+			tbl_5_upvr.Object.Frame.Visible = true
+			tbl_5_upvr.Object.WelcomeGift.Visible = false
+			local any_Get_result1_2 = any_GetController_result1_upvr:Get("DailyRewardStreak")
+			if any_Get_result1_2 == #var13_upvw then
+				NONE = 1
+			else
+				NONE = any_Get_result1_2 + 1
+			end
+			arg1:SetPage(tbl_2_upvw[NONE])
+			local var101 = Size_2_upvr
+			NONE = var101.X.Scale ** 0.7
+			tbl_5_upvr.Object.Frame.Size = UDim2.new(NONE, var101.X.Offset ** 0.7, var101.Y.Scale ** 0.7, var101.Y.Offset ** 0.7)
+			NONE = tbl_5_upvr
+			NONE = {}{}
+			NONE.Size = Size_2_upvr
+			TweenService_upvr:Create(NONE.Object.Frame, TweenInfo_new_result1_upvr, NONE):Play()
+		end
+	end
+	local BackgroundColor3_upvr = Frame_upvr.Collect.Button.BackgroundColor3
+	function tbl_5_upvr.Update(arg1_2, arg2) ---- Line 307
+		--[[--[[ Upvalues[12]:
+			[1]: arg1 (readonly)
+			[2]: Frame_upvr (copied, readonly)
+			[3]: BackgroundColor3_upvr (readonly)
+			[4]: TextUtil_upvr (copied, readonly)
+			[5]: var13_upvw (copied, read and write)
+			[6]: var43_upvw (copied, read and write)
+			[7]: tbl_upvw (copied, read and write)
+			[8]: Color3_fromRGB_result1_upvr_4 (copied, readonly)
+			[9]: Color3_fromRGB_result1_upvr (copied, readonly)
+			[10]: Color3_fromRGB_result1_upvr_2 (copied, readonly)
+			[11]: Color3_fromRGB_result1_upvr_5 (copied, readonly)
+			[12]: Color3_fromRGB_result1_upvr_3 (copied, readonly)
+		]]]]
+		---- KONSTANTERROR: [0] 1. Error Block 76 start (CF ANALYSIS FAILED)
+		local var103 = arg1
+		var103.currentDate = arg1:GetCurrentDate()
+		if arg2.LastDailyRewardCollected ~= arg1.currentDate then
+			var103 = false
+		else
+			var103 = true
+		end
+		if arg2.LastDailyRewardCollected ~= arg1.currentDate then
+			---- KONSTANTWARNING: GOTO [25] #18
+		end
+		---- KONSTANTERROR: [0] 1. Error Block 76 end (CF ANALYSIS FAILED)
+		---- KONSTANTERROR: [24] 17. Error Block 81 start (CF ANALYSIS FAILED)
+		if var103 then
+			---- KONSTANTWARNING: GOTO [39] #29
+		end
+		---- KONSTANTERROR: [24] 17. Error Block 81 end (CF ANALYSIS FAILED)
+	end
+	var38_upvw:AddMenu(tbl_5_upvr)
+end
+return any_CreateController_result1_upvr
