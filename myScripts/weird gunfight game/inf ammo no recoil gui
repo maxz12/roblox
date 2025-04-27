@@ -1,5 +1,5 @@
--- Zero-Lag Cheat GUI
--- Created for maxz12 on 2025-04-07 02:21:59
+-- Zero-Lag Cheat GUI (Optimized)
+-- Created for maxz12 on 2025-04-27
 
 -- Services
 local CoreGui = game:GetService("CoreGui")
@@ -8,11 +8,73 @@ local Players = game:GetService("Players")
 -- Variables
 local infiniteAmmoEnabled = false
 local noRecoilEnabled = false
-local checkInterval = 5 -- Check ammo only every 3 seconds
-local lastCheckTime = 0
-local ammoThreshold = 1000
+local checkInterval = 5 -- Check ammo every 5 seconds
+local ammoThreshold = 100 -- Only refill if ammo drops below this
+local cachedAmmoTables = {} -- Store tables with ammo values
+local cachedRecoilTables = {} -- Store tables with recoil values
+local isCacheBuilt = false
+local isSearching = false
 
--- Original GC Value Changer Function (Kept exactly as specified)
+-- Build cache of tables containing target values
+local function buildCache()
+    if isCacheBuilt or isSearching then return end
+    isSearching = true
+    
+    -- Clear existing caches
+    cachedAmmoTables = {}
+    cachedRecoilTables = {}
+    
+    -- Get all GC objects
+    for _, obj in pairs(getgc(true)) do
+        if type(obj) == "table" then
+            -- Scan each table
+            for key, value in pairs(obj) do
+                -- Look for ammo keys
+                if type(key) == "string" and string.find(string.lower(key), "ammo") and type(value) == "number" then
+                    table.insert(cachedAmmoTables, {table = obj, key = key})
+                end
+                
+                -- Look for recoil keys
+                if type(key) == "string" and string.find(string.lower(key), "recoil") and type(value) == "number" then
+                    table.insert(cachedRecoilTables, {table = obj, key = key})
+                end
+            end
+        end
+    end
+    
+    isCacheBuilt = true
+    isSearching = false
+    return #cachedAmmoTables, #cachedRecoilTables
+end
+
+-- Set ammo values using cached tables
+local function setAmmoValues(value)
+    local count = 0
+    
+    for _, item in pairs(cachedAmmoTables) do
+        -- Only set if current value is below threshold
+        if item.table[item.key] < ammoThreshold then
+            item.table[item.key] = value
+            count = count + 1
+        end
+    end
+    
+    return count
+end
+
+-- Set recoil values using cached tables
+local function setRecoilValues(value)
+    local count = 0
+    
+    for _, item in pairs(cachedRecoilTables) do
+        item.table[item.key] = value
+        count = count + 1
+    end
+    
+    return count
+end
+
+-- Legacy function for initial search (used only once at startup)
 local function findAndSetValues(searchTerm, newValue)
     searchTerm = searchTerm:lower()
     local count = 0
@@ -57,8 +119,8 @@ end
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 200, 0, 120)
-MainFrame.Position = UDim2.new(0.5, -100, 0.5, -60)
+MainFrame.Size = UDim2.new(0, 200, 0, 150) -- Increased height for new controls
+MainFrame.Position = UDim2.new(0.5, -100, 0.5, -75)
 MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 MainFrame.BorderSizePixel = 2
 MainFrame.BorderColor3 = Color3.fromRGB(60, 60, 60)
@@ -82,7 +144,7 @@ Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.SourceSansBold
-Title.Text = "Zero-Lag Cheat v1.0"
+Title.Text = "Zero-Lag Cheat v2.0"
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TitleBar
 
@@ -130,6 +192,19 @@ RecoilLabel.Text = "No Recoil"
 RecoilLabel.TextXAlignment = Enum.TextXAlignment.Left
 RecoilLabel.Parent = MainFrame
 
+-- Rebuild Cache Button
+local RebuildButton = Instance.new("TextButton")
+RebuildButton.Name = "RebuildButton"
+RebuildButton.Size = UDim2.new(0, 180, 0, 25)
+RebuildButton.Position = UDim2.new(0.5, -90, 0, 100)
+RebuildButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+RebuildButton.BorderSizePixel = 1
+RebuildButton.Text = "Rebuild Cache"
+RebuildButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+RebuildButton.Font = Enum.Font.SourceSans
+RebuildButton.TextSize = 14
+RebuildButton.Parent = MainFrame
+
 -- Status Label
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Name = "StatusLabel"
@@ -151,15 +226,14 @@ local function startAmmoChecking()
     
     checkAmmoThread = coroutine.create(function()
         while infiniteAmmoEnabled do
-            -- Check ammo only every few seconds to reduce performance impact
-            local timeNow = tick()
-            if timeNow - lastCheckTime >= checkInterval then
-                lastCheckTime = timeNow
-                
-                -- Check ammo levels
-                findAndSetValues("ammo", 9999)
+            if isCacheBuilt then
+                -- Only update ammo if values get low
+                local count = setAmmoValues(9999)
+                if count > 0 then
+                    StatusLabel.Text = "Refilled " .. count .. " ammo values"
+                end
             end
-            wait(1) -- Wait 1 second between checks
+            wait(checkInterval) -- Wait between checks
         end
     end)
     
@@ -178,8 +252,15 @@ local function toggleInfiniteAmmo()
     AmmoToggle.BackgroundColor3 = infiniteAmmoEnabled and Color3.fromRGB(70, 255, 70) or Color3.fromRGB(255, 70, 70)
     
     if infiniteAmmoEnabled then
+        -- Build cache if not already built
+        if not isCacheBuilt then
+            StatusLabel.Text = "Building cache..."
+            local ammoCount, recoilCount = buildCache()
+            StatusLabel.Text = "Found " .. ammoCount .. " ammo values"
+        end
+        
         -- Apply immediately
-        local count = findAndSetValues("ammo", 9999)
+        local count = setAmmoValues(9999)
         StatusLabel.Text = "Set " .. count .. " ammo values"
         startAmmoChecking()
     else
@@ -193,27 +274,50 @@ local function toggleNoRecoil()
     RecoilToggle.BackgroundColor3 = noRecoilEnabled and Color3.fromRGB(70, 255, 70) or Color3.fromRGB(255, 70, 70)
     
     if noRecoilEnabled then
-        -- Only run once when enabled
-        local count = findAndSetValues("recoil", 9999)
+        -- Build cache if not already built
+        if not isCacheBuilt then
+            StatusLabel.Text = "Building cache..."
+            local ammoCount, recoilCount = buildCache()
+            StatusLabel.Text = "Found " .. recoilCount .. " recoil values"
+        end
+        
+        -- Apply immediately
+        local count = setRecoilValues(99999)
         StatusLabel.Text = "Set " .. count .. " recoil values"
     else
         StatusLabel.Text = "No recoil disabled"
     end
 end
 
+local function rebuildCache()
+    StatusLabel.Text = "Rebuilding cache..."
+    isCacheBuilt = false
+    local ammoCount, recoilCount = buildCache()
+    StatusLabel.Text = "Cache rebuilt: " .. ammoCount .. " ammo, " .. recoilCount .. " recoil values"
+end
+
 -- Connect button events
 AmmoToggle.MouseButton1Click:Connect(toggleInfiniteAmmo)
 RecoilToggle.MouseButton1Click:Connect(toggleNoRecoil)
+RebuildButton.MouseButton1Click:Connect(rebuildCache)
 
 -- Function to handle character added
 local function onCharacterAdded(newCharacter)
-    -- Apply cheats on respawn if enabled
-    if infiniteAmmoEnabled then
-        findAndSetValues("ammo", 3000)
-    end
+    -- Rebuild cache on respawn
+    isCacheBuilt = false
     
-    if noRecoilEnabled then
-        findAndSetValues("recoil", 9999)
+    -- Apply cheats on respawn if enabled
+    if infiniteAmmoEnabled or noRecoilEnabled then
+        wait(1) -- Wait for character to fully load
+        buildCache()
+        
+        if infiniteAmmoEnabled then
+            setAmmoValues(9999)
+        end
+        
+        if noRecoilEnabled then
+            setRecoilValues(0)
+        end
     end
 end
 
@@ -226,4 +330,4 @@ if Players.LocalPlayer.Character then
 end
 
 -- Notify user that script loaded
-StatusLabel.Text = "Cheat loaded successfully!";
+StatusLabel.Text = "Optimized cheat loaded successfully!";
