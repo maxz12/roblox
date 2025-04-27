@@ -1,120 +1,85 @@
--- Get references to the local player and character
+-- Get references to the player and character
 local player = game.Players.LocalPlayer
 local char = player.Character or player.CharacterAdded:Wait()
 local hrp = char:WaitForChild("HumanoidRootPart")
-local humanoid = char:WaitForChild("Humanoid")
 
--- Get mouse and camera objects (for first-person and screen info)
-local mouse = player:GetMouse()
+-- Get references to camera
 local camera = workspace.CurrentCamera
 
--- Initial targets from the workspace and an empty table for valid ones
-local targets = game.Workspace.Targets.MatchTargets:GetChildren() 
+-- Get targets
+local targets = game.Workspace.Targets.MatchTargets:GetChildren()
 local validTargets = {}
 
--- Create a simple GUI toggle button
+-- Create a simple toggle button
 local gui = Instance.new("ScreenGui")
 gui.Parent = game.CoreGui
 
 local button = Instance.new("TextButton")
 button.Size = UDim2.new(0, 150, 0, 50)
-button.Position = UDim2.new(0.5, -75, 0.5, -25)
+button.Position = UDim2.new(0.5, -75, 0.9, -25)
 button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 button.Text = "OFF"
 button.Parent = gui
 button.Draggable = true
 
--- Toggle state for the feature (default: disabled)
+-- Toggle state
 local enabled = false
 
--- Function to update valid targets by checking for a "Head" part in each target
+-- Function to find valid targets
 local function updateValidTargets()
-    table.clear(validTargets) -- Clear previous targets
-    for i, v in pairs(targets) do
-        if v:FindFirstChild("Head") then
-            table.insert(validTargets, v)
-            print("Found target:", v.Name)
+    table.clear(validTargets)
+    for _, target in pairs(targets) do
+        if target:FindFirstChild("Head") then
+            table.insert(validTargets, target)
         end
     end
 end
 
--- Function to move dummy heads so that they follow the mouse horizontally.
-local function moveHeads()
-    -- Only run if the feature is enabled
+-- Function to position targets in front of player
+local function updateTargetPositions()
     if not enabled then return end
-
-    -- Always update the valid targets list.
-    updateValidTargets()
-
-    -- Calculate the horizontal offset based on mouse position.
-    -- This computes the difference of the mouse's X coordinate from the center of the screen.
-    local centerX = camera.ViewportSize.X / 2
-    local offsetX = (mouse.X - centerX) * 0.05  -- Adjust sensitivity as needed
-
-    -- Define a base position relative to the player.
-    -- The dummy heads will be positioned a fixed distance in front of the player,
-    -- plus the horizontally adjusted offset, and a bit elevated.
-    local basePos = hrp.Position + Vector3.new(offsetX, 3, 5)
-
-    -- Move each valid target's head; here we simulate a small up-and-down motion.
-    for i, v in pairs(validTargets) do
-        if v:FindFirstChild("Head") then
-            -- Set an initial position slightly higher
-            v.Head.CFrame = CFrame.new(basePos + Vector3.new(0, 1, 0))
-            task.wait(0.1)
-            -- Bring it back down a little (or adjust as needed for effect)
-            v.Head.CFrame = CFrame.new(basePos)
+    
+    -- Position for targets (directly in front of player)
+    local frontPosition = hrp.Position + hrp.CFrame.LookVector * 5 + Vector3.new(0, 2, 0)
+    
+    for _, target in pairs(validTargets) do
+        if target:FindFirstChild("Head") then
+            target.Head.CFrame = CFrame.new(frontPosition)
         end
     end
 end
 
--- Use RunService to update the heads every Heartbeat.
+-- Setup RunService connection
 local RunService = game:GetService("RunService")
 local connection = nil
 
+-- Toggle the feature on/off
 local function toggleFeature()
     if enabled then
-        -- Start the update loop if not already running
+        updateValidTargets()
         if not connection then
-            connection = RunService.Heartbeat:Connect(function()
-                task.spawn(moveHeads)  -- Run asynchronously to avoid potential slowdowns
-            end)
-            print("Head movement started")
+            connection = RunService.Heartbeat:Connect(updateTargetPositions)
         end
     else
-        -- Disable the loop if needed
         if connection then
             connection:Disconnect()
             connection = nil
-            print("Head movement stopped")
         end
     end
 end
 
--- When the player's character dies, re-scan the target dummies.
-local function onCharacterDied()
-    print("Player died, rescanning targets...")
-    targets = game.Workspace.Targets.MatchTargets:GetChildren()
-    updateValidTargets()
-end
-
-humanoid.Died:Connect(onCharacterDied)
-
--- Reconnect the CharacterAdded event to update our local references if the character respawns.
+-- Handle character changes
 player.CharacterAdded:Connect(function(newChar)
     char = newChar
     hrp = char:WaitForChild("HumanoidRootPart")
-    humanoid = char:WaitForChild("Humanoid")
-    humanoid.Died:Connect(onCharacterDied)
+    targets = game.Workspace.Targets.MatchTargets:GetChildren()
+    updateValidTargets()
 end)
 
--- Button click toggles the feature on and off
+-- Button click handler
 button.MouseButton1Click:Connect(function()
-    enabled = not enabled  -- Toggle the enabled state
-
-    -- Update button appearance accordingly
+    enabled = not enabled
     button.Text = enabled and "ON" or "OFF"
     button.BackgroundColor3 = enabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
-
     toggleFeature()
 end)
