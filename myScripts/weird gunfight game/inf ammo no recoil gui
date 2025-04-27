@@ -226,4 +226,4 @@ if Players.LocalPlayer.Character then
 end
 
 -- Notify user that script loaded
-StatusLabel.Text = "Cheat loaded successfully!"
+StatusLabel.Text = "Cheat loaded successfully!";
