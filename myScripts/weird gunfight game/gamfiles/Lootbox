@@ -1,0 +1,189 @@
+--game:GetService("ReplicatedStorage").Shared.Lootboxes.Lootbox
+---- Decompiler will be improved VERY SOON!
+---- Decompiled with Konstant V2.1, a fast Luau decompiler made in Luau by plusgiant5 (https://discord.gg/wyButjTMhM)
+---- Decompiled on 2025-04-27 17:34:42
+---- Luau version 6, Types version 3
+---- Time taken: 0.004343 seconds
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR = require(script.Parent.LOOTBOX_CONTENT_TYPES)
+local PURCHASABLE_TYPES_upvr = require(ReplicatedStorage.Shared.Constants.PURCHASABLE_TYPES)
+local SharedMonetization_upvr = require(ReplicatedStorage.Shared.SharedMonetization)
+local tbl_upvr_3 = {}{}
+tbl_upvr_3.__index = tbl_upvr_3
+local Rarities_upvr = require(ReplicatedStorage.Shared.Rarities)
+local ListOfSkins_upvr = require(ReplicatedStorage.Shared.Skins.ListOfSkins)
+local function init(arg1) ---- Line 52
+	--[[--[[ Upvalues[4]:
+		[1]: tbl_upvr_3 (readonly)
+		[2]: Rarities_upvr (readonly)
+		[3]: LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR (readonly)
+		[4]: ListOfSkins_upvr (readonly)
+	]]]]
+	local setmetatable_result1 = setmetatable({}, tbl_upvr_3)
+	setmetatable_result1.rarity = arg1.rarity
+	setmetatable_result1.content = arg1.content
+	setmetatable_result1.image_id = arg1.image_id
+	setmetatable_result1.content_type = arg1.content_type
+	setmetatable_result1.title = arg1.title
+	setmetatable_result1.grouping_name = arg1.grouping_name
+	setmetatable_result1.probabilities = arg1.probabilities
+	setmetatable_result1._float_probs_array = {}{}
+	local LEGENDARY = Rarities_upvr.R.LEGENDARY
+	for i = Rarities_upvr.R.COMMON, LEGENDARY do
+		table.insert(setmetatable_result1._float_probs_array, (setmetatable_result1.probabilities[i] or 0) // 100)
+	end
+	if arg1.overriden_rarity_color then
+		LEGENDARY = arg1.overriden_rarity_color
+	else
+		LEGENDARY = Rarities_upvr.get_rarity_color(setmetatable_result1.rarity)
+	end
+	setmetatable_result1.rarity_color = LEGENDARY
+	if setmetatable_result1.content == nil then
+		i = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR
+		if setmetatable_result1.content_type == i.SKINS then
+			setmetatable_result1.content = ListOfSkins_upvr.get_rollable_content_for_group_name(setmetatable_result1.grouping_name)
+		end
+	end
+	return setmetatable_result1
+end
+tbl_upvr_3.init = init
+function tbl_upvr_3.get_available_rarities(arg1) ---- Line 80
+	if arg1._cache_available_rarities ~= nil then
+		return arg1._cache_available_rarities
+	end
+	arg1._cache_available_rarities = {}{}
+	for _,_, v in pairs(arg1.content) do
+		if arg1.probabilities[v.rarity] and 0 < arg1.probabilities[v.rarity] then
+			arg1._cache_available_rarities[v.rarity] = true
+		end
+	end
+	return arg1._cache_available_rarities
+end
+function tbl_upvr_3.get_contents_of_rarity(arg1, arg2) ---- Line 95
+	for _,_, v_2 in pairs(arg1.content) do
+		if v_2.rarity == arg2 then
+			table.insert({}, v_2)
+		end
+	end
+	---- KONSTANTERROR: Expression was reused, decompilation is incorrect
+	return {}{}
+end
+function tbl_upvr_3.get_random_rewards_from_lootbox(arg1, arg2) ---- Line 105
+	local module = {}{}
+	for __ = 1, arg2 do
+		table.insert(module, arg1:open())
+	end
+	return module
+end
+local MyRandom_upvr = require(ReplicatedStorage.Shared.Utils.MyRandom)
+function tbl_upvr_3.open(arg1) ---- Line 113
+	--[[--[[ Upvalues[1]:
+		[1]: MyRandom_upvr (readonly)
+	]]]]
+	local var30
+	while true do
+		local var31
+		if arg1:get_available_rarities()[var30] ~= nil then break end
+		if var30 == 1 then
+			var31 = -1
+		end
+		var30 -= var31
+	end
+	return MyRandom_upvr.pick_random_with_previous_excluded(arg1:get_contents_of_rarity(var30))
+end
+function tbl_upvr_3.is_charm_box(arg1) ---- Line 129
+	--[[--[[ Upvalues[1]:
+		[1]: LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR (readonly)
+	]]]]
+	local var32
+	if arg1.content_type ~= LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR then
+		var32 = false
+	else
+		var32 = true
+	end
+	return var32
+end
+function tbl_upvr_3.is_skin_box(arg1) ---- Line 133
+	--[[--[[ Upvalues[1]:
+		[1]: LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR (readonly)
+	]]]]
+	local var33
+	if arg1.content_type ~= LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR then
+		var33 = false
+	else
+		var33 = true
+	end
+	return var33
+end
+local tbl_upvr = {}{}
+tbl_upvr.__index = tbl_upvr
+setmetatable(tbl_upvr, tbl_upvr_3)
+local function init(arg1) ---- Line 160
+	--[[--[[ Upvalues[3]:
+		[1]: tbl_upvr_3 (readonly)
+		[2]: PURCHASABLE_TYPES_upvr (readonly)
+		[3]: tbl_upvr (readonly)
+	]]]]
+	local any_init_result1 = tbl_upvr_3.init(arg1)
+	any_init_result1.purchasable_type = PURCHASABLE_TYPES_upvr.STEEL_PURCHASABLE
+	setmetatable(any_init_result1, tbl_upvr)
+	any_init_result1.price = arg1.price
+	any_init_result1.refund_amounts = arg1.refund_amounts
+	return any_init_result1
+end
+tbl_upvr.init = init
+local function get_refunded_amount(arg1, arg2) ---- Line 169
+	return arg1.purchasable_type, arg1.refund_amounts[arg2]
+end
+tbl_upvr.get_refunded_amount = get_refunded_amount
+local tbl_upvr_2 = {}{}
+tbl_upvr_2.__index = tbl_upvr_2
+setmetatable(tbl_upvr_2, tbl_upvr_3)
+function tbl_upvr_2.init(arg1) ---- Line 199
+	--[[--[[ Upvalues[3]:
+		[1]: tbl_upvr_3 (readonly)
+		[2]: PURCHASABLE_TYPES_upvr (readonly)
+		[3]: tbl_upvr_2 (readonly)
+	]]]]
+	local any_init_result1_2_upvr = tbl_upvr_3.init(arg1)
+	any_init_result1_2_upvr.purchasable_type = PURCHASABLE_TYPES_upvr.ROBUX_PURCHASABLE
+	setmetatable(any_init_result1_2_upvr, tbl_upvr_2)
+	any_init_result1_2_upvr.product_id = arg1.product_id
+	any_init_result1_2_upvr.multiple_amount = arg1.multiple_amount
+	any_init_result1_2_upvr.multiple_product_id = arg1.multiple_product_id
+	any_init_result1_2_upvr._robux_price = -1
+	any_init_result1_2_upvr._multiple_robux_price = -1
+	task.spawn(function() ---- Line 211
+		--[[--[[ Upvalues[1]:
+			[1]: any_init_result1_2_upvr (readonly)
+		]]]]
+		any_init_result1_2_upvr:get_robux_price()
+		any_init_result1_2_upvr:get_multiple_robux_price()
+	end)
+	return any_init_result1_2_upvr
+end
+function tbl_upvr_2.get_robux_price(arg1) ---- Line 219
+	--[[--[[ Upvalues[1]:
+		[1]: SharedMonetization_upvr (readonly)
+	]]]]
+	arg1._robux_price = SharedMonetization_upvr.register_price_for_robux_item(Enum.InfoType.Product, arg1.product_id, arg1._robux_price)
+	return arg1._robux_price
+end
+function tbl_upvr_2.get_multiple_robux_price(arg1) ---- Line 225
+	--[[--[[ Upvalues[1]:
+		[1]: SharedMonetization_upvr (readonly)
+	]]]]
+	arg1._multiple_robux_price = SharedMonetization_upvr.register_price_for_robux_item(Enum.InfoType.Product, arg1.multiple_product_id, arg1._multiple_robux_price)
+	return arg1._multiple_robux_price
+end
+function tbl_upvr_2.get_refunded_amount(arg1, arg2) ---- Line 234
+	--[[--[[ Upvalues[1]:
+		[1]: PURCHASABLE_TYPES_upvr (readonly)
+	]]]]
+	return qqeyxy4qa6fkggnlrp5gwk3wjkk0gkqs8un44xn9ek, 150
+end
+return {{
+	PurchasableLootbox = tbl_upvr;
+	RobuxLootbox = tbl_upvr_2;
+}}
