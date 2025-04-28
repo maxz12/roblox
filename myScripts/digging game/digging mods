@@ -1,0 +1,56 @@
+-- 3. Attribute Modifier
+-- Tries to modify player attributes for instant digging and other bonuses
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Settings
+local modifiersEnabled = false
+
+-- Toggle function
+local function toggleModifiers()
+    modifiersEnabled = not modifiersEnabled
+    
+    if modifiersEnabled then
+        -- Try to apply all attribute modifications
+        LocalPlayer:SetAttribute("InstantDig", true)
+        LocalPlayer:SetAttribute("x2Strength", true)
+        
+        -- Try to modify upgrade attributes if they exist
+        if LocalPlayer:FindFirstChild("Upgrades") then
+            LocalPlayer.Upgrades:SetAttribute("GemChance", 1000)
+        end
+        
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "🔧 Modifiers ON",
+            Text = "Applied InstantDig and x2Strength",
+            Duration = 3
+        })
+    else
+        -- Reset attributes
+        LocalPlayer:SetAttribute("InstantDig", false)
+        LocalPlayer:SetAttribute("x2Strength", false)
+        
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "🔧 Modifiers OFF",
+            Text = "Removed modifications",
+            Duration = 3
+        })
+    end
+end
+
+-- Toggle with M key
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.M then
+        toggleModifiers()
+    end
+end)
+
+-- Notify that script is loaded
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "🔧 Attribute Modifier",
+    Text = "Press M to toggle",
+    Duration = 5
+})
