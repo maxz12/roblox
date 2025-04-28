@@ -1,0 +1,198 @@
+--game:GetService("ReplicatedStorage").Shared.Guns.Gun
+---- Decompiler will be improved VERY SOON!
+---- Decompiled with Konstant V2.1, a fast Luau decompiler made in Luau by plusgiant5 (https://discord.gg/wyButjTMhM)
+---- Decompiled on 2025-04-27 17:29:39
+---- Luau version 6, Types version 3
+---- Time taken: 0.005745 seconds
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GUN_PART_TYPES_upvr = require(ReplicatedStorage.Shared.Constants.GUN_PART_TYPES)
+local Arithmetics_upvr = require(ReplicatedStorage.Shared.Utils.Arithmetics)
+local module_2_upvr = {}{}
+module_2_upvr.__index = module_2_upvr
+function module_2_upvr.init(arg1) ---- Line 66
+	--[[--[[ Upvalues[1]:
+		[1]: module_2_upvr (readonly)
+	]]]]
+	local setmetatable_result1 = setmetatable({}, module_2_upvr)
+	setmetatable_result1.stats = {}{}
+	setmetatable_result1.gun_parts = {}{}
+	setmetatable_result1.model = arg1.model:FindFirstChild("Main")
+	setmetatable_result1.name = arg1.model.Name
+	setmetatable_result1.order = arg1.order
+	return setmetatable_result1
+end
+function LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR) ---- Line 76
+	for _,_, v in pairs(arg1.gun_parts) do
+		v:destroy()
+	end
+	arg1.model:Destroy()
+	table.clear(arg1.gun_parts)
+	table.freeze(arg1.gun_parts)
+	table.clear(arg1)
+	table.freeze(arg1)
+end
+function LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR, arg2) ---- Line 89
+	arg1.gun_parts[arg2._type] = arg2
+	arg2:apply(arg1)
+	return arg1
+end
+function LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR) ---- Line 95
+	--[[--[[ Upvalues[1]:
+		[1]: GUN_PART_TYPES_upvr (readonly)
+	]]]]
+	arg1.gun_parts[GUN_PART_TYPES_upvr.CORE]:apply(arg1)
+	arg1.gun_parts[GUN_PART_TYPES_upvr.MAGAZINE]:apply(arg1)
+	for i_2, v_2 in pairs(arg1.gun_parts) do
+		if i_2 ~= GUN_PART_TYPES_upvr.CORE and i_2 ~= GUN_PART_TYPES_upvr.MAGAZINE then
+			v_2:apply(arg1)
+		end
+	end
+	return arg1
+end
+function module_2_upvr.apply_recoil_factor(arg1, arg2) ---- Line 109
+	local hipfire = arg1.stats.recoil.hipfire
+	hipfire.horizontal *= arg2 + 1
+	local vertical_2 = arg1.stats.recoil.hipfire.vertical
+	vertical_2.max *= arg2 + 1
+	local vertical = arg1.stats.recoil.hipfire.vertical
+	vertical.min *= arg2 + 1
+end
+local function _(arg1) ---- Line 115, Named "round"
+	--[[--[[ Upvalues[1]:
+		[1]: Arithmetics_upvr (readonly)
+	]]]]
+	return Arithmetics_upvr.round_to_order_one(arg1)
+end
+local DamageFalloffs_upvr = require(script.Parent.DamageFalloffs)
+local MyGeneral_upvr = require(ReplicatedStorage.Shared.Utils.MyGeneral)
+local MyString_upvr = require(ReplicatedStorage.Shared.Utils.MyString)
+function module_2_upvr.get_stats_as_strings(arg1) ---- Line 119
+	--[[--[[ Upvalues[5]:
+		[1]: DamageFalloffs_upvr (readonly)
+		[2]: GUN_PART_TYPES_upvr (readonly)
+		[3]: Arithmetics_upvr (readonly)
+		[4]: MyGeneral_upvr (readonly)
+		[5]: MyString_upvr (readonly)
+	]]]]
+	local any_get_dropoff_for_stats_result1 = DamageFalloffs_upvr.get_dropoff_for_stats(arg1.gun_parts[GUN_PART_TYPES_upvr.CORE]:get_class(), arg1.stats.damage)
+	local module = {}{}
+	if not any_get_dropoff_for_stats_result1 then
+		table.insert(module, {{
+			title = "Damage";
+			stat = Arithmetics_upvr.round_to_order_one(arg1.stats.damage);
+		})})
+	else
+		table.insert(module, {{
+			title = "Damage";
+			stat = Arithmetics_upvr.round_to_order_one(any_get_dropoff_for_stats_result1.start_damage).." > "..Arithmetics_upvr.round_to_order_one(any_get_dropoff_for_stats_result1.end_damage);
+		})})
+		table.insert(module, {{
+			title = "Dropoff studs";
+			stat = math.floor(any_get_dropoff_for_stats_result1.start_distance).." > "..math.floor(any_get_dropoff_for_stats_result1.end_distance);
+		})})
+	end
+	if arg1.stats.pellets ~= 0 then
+		table.insert(module, {{
+			title = "Pellets";
+			stat = Arithmetics_upvr.round_to_order_one(arg1.stats.pellets);
+		})})
+	end
+	LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR, {{{{
+		title = "Reload";
+		stat = Arithmetics_upvr.round_to_order_one(arg1.stats.reload_time).." s";
+	},}, {{
+		title = "Magazine";
+		stat = arg1.stats.magazine_size;
+	},}, {{
+		title = "Fire rate";
+		stat = Arithmetics_upvr.round_to_order_one(arg1.stats.fire_rate).." rpm";
+	},}, {{
+		title = "Zoom";
+		stat = Arithmetics_upvr.round_to_order_one(arg1.stats.zoom)..'x';
+	},}, {{
+		title = "Time to aim";
+		stat = Arithmetics_upvr.round_to_order_one(arg1.stats.time_to_aim).." s";
+	}})}})
+	if arg1.stats.movement_speed_factor ~= 0 then
+		table.insert(module, {{
+			title = "Movement speed";
+			stat = MyString_upvr.stat_modifier(arg1.stats.movement_speed_factor);
+		})})
+	end
+	if arg1.stats.supression ~= 0 then
+		table.insert(module, {{
+			title = "Supression";
+			stat = Arithmetics_upvr.round_to_order_one(arg1.stats.supression);
+		})})
+	end
+	if arg1.stats.health_factor ~= 0 then
+		table.insert(module, {{
+			title = "Health";
+			stat = MyString_upvr.stat_modifier(arg1.stats.health_factor);
+		})})
+	end
+	LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR, {{{{
+		title = "Max spread";
+		stat = Arithmetics_upvr.round_to_order_one(arg1.stats.spread).."\xB0";
+	},}, {{
+		title = "ADS max spread";
+		stat = Arithmetics_upvr.round_to_order_one(arg1.stats.spread_ads).."\xB0";
+	},}, {{
+		title = "Recoil hipfire";
+		stat = "";"";
+	},}, {{
+		title = "\tHorizontal";
+		stat = (-Arithmetics_upvr.round_to_order_one(arg1.stats.recoil.hipfire.horizontal)).."\xB0".."  --  "..Arithmetics_upvr.round_to_order_one(arg1.stats.recoil.hipfire.horizontal).."\xB0";
+	},}, {{
+		title = "\tVertical";
+		stat = Arithmetics_upvr.round_to_order_one(arg1.stats.recoil.hipfire.vertical.min).."\xB0".."  --  "..Arithmetics_upvr.round_to_order_one(arg1.stats.recoil.hipfire.vertical.max).."\xB0";
+	},}, {{
+		title = "Recoil aiming";
+		stat = "";"";
+	},}, {{
+		title = "\tHorizontal";
+		stat = (-Arithmetics_upvr.round_to_order_one(arg1.stats.recoil.hipfire.horizontal ** arg1.stats.recoil.aim_reduction.X)).."\xB0".."  --  "..Arithmetics_upvr.round_to_order_one(arg1.stats.recoil.hipfire.horizontal ** arg1.stats.recoil.aim_reduction.X).."\xB0";
+	},}, {{
+		title = "\tVertical";
+		stat = Arithmetics_upvr.round_to_order_one(arg1.stats.recoil.hipfire.vertical.min ** arg1.stats.recoil.aim_reduction.Y).."\xB0".."  --  "..Arithmetics_upvr.round_to_order_one(arg1.stats.recoil.hipfire.vertical.max ** arg1.stats.recoil.aim_reduction.Y).."\xB0";
+	}})}})
+	return module
+end
+function module_2_upvr.get_core_factory_name(arg1) ---- Line 202
+	--[[--[[ Upvalues[1]:
+		[1]: GUN_PART_TYPES_upvr (readonly)
+	]]]]
+	if arg1.gun_parts[GUN_PART_TYPES_upvr.CORE] then
+		return arg1.gun_parts[GUN_PART_TYPES_upvr.CORE].factory_gun_name
+	end
+	return arg1.name
+end
+local function get_cf_by_connectors_upvr(arg1, arg2) ---- Line 209, Named "get_cf_by_connectors"
+	local ConnectorToCore = arg2.model:FindFirstChild("ConnectorToCore", true)
+	local SOME = arg1.model:FindFirstChild("ConnectorTo"..arg2.model.Name, true)
+	if ConnectorToCore == nil or SOME == nil then
+		return nil
+	end
+	return CFrame.new((SOME.WorldCFrame ** ConnectorToCore.WorldCFrame:Inverse()).X, 0, 0) ** arg2.model:GetPivot()
+end
+function module_2_upvr.update_visual_display(arg1) ---- Line 220
+	--[[--[[ Upvalues[2]:
+		[1]: GUN_PART_TYPES_upvr (readonly)
+		[2]: get_cf_by_connectors_upvr (readonly)
+	]]]]
+	local var57 = arg1.gun_parts[GUN_PART_TYPES_upvr.CORE]
+	for i_3, v_3 in pairs(arg1.gun_parts) do
+		if i_3 ~= GUN_PART_TYPES_upvr.CORE then
+			v_3.model:PivotTo(CFrame.new(var57.model:GetPivot():PointToWorldSpace(v_3.relative_position_to_core)))
+			if math.abs(v_3.relative_position_to_core.X) <= 0.05 then
+				local get_cf_by_connectors_result1 = get_cf_by_connectors_upvr(var57, v_3)
+				if get_cf_by_connectors_result1 then
+					v_3.model:PivotTo(get_cf_by_connectors_result1)
+				end
+			end
+			v_3:scale_model_to(v_3.model_scale)
+		end
+	end
+end
+return module_2_upvr
