@@ -1,0 +1,48 @@
+-- 2. Gem Collector (Attempts to abuse GemEvent)
+-- This tries to exploit the gem collection system
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local GemEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("GemEvent")
+
+-- Settings
+local enabled = false
+local gemAmount = 1000  -- Try different amounts to see what works
+
+-- Toggle function
+local function toggleGemHack()
+    enabled = not enabled
+    
+    -- Show notification
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = enabled and "💎 Gem Hack ON" or "💎 Gem Hack OFF",
+        Text = enabled and "Getting gems!" or "Stopped gem hack",
+        Duration = 2
+    })
+    
+    -- Run the gem collector
+    if enabled then
+        spawn(function()
+            while enabled do
+                -- Try different gem values
+                GemEvent:FireServer(gemAmount)
+                task.wait(0.5)  -- Wait a bit to avoid detection
+            end
+        end)
+    end
+end
+
+-- Toggle with G key
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.G then
+        toggleGemHack()
+    end
+end)
+
+-- Notify that script is loaded
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "💎 Gem Collector",
+    Text = "Press G to toggle",
+    Duration = 5
+})
