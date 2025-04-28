@@ -1,0 +1,419 @@
+game:GetService("ReplicatedStorage").Shared.Lootboxes.ListOfLootboxes
+---- Decompiler will be improved VERY SOON!
+---- Decompiled with Konstant V2.1, a fast Luau decompiler made in Luau by plusgiant5 (https://discord.gg/wyButjTMhM)
+---- Decompiled on 2025-04-27 17:33:46
+---- Luau version 6, Types version 3
+---- Time taken: 0.007556 seconds
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR = require(script.Parent.LOOTBOX_CONTENT_TYPES)
+local Rarities = require(ReplicatedStorage.Shared.Rarities)
+local Lootbox = require(script.Parent.Lootbox)
+local R = Rarities.R
+local tbl = {}{}
+for _,_, v in ipairs(require(ReplicatedStorage.Shared.Charms.ListOfCharms).get_all_charms()) do
+	if v.is_available_in_lootbox then
+		table.insert(tbl, v)
+	end
+end
+local module_upvr = {}{}
+local tbl_upvr = {}{}
+local function _(arg1) ---- Line 23, Named "index_lootbox"
+	--[[--[[ Upvalues[1]:
+		[1]: tbl_upvr (readonly)
+	]]]]
+	arg1.id = tostring(#tbl_upvr + 1)
+	table.insert(tbl_upvr, arg1)
+end
+local any_init_result1_8 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR({
+	price = 1500;
+	title = "Normal";
+	image_id = "rbxassetid://98828215452339";
+	rarity = Rarities.R.COMMON;
+	content = tbl;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	overriden_rarity_color = Color3.fromRGB(0, 255, 127);
+	probabilities = {{
+		[R.COMMON] = 71;
+		[R.RARE] = 28;
+		[R.LEGENDARY] = 1;
+	};};
+	refund_amounts = {{
+		[Rarities.R.COMMON] = 200;
+		[Rarities.R.RARE] = 500;
+		[Rarities.R.LEGENDARY] = 750;
+	};};
+})})
+any_init_result1_8.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_8)
+local any_init_result1_4 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR({
+	price = 4000;
+	title = "Boosted";
+	image_id = "rbxassetid://125106555316049";
+	rarity = Rarities.R.RARE;
+	content = tbl;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	probabilities = {{
+		[R.COMMON] = 16;
+		[R.RARE] = 80;
+		[R.LEGENDARY] = 4;
+	};};
+	refund_amounts = {{
+		[Rarities.R.COMMON] = 600;
+		[Rarities.R.RARE] = 1500;
+		[Rarities.R.LEGENDARY] = 2250;
+	};};
+})})
+any_init_result1_4.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_4)
+local any_init_result1_13 = Lootbox.RobuxLootbox.init({
+	product_id = 3242298502;
+	multiple_amount = 3;
+	multiple_product_id = 3243661089;
+	title = "Premium";
+	image_id = "rbxassetid://106247079564553";
+	rarity = Rarities.R.LEGENDARY;
+	content = tbl;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	probabilities = {{
+		[R.COMMON] = 0;
+		[R.RARE] = 20;
+		[R.LEGENDARY] = 80;
+	};};
+})})
+any_init_result1_13.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_13)
+local any_init_result1_5 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR({
+	price = 250;
+	title = "Normal";
+	image_id = "rbxassetid://18943633511";
+	rarity = Rarities.R.COMMON;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	overriden_rarity_color = Color3.fromRGB(0, 255, 127);
+	grouping_name = "Color";
+	probabilities = {{
+		[R.COMMON] = 71;
+		[R.RARE] = 25;
+		[R.ULTRA] = 4;
+		[R.LEGENDARY] = 0;
+	};};
+	refund_amounts = {{
+		[Rarities.R.COMMON] = 50;
+		[Rarities.R.RARE] = 100;
+		[Rarities.R.ULTRA] = 240;
+		[Rarities.R.LEGENDARY] = 250;
+	};};
+})})
+any_init_result1_5.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_5)
+local any_init_result1_15 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR({
+	price = 650;
+	title = "Boosted";
+	image_id = "rbxassetid://18943633816";
+	rarity = Rarities.R.RARE;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	grouping_name = "Color";
+	probabilities = {{
+		[R.COMMON] = 16;
+		[R.RARE] = 70;
+		[R.ULTRA] = 13.99;
+		[R.LEGENDARY] = 0.01;
+	};};
+	refund_amounts = {{
+		[Rarities.R.COMMON] = 100;
+		[Rarities.R.RARE] = 250;
+		[Rarities.R.ULTRA] = 450;
+		[Rarities.R.LEGENDARY] = 650;
+	};};
+})})
+any_init_result1_15.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_15)
+local any_init_result1_2 = Lootbox.RobuxLootbox.init({
+	product_id = 3262016909;
+	multiple_amount = 3;
+	multiple_product_id = 3262017342;
+	title = "Premium";
+	image_id = "rbxassetid://18943634120";
+	rarity = Rarities.R.LEGENDARY;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	grouping_name = "Color";
+	probabilities = {{
+		[R.COMMON] = 0;
+		[R.RARE] = 20;
+		[R.ULTRA] = 75;
+		[R.LEGENDARY] = 5;
+	};};
+})})
+any_init_result1_2.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_2)
+local any_init_result1_14 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR({
+	price = 1500;
+	title = "Normal";
+	image_id = "rbxassetid://18943633511";
+	rarity = Rarities.R.COMMON;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	overriden_rarity_color = Color3.fromRGB(0, 255, 127);
+	grouping_name = "Camo";
+	probabilities = {{
+		[R.COMMON] = 71;
+		[R.RARE] = 25;
+		[R.ULTRA] = 4;
+		[R.LEGENDARY] = 0;
+	};};
+	refund_amounts = {{
+		[Rarities.R.COMMON] = 400;
+		[Rarities.R.RARE] = 700;
+		[Rarities.R.ULTRA] = 1300;
+		[Rarities.R.LEGENDARY] = 1500;
+	};};
+})})
+any_init_result1_14.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_14)
+local any_init_result1_9 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR({
+	price = 4000;
+	title = "Boosted";
+	image_id = "rbxassetid://18943633816";
+	rarity = Rarities.R.RARE;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	grouping_name = "Camo";
+	probabilities = {{
+		[R.COMMON] = 16;
+		[R.RARE] = 70;
+		[R.ULTRA] = 13.99;
+		[R.LEGENDARY] = 0.01;
+	};};
+	refund_amounts = {{
+		[Rarities.R.COMMON] = 1000;
+		[Rarities.R.RARE] = 2000;
+		[Rarities.R.ULTRA] = 3500;
+		[Rarities.R.LEGENDARY] = 4000;
+	};};
+})})
+any_init_result1_9.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_9)
+local any_init_result1_6 = Lootbox.RobuxLootbox.init({
+	product_id = 3262017973;
+	multiple_amount = 3;
+	multiple_product_id = 3262018069;
+	title = "Premium";
+	image_id = "rbxassetid://18943634120";
+	rarity = Rarities.R.LEGENDARY;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	grouping_name = "Camo";
+	probabilities = {{
+		[R.COMMON] = 0;
+		[R.RARE] = 20;
+		[R.ULTRA] = 75;
+		[R.LEGENDARY] = 5;
+	};};
+})})
+any_init_result1_6.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_6)
+local any_init_result1_7 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR({
+	price = 1000;
+	title = "Normal";
+	image_id = "rbxassetid://18943633511";
+	rarity = Rarities.R.COMMON;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	overriden_rarity_color = Color3.fromRGB(0, 255, 127);
+	grouping_name = "Art";
+	probabilities = {{
+		[R.COMMON] = 71;
+		[R.RARE] = 25;
+		[R.ULTRA] = 4;
+		[R.LEGENDARY] = 0;
+	};};
+	refund_amounts = {{
+		[Rarities.R.COMMON] = 200;
+		[Rarities.R.RARE] = 500;
+		[Rarities.R.ULTRA] = 900;
+		[Rarities.R.LEGENDARY] = 1000;
+	};};
+})})
+any_init_result1_7.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_7)
+local any_init_result1 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR({
+	price = 2600;
+	title = "Boosted";
+	image_id = "rbxassetid://18943633816";
+	rarity = Rarities.R.RARE;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	grouping_name = "Art";
+	probabilities = {{
+		[R.COMMON] = 16;
+		[R.RARE] = 70;
+		[R.ULTRA] = 13.99;
+		[R.LEGENDARY] = 0.01;
+	};};
+	refund_amounts = {{
+		[Rarities.R.COMMON] = 600;
+		[Rarities.R.RARE] = 1500;
+		[Rarities.R.ULTRA] = 2000;
+		[Rarities.R.LEGENDARY] = 2600;
+	};};
+})})
+any_init_result1.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1)
+local any_init_result1_11 = Lootbox.RobuxLootbox.init({
+	product_id = 3262017513;
+	multiple_amount = 3;
+	multiple_product_id = 3262017623;
+	title = "Premium";
+	image_id = "rbxassetid://18943634120";
+	rarity = Rarities.R.LEGENDARY;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	grouping_name = "Art";
+	probabilities = {{
+		[R.COMMON] = 0;
+		[R.RARE] = 20;
+		[R.ULTRA] = 75;
+		[R.LEGENDARY] = 5;
+	};};
+})})
+any_init_result1_11.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_11)
+local any_init_result1_10 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR({
+	price = 1000;
+	title = "Normal";
+	image_id = "rbxassetid://18943633511";
+	rarity = Rarities.R.COMMON;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	overriden_rarity_color = Color3.fromRGB(0, 255, 127);
+	grouping_name = "Pixel";
+	probabilities = {{
+		[R.COMMON] = 71;
+		[R.RARE] = 25;
+		[R.ULTRA] = 4;
+		[R.LEGENDARY] = 0;
+	};};
+	refund_amounts = {{
+		[Rarities.R.COMMON] = 200;
+		[Rarities.R.RARE] = 500;
+		[Rarities.R.ULTRA] = 900;
+		[Rarities.R.LEGENDARY] = 1000;
+	};};
+})})
+any_init_result1_10.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_10)
+local any_init_result1_3 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR({
+	price = 2600;
+	title = "Boosted";
+	image_id = "rbxassetid://18943633816";
+	rarity = Rarities.R.RARE;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	grouping_name = "Pixel";
+	probabilities = {{
+		[R.COMMON] = 16;
+		[R.RARE] = 70;
+		[R.ULTRA] = 13.99;
+		[R.LEGENDARY] = 0.01;
+	};};
+	refund_amounts = {{
+		[Rarities.R.COMMON] = 600;
+		[Rarities.R.RARE] = 1500;
+		[Rarities.R.ULTRA] = 2000;
+		[Rarities.R.LEGENDARY] = 2600;
+	};};
+})})
+any_init_result1_3.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_3)
+local any_init_result1_12 = Lootbox.RobuxLootbox.init({
+	product_id = 3262017750;
+	multiple_amount = 3;
+	multiple_product_id = 3262017858;
+	title = "Premium";
+	image_id = "rbxassetid://18943634120";
+	rarity = Rarities.R.LEGENDARY;
+	content_type = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR;
+	grouping_name = "Pixel";
+	probabilities = {{
+		[R.COMMON] = 0;
+		[R.RARE] = 20;
+		[R.ULTRA] = 75;
+		[R.LEGENDARY] = 5;
+	};};
+})})
+any_init_result1_12.id = tostring(#tbl_upvr + 1)
+table.insert(tbl_upvr, any_init_result1_12)
+local module_upvr_2 = {}{}
+;(function() ---- Line 357, Named "map_it"
+	--[[--[[ Upvalues[2]:
+		[1]: tbl_upvr (readonly)
+		[2]: module_upvr_2 (readonly)
+	]]]]
+	for _,_, v_2 in pairs(tbl_upvr) do
+		if module_upvr_2[v_2.id] then
+			error("REPEATED LOOTBOX ID")
+			return
+		end
+		module_upvr_2[v_2.id] = v_2
+	end
+end)()
+function LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR) ---- Line 369
+	--[[--[[ Upvalues[1]:
+		[1]: module_upvr_2 (readonly)
+	]]]]
+	return module_upvr_2[arg1]
+end
+local PURCHASABLE_TYPES_upvr = require(ReplicatedStorage.Shared.Constants.PURCHASABLE_TYPES)
+function LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR() ---- Line 373
+	--[[--[[ Upvalues[2]:
+		[1]: tbl_upvr (readonly)
+		[2]: PURCHASABLE_TYPES_upvr (readonly)
+	]]]]
+	for _,_, v_3 in pairs(tbl_upvr) do
+		if v_3.purchasable_type == PURCHASABLE_TYPES_upvr.ROBUX_PURCHASABLE then
+			table.insert({}, v_3)
+		end
+	end
+	---- KONSTANTERROR: Expression was reused, decompilation is incorrect
+	return {}{}
+end
+local var81_upvw
+function LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR() ---- Line 385
+	--[[--[[ Upvalues[3]:
+		[1]: var81_upvw (read and write)
+		[2]: tbl_upvr (readonly)
+		[3]: LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR (readonly)
+	]]]]
+	if not var81_upvw then
+		var81_upvw = {}{}
+		for _,_, v_4 in pairs(tbl_upvr) do
+			if v_4.content_type == LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR then
+				table.insert(var81_upvw, v_4)
+			end
+		end
+	end
+	return var81_upvw
+end
+local var87_upvw
+function LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR() ---- Line 399
+	--[[--[[ Upvalues[3]:
+		[1]: var87_upvw (read and write)
+		[2]: tbl_upvr (readonly)
+		[3]: LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR (readonly)
+	]]]]
+	if not var87_upvw then
+		var87_upvw = {}{}
+		for _,_, v_5 in pairs(tbl_upvr) do
+			if v_5.content_type == LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR then
+				table.insert(var87_upvw, v_5)
+			end
+		end
+	end
+	return var87_upvw
+end
+function module_upvr.serialized_table_to_lootboxes_table(arg1) ---- Line 411
+	--[[--[[ Upvalues[1]:
+		[1]: module_upvr (readonly)
+	]]]]
+	for i_6, v_6 in pairs(arg1) do
+		local any_id_to_lootbox_result1 = LdgrTc6D1fhwq9FJRjMEYhanFr7xNCSaaR)
+		if any_id_to_lootbox_result1 ~= nil then
+			({})[any_id_to_lootbox_result1] = v_6
+		end
+	end
+	---- KONSTANTERROR: Expression was reused, decompilation is incorrect
+	return {}{}
+end
+return module_upvr
