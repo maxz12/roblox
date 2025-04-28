@@ -1,0 +1,61 @@
+-- Ultra Fast Dig Bot (Simple & Extremely Fast)
+-- Press P to toggle on/off
+
+local DigEvent = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DigEvent")
+local UserInputService = game:GetService("UserInputService")
+
+-- Toggle variable
+local enabled = false
+local digging = false
+
+-- Function to send dig event (no error checking for speed)
+local function dig()
+    DigEvent:FireServer()
+end
+
+-- Toggle function
+local function toggleBot()
+    enabled = not enabled
+    
+    -- Show notification
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = enabled and "💰 DIG BOT ON" or "⛔ DIG BOT OFF",
+        Text = enabled and "Digging super fast!" or "Stopped digging",
+        Duration = 2
+    })
+    
+    -- Start or stop the main loop
+    if enabled and not digging then
+        digging = true
+        spawn(runBot)
+    end
+end
+
+-- Main bot function
+function runBot()
+    while enabled do
+        -- Maximum speed burst - send a ton of requests at once
+        for i = 1, 3000 do
+            dig()
+        end
+        
+        -- Tiny wait to prevent complete freeze
+        game:GetService("RunService").Heartbeat:Wait()
+    end
+    digging = false
+end
+
+-- Toggle when P is pressed
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.P then
+        toggleBot()
+    end
+end)
+
+-- Notification that script is loaded
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "⛏️ SUPER DIG BOT",
+    Text = "Press P to toggle on/off",
+    Duration = 5
+})
