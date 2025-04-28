@@ -1,3 +1,17 @@
+-- Check if already injected with proper error handling
+local injectedCheck = pcall(function()
+    return game.Workspace:FindFirstChild("Injected") ~= nil
+end)
+
+if injectedCheck and game.Workspace:FindFirstChild("Injected") then
+    print("Already injected")
+	return
+else
+    local folder = Instance.new("Folder", game.Workspace)
+    folder.Name = "Injected"
+    print("Injection marker created")
+end
+
 -- Ensure the game is loaded
 if game:IsLoaded() then
     print("Game is already loaded, executing script.")
@@ -63,5 +77,5 @@ if url then
         sendNotification("Error", "Failed to load script from URL: " .. url)
     end
 else
-    sendNotification("Error", "No URL found for the current game.") -- h
+    sendNotification("Error", "No URL found for the current game.")
 end
