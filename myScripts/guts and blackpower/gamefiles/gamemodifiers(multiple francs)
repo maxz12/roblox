@@ -1,0 +1,85 @@
+--game:GetService("ReplicatedStorage").Modules.Data.GameModifiers
+local v1 = {}
+local v2 = {
+	["Damnation"] = {
+		["Desc"] = "If a player is killed, they will reanimate regardless of infection.",
+		["Reward"] = 1.2
+	},
+	["Silenced Terror"] = {
+		["Desc"] = "Players who are grabbed will not emit a noise.",
+		["Reward"] = 1.2
+	},
+	["Undead Calls"] = {
+		["Desc"] = "Dynamic spawning occurs twice.",
+		["Reward"] = 1.2
+	},
+	["Inferno"] = {
+		["Desc"] = "Stages of burning happens quicker. Burning debuff remains permanent.",
+		["Reward"] = 1.3
+	}
+}
+v1.Easy = v2
+local v3 = {
+	["Restless Eternity"] = {
+		["Desc"] = "Zombies spawn immediately when a wave starts.",
+		["Reward"] = 1.4
+	},
+	["Primed"] = {
+		["Desc"] = "Bombers will have a lower detonation time (2.2s).",
+		["Reward"] = 1.4
+	},
+	["Horde of Damnation"] = {
+		["Desc"] = "At random intervals, hordes of runners will spawn in.",
+		["Reward"] = 1.5
+	},
+	["Thick Skin"] = {
+		["Desc"] = "All Shamblers will spawn in at a minimum of 2.2x base health.",
+		["Reward"] = 1.5
+	},
+	["Mindless"] = {
+		["Desc"] = "Headshot multipliers are ignored.",
+		["Reward"] = 1.5
+	},
+	["Juggernaut"] = {
+		["Desc"] = "Zappers will spawn in with Sapper Armour.",
+		["Reward"] = 1.5
+	},
+	["Stragglers"] = {
+		["Desc"] = "Upon spawning, players will only receive 50% health. All Surgeons who spawn in will have no supplies.",
+		["Reward"] = 1.6
+	},
+	["Unsteady Hands"] = {
+		["Desc"] = "Reloading requires the player to stand absolutely still. The reload process will be interrupted.",
+		["Reward"] = 1.6
+	}
+}
+v1.Normal = v3
+local v4 = {
+	["Bombers"] = {
+		["Desc"] = "Bombers will spawn in during the underground section of the Catacombes.",
+		["Reward"] = 1.7,
+		["ExclusiveMaps"] = { "Catacombes de Paris" }
+	},
+	["Dulled"] = {
+		["Desc"] = "Maximum penetration of all melee weapons will be reduced to 1.",
+		["Reward"] = 1.7
+	},
+	["Improvised Incendiary"] = {
+		["Desc"] = "Anyone caught within the epicenter of an Igniter\'s explosion will get staggered. Igniters will also spawn in more often.",
+		["Reward"] = 1.7
+	},
+	["Starvation"] = {
+		["Desc"] = "Shambers will immediately begin feasting on the grabbed player.",
+		["Reward"] = 1.8
+	},
+	["Bomber Hell"] = {
+		["Desc"] = "Bombers will leave burning residue when exploded.",
+		["Reward"] = 1.8
+	},
+	["Deserted"] = {
+		["Desc"] = "No respawns during Objective.",
+		["Reward"] = 2
+	}
+}
+v1.Hard = v4
+return v1
