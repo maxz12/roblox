@@ -1,0 +1,68 @@
+--game:GetService("ReplicatedStorage").Modules.Data.FrancEarnings
+local v1 = {
+	["GeneralEarnings"] = {
+		["MatesSaved"] = 2,
+		["HealedMates"] = 2,
+		["BlessedMates"] = 2,
+		["PatchedGash"] = 3,
+		["MatesRunnerSaved"] = 3,
+		["MateMercyBless"] = 4,
+		["Kills"] = 0,
+		["Deaths"] = 0,
+		["Repairs"] = 0,
+		["Instrument"] = 0
+	},
+	["Endless"] = {
+		["OneLife"] = 20,
+		["Hardcore"] = 30
+	},
+	["Short"] = {
+		["OneLife"] = 50,
+		["Hardcore"] = 75
+	}
+}
+local v2 = {
+	["OneLife"] = 80,
+	["Respawned"] = 60,
+	["Sacrifice"] = 100,
+	["Hardcore"] = {
+		["OneLife"] = 100,
+		["Respawned"] = 70,
+		["Sacrifice"] = 100
+	}
+}
+v1.Smaller = v2
+local v3 = {
+	["OneLife"] = 100,
+	["Respawned"] = 70,
+	["Sacrifice"] = 100,
+	["Hardcore"] = {
+		["OneLife"] = 125,
+		["Respawned"] = 80,
+		["Sacrifice"] = 100
+	}
+}
+v1.Normal = v3
+local v4 = {
+	["OneLife"] = 125,
+	["Respawned"] = 80,
+	["Hardcore"] = {
+		["OneLife"] = 150,
+		["Respawned"] = 100
+	}
+}
+v1.Bigger = v4
+v1.Boss = {
+	["OneLife"] = 100,
+	["Hardcore"] = 150
+}
+local v5 = {
+	["EscapeBonus"] = 30,
+	["ContributionMultiplier"] = 3,
+	["Hardcore"] = {
+		["EscapeBonus"] = 50,
+		["ContributionMultiplier"] = 5
+	}
+}
+v1.Holdout = v5
+return v1
