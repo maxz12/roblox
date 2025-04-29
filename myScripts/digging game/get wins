@@ -1,0 +1,151 @@
+-- FireTouchInterestsLoop.lua
+-- Made for maxz12 on 2025-04-29 00:47:32
+-- This script will fire all touch interests in a loop with a keybind toggle
+
+-- Check if the exploit supports firetouchinterest
+if not firetouchinterest then
+    warn("Your exploit does not support firetouchinterest!")
+    return
+end
+
+-- Services
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- Variables
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local root = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChildWhichIsA("BasePart")
+local isRunning = false
+local loopConnection = nil
+
+-- Key to toggle the script (change this to your preferred key)
+local TOGGLE_KEY = Enum.KeyCode.T
+
+-- Function to touch a specific transmitter
+local function touch(transmitter)
+    local part = transmitter:FindFirstAncestorWhichIsA("Part")
+    if part then
+        task.spawn(function()
+            firetouchinterest(part, root, 1)  -- End
+            task.wait()
+            firetouchinterest(part, root, 0)  -- Begin
+        end)
+    end
+end
+
+-- Function to fire all touch interests
+local function fireTouchInterests()
+    local count = 0
+    
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("TouchTransmitter") then
+            touch(descendant)
+            count = count + 1
+        end
+    end
+    
+    return count
+end
+
+-- Create a simple GUI to show status
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TouchInterestToggleGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local statusFrame = Instance.new("Frame")
+statusFrame.Size = UDim2.new(0, 200, 0, 50)
+statusFrame.Position = UDim2.new(1, -220, 0, 20)
+statusFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+statusFrame.BackgroundTransparency = 0.3
+statusFrame.BorderSizePixel = 0
+statusFrame.Parent = screenGui
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(0, 8)
+statusCorner.Parent = statusFrame
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, 0, 0.5, 0)
+statusLabel.Position = UDim2.new(0, 0, 0, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.new(1, 1, 1)
+statusLabel.TextSize = 14
+statusLabel.Font = Enum.Font.GothamBold
+statusLabel.Text = "Touch Interest Loop: OFF"
+statusLabel.Parent = statusFrame
+
+local keyLabel = Instance.new("TextLabel")
+keyLabel.Size = UDim2.new(1, 0, 0.5, 0)
+keyLabel.Position = UDim2.new(0, 0, 0.5, 0)
+keyLabel.BackgroundTransparency = 1
+keyLabel.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+keyLabel.TextSize = 12
+keyLabel.Font = Enum.Font.Gotham
+keyLabel.Text = "Press T to toggle"
+keyLabel.Parent = statusFrame
+
+-- Function to start the loop
+local function startLoop()
+    if loopConnection then return end
+    
+    isRunning = true
+    statusLabel.Text = "Touch Interest Loop: ON"
+    statusFrame.BackgroundColor3 = Color3.fromRGB(39, 174, 96)
+    
+    -- Set up the loop
+    loopConnection = RunService.Heartbeat:Connect(function()
+        local count = fireTouchInterests()
+    end)
+    
+    print("Touch interest loop started!")
+end
+
+-- Function to stop the loop
+local function stopLoop()
+    if not loopConnection then return end
+    
+    isRunning = false
+    statusLabel.Text = "Touch Interest Loop: OFF"
+    statusFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    
+    loopConnection:Disconnect()
+    loopConnection = nil
+    
+    print("Touch interest loop stopped!")
+end
+
+-- Toggle function
+local function toggleLoop()
+    if isRunning then
+        stopLoop()
+    else
+        startLoop()
+    end
+end
+
+-- Set up keybind
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == TOGGLE_KEY then
+        toggleLoop()
+    end
+end)
+
+-- Handle character respawn
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    root = character:WaitForChild("HumanoidRootPart") or character:FindFirstChildWhichIsA("BasePart")
+    
+    -- If the script was running, restart it
+    if isRunning then
+        stopLoop()
+        task.wait(1)
+        startLoop()
+    end
+end)
+
+-- Initial notification
+print("Touch Interest Loop script loaded!")
+print("Press " .. TOGGLE_KEY.Name .. " to toggle the loop")
