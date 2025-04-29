@@ -1,0 +1,41 @@
+--game:GetService("ReplicatedStorage").Modules.Data.ShopInfo.Upgrades.LineInfantry
+local v1 = {}
+local v2 = {}
+local v3 = {
+	["Icon"] = 10976046306,
+	["LayoutOrder"] = 0,
+	["Title"] = "Infantry",
+	["Upgrades"] = {
+		{
+			["Name"] = "MaxHP",
+			["Icon"] = 9903596064,
+			["Cost"] = 200,
+			["Info"] = "+10% Max Health",
+			["Starting"] = 0,
+			["Addition"] = 10,
+			["TextAssociated"] = "% Max Health",
+			["Levels"] = 4
+		}
+	}
+}
+v2.Character = v3
+local v4 = {
+	["Icon"] = 7371283897,
+	["LayoutOrder"] = 1,
+	["Title"] = "Musket",
+	["Upgrades"] = {
+		{
+			["Name"] = "Damage",
+			["Icon"] = 9903596064,
+			["Cost"] = 200,
+			["Info"] = "+10% Bullet Damage",
+			["Starting"] = 0,
+			["Addition"] = 10,
+			["TextAssociated"] = "% Bullet Damage",
+			["Levels"] = 4
+		}
+	}
+}
+v2.Musket = v4
+v1.Types = v2
+return v1
