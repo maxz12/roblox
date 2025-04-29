@@ -1,0 +1,27 @@
+--game:GetService("ReplicatedStorage").Modules.Gameplay.CharacterStates.Overwelm
+  local v_u_1 = require(script.Parent.Parent:WaitForChild("BaseCharacterState"))
+local v_u_2 = {}
+v_u_2.__index = v_u_2
+setmetatable(v_u_2, v_u_1)
+function v_u_2.new(p3, p4, p5)
+	-- upvalues: (copy) v_u_1, (copy) v_u_2
+	local v6 = v_u_1.new(p3)
+	local v7 = v_u_2
+	setmetatable(v6, v7)
+	v6.Zombie = p4
+	v6.ZombieGrabbing = p5
+	v6.RestrictsBackpack = true
+	v6.RestrictsAutoRotate = true
+	v6.KillsVelocity = true
+	return v6
+end
+function v_u_2.Entered(p8)
+	p8.StateManager.Humanoid:UnequipTools()
+	p8.StateManager.SpeedController.AddModifier("Grabbed", 0)
+	p8.StateManager.Animations.ZombieGrabbed:Play()
+end
+function v_u_2.Exited(p9)
+	p9.StateManager.Animations.ZombieGrabbed:Stop()
+	p9.StateManager.SpeedController.RemoveModifier("Grabbed")
+end
+return v_u_2
