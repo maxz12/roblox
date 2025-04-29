@@ -1,0 +1,1678 @@
+--game:GetService("ReplicatedStorage").Modules.Weapons.Flintlock
+local v_u_1 = {}
+v_u_1.__index = v_u_1
+local v_u_2 = game:GetService("UserInputService")
+local v_u_3 = workspace.CurrentCamera
+game:GetService("RunService")
+local v_u_4 = require(game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RbxUtil"):WaitForChild("Maid"))
+local v_u_5 = require(game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("World"):WaitForChild("SoundSystem"))
+local v_u_6 = game.ReplicatedStorage:WaitForChild("GameStates"):WaitForChild("Gameplay"):WaitForChild("FriendlyFire")
+local v7 = game.Players.LocalPlayer:WaitForChild("Options")
+local v_u_8 = v7:WaitForChild("HoldToAim")
+local v_u_9 = v7:WaitForChild("FPArmTransparency")
+local v_u_10 = v7:WaitForChild("ADSSens")
+local v_u_11 = v7:WaitForChild("Gore")
+local v_u_12 = v7:WaitForChild("WeaponStains")
+local v_u_13 = v7:WaitForChild("UnlockDirAtUnEquip")
+local v_u_14 = game.ReplicatedStorage:WaitForChild("RecoilEvent")
+local v_u_15 = {
+	["Fire"] = "rbxassetid://14228569908",
+	["Reload"] = "rbxassetid://14228570786",
+	["BayonetAttack"] = "rbxassetid://14228880526",
+	["BayonetToggle"] = "rbxassetid://14228572871",
+	["Buttstock"] = "rbxassetid://17219734067",
+	["CancelAim"] = "rbxassetid://14229391966",
+	["ADS_On"] = "rbxassetid://13137621651",
+	["ADS_Off"] = "rbxassetid://9952047700"
+}
+v_u_1.Icons = v_u_15
+local v_u_16 = UDim2.fromScale(1.55, 1.55)
+local v_u_17 = UDim2.new(0.5, 0, 0.5, 0)
+local v_u_18 = game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RbxUtil")
+function v_u_1.new(p_u_19, p20)
+	-- upvalues: (copy) v_u_1, (copy) v_u_18, (copy) v_u_2, (copy) v_u_5, (copy) v_u_13, (copy) v_u_4, (copy) v_u_8, (copy) v_u_11, (copy) v_u_12, (copy) v_u_9
+	local v21 = v_u_1
+	local v_u_22 = setmetatable({}, v21)
+	v_u_22.player = p_u_19
+	v_u_22.tool = p20
+	v_u_22.model = v_u_22.tool:WaitForChild("ModelReference").Value
+	v_u_22.handle = v_u_22.model:WaitForChild("Handle")
+	v_u_22.muzzle = v_u_22.handle:WaitForChild("Muzzle")
+	v_u_22.remoteEvent = v_u_22.tool:WaitForChild("RemoteEvent")
+	v_u_22.remoteFunc = v_u_22.tool:WaitForChild("RemoteFunction")
+	v_u_22.unreliableEvent = v_u_22.tool:WaitForChild("UnreliableRemoteEvent")
+	v_u_22._maid = require(v_u_18:WaitForChild("Maid")).new()
+	v_u_22.handCart = nil
+	v_u_22.bloodSaturation = 0
+	v_u_22.bloodTexturesNum = 0
+	v_u_22.lastUpdateBloodStain = 0
+	v_u_22.bloodTextures = {}
+	v_u_22.gunParts = {}
+	task.delay(0.5, function()
+		-- upvalues: (copy) v_u_22
+		for _, v23 in pairs(v_u_22.model:GetDescendants()) do
+			if v23:IsA("BasePart") then
+				local v24 = v_u_22.gunParts
+				table.insert(v24, v23)
+			elseif v23.Name == "BloodTexture" then
+				local v25 = v_u_22.bloodTextures
+				table.insert(v25, v23)
+				v_u_22.bloodTexturesNum = #v_u_22.bloodTextures
+			end
+		end
+	end)
+	local v_u_26 = v_u_22.tool:WaitForChild("Configuration")
+	v_u_22.Stats = {}
+	for v27, v28 in pairs(v_u_26:GetAttributes()) do
+		v_u_22.Stats[v27] = v28
+	end
+	if not v_u_22.Stats.NoCart then
+		v_u_22.cart = v_u_22.model:WaitForChild("Cartridge")
+		for _, v29 in v_u_22.handle:GetJoints() do
+			if v29:IsA("Weld") and v29.Part1 == v_u_22.cart then
+				v_u_22.cartWeld = v29
+				v_u_22.cartC1 = v_u_22.cartWeld.C1
+				break
+			end
+		end
+	end
+	v_u_22.ADS = false
+	v_u_22.ADSProgress = 0
+	v_u_22.ADSFOV = 70
+	if v_u_22.Stats.AimOffset then
+		v_u_26:GetAttributeChangedSignal("AimOffset"):Connect(function()
+			-- upvalues: (copy) v_u_22, (copy) v_u_26
+			v_u_22.Stats.AimOffset = v_u_26:GetAttribute("AimOffset")
+		end)
+	end
+	v_u_22.mouse = v_u_22.player:GetMouse()
+	v_u_22.loaded = v_u_22.tool:GetAttribute("InitUnload") ~= true
+	v_u_22.stancing = false
+	v_u_22.stance = "Idle"
+	v_u_22.firing = false
+	v_u_22.reloading = false
+	v_u_22.aiming = false
+	v_u_22.reloadStage = 0
+	v_u_22.normalReloadSpeed = 1
+	v_u_22.reloadSpeed = v_u_22.normalReloadSpeed
+	v_u_22.lastCheckBuff = 0
+	v_u_22.equipped = false
+	v_u_22.Config = v_u_22.tool:WaitForChild("Configuration")
+	v_u_22.ShotsLoadedValue = v_u_22.tool:WaitForChild("ShotsLoaded")
+	v_u_22.HasBayonet = v_u_22.Config:GetAttribute("HasBayonet")
+	v_u_22.DetachableBayonet = v_u_22.Config:GetAttribute("DetachableBayonet")
+	v_u_22.LeftArmInactive = v_u_22.Config:GetAttribute("LeftArmInactive")
+	v_u_22.normalReloadSpeed = v_u_22.Config:GetAttribute("ReloadMultiplier") or 1
+	if v_u_22.tool:GetAttribute("LimitedCartridges") then
+		v_u_22.CartridgesValue = v_u_22.tool:WaitForChild("Cartridges")
+		v_u_22._maid:GiveTask(v_u_22.CartridgesValue.Changed:Connect(function()
+			-- upvalues: (copy) v_u_22
+			v_u_22.ammoText.Text = v_u_22.CartridgesValue.Value
+		end))
+	end
+	if v_u_22.HasBayonet then
+		v_u_22.dirs = {
+			["Up"] = Vector2.new(0, -1),
+			["Down"] = Vector2.new(0, 1)
+		}
+		v_u_22.swingType = "Up"
+		if v_u_22.model:FindFirstChild("Bayonet") then
+			v_u_22.bayonetPart = v_u_22.model:FindFirstChild("Bayonet")
+			if v_u_22.bayonetPart:IsA("Model") then
+				v_u_22.bayonetPart = v_u_22.bayonetPart:FindFirstChildOfClass("BasePart")
+			end
+		end
+		v_u_22.BayonetAttached = not v_u_22.DetachableBayonet
+	end
+	v_u_22._gamepad_delta = Vector2.zero
+	v_u_2.InputChanged:Connect(function(p30, p31)
+		-- upvalues: (copy) v_u_22
+		if not p31 then
+			if p30.KeyCode == Enum.KeyCode.Thumbstick2 and (p30.Delta.Magnitude > 0.1 or p30.Delta.Magnitude < -0.1) then
+				v_u_22._gamepad_delta = Vector2.new(p30.Delta.X, -p30.Delta.Y)
+			end
+		end
+	end)
+	task.wait()
+	repeat
+		task.wait()
+	until p_u_19.Character and p_u_19.Character:IsDescendantOf(workspace)
+	v_u_22.character = p_u_19.Character
+	v_u_22.humanoid = v_u_22.character:WaitForChild("Humanoid")
+	v_u_22.animator = v_u_22.humanoid:WaitForChild("Animator")
+	v_u_22.root = v_u_22.character:WaitForChild("HumanoidRootPart")
+	v_u_22.head = v_u_22.character:WaitForChild("Head")
+	local v32 = p_u_19.Character:WaitForChild("UserStates")
+	v_u_22.SpeedController = require(v32:WaitForChild("SpeedController"))
+	v_u_22.mouse.TargetFilter = v_u_22.character
+	v_u_22.rootJoint = v_u_22.root:WaitForChild("Root Hip")
+	v_u_22.torso = v_u_22.character:WaitForChild("Torso")
+	v_u_22.neck = v_u_22.torso:WaitForChild("Neck")
+	v_u_22.neckC0 = CFrame.new(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0)
+	v_u_22.right = v_u_22.torso:WaitForChild("Right Shoulder")
+	v_u_22.rightC0 = CFrame.new(1, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0)
+	v_u_22.left = v_u_22.torso:WaitForChild("Left Shoulder")
+	v_u_22.leftC0 = CFrame.new(-1, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
+	v_u_22.rarm = v_u_22.right.Part1
+	v_u_22.larm = v_u_22.left.Part1
+	v_u_22.arm3dClothing = {}
+	v_u_22.lastUpdateLook = 0
+	v_u_22.mouseParams = RaycastParams.new()
+	v_u_22.ignore = { v_u_22.character, workspace:FindFirstChild("IgnoreParts"), workspace:FindFirstChild("Players") }
+	for _, v33 in pairs(game.CollectionService:GetTagged("LocationTrigger")) do
+		local v34 = v_u_22.ignore
+		table.insert(v34, v33)
+	end
+	v_u_22.mouseParams.FilterDescendantsInstances = v_u_22.ignore
+	v_u_22.overlapParams = OverlapParams.new()
+	v_u_22.overlapParams.FilterDescendantsInstances = { v_u_22.character, workspace:FindFirstChild("IgnoreParts"), workspace:FindFirstChild("Players") }
+	v_u_22.handleWeld = v_u_22.tool:WaitForChild("HandleWeldRef").Value
+	v_u_22.handleWeldC0 = v_u_22.handleWeld.C0
+	v_u_22.handleWeldC0I = v_u_22.handleWeldC0:Inverse()
+	v_u_22.handleWeldC1 = v_u_22.handleWeld.C1
+	repeat
+		task.wait()
+	until v_u_22.model.Parent ~= v_u_22.tool
+	task.spawn(function()
+		-- upvalues: (copy) v_u_22, (ref) v_u_5
+		v_u_22:loadAnimations()
+		v_u_22.sounds = {}
+		for _, v35 in pairs(v_u_22.handle:GetChildren()) do
+			if v35:IsA("Sound") then
+				v_u_22.sounds[v35.Name] = v35
+			end
+		end
+		local function v37(p36)
+			-- upvalues: (ref) v_u_22, (ref) v_u_5
+			if v_u_22.sounds[p36] then
+				v_u_5:PlaySound(v_u_22.sounds[p36].Parent, v_u_22.sounds[p36]:Clone(), {
+					["SoundGroup"] = v_u_5.SFX
+				})
+			end
+		end
+		for _, v38 in pairs(v_u_22.animations) do
+			v_u_22._maid[v38.Name .. "_Sound"] = v38:GetMarkerReachedSignal("Sound"):Connect(v37)
+		end
+		if not v_u_22.Stats.NoCart then
+			v_u_22._maid.handCartEvent = v_u_22.animations.ReloadP1:GetMarkerReachedSignal("HandCart"):Connect(function()
+				-- upvalues: (ref) v_u_22
+				v_u_22.handCart = v_u_22.cart:Clone()
+				v_u_22.powderParticle = v_u_22.handCart:FindFirstChild("Powder", true)
+				v_u_22.handCart.Transparency = 0
+				local v39 = Instance.new("Weld")
+				v39.Part0 = v_u_22.right.Part1
+				v39.Part1 = v_u_22.handCart
+				v39.C0 = CFrame.new(-0.5, -0.85, -0.4) * CFrame.Angles(0, 0, 1.5707963267948966)
+				v39.Parent = v_u_22.handCart
+				v_u_22.handCart.Parent = v_u_22.model
+				local v40 = v_u_22.gunParts
+				local v41 = v_u_22.handCart
+				table.insert(v40, v41)
+			end)
+			v_u_22._maid.handCartoffEvent = v_u_22.animations.ReloadP1:GetMarkerReachedSignal("HandCartOff"):Connect(function()
+				-- upvalues: (ref) v_u_22
+				if v_u_22.handCart then
+					table.remove(v_u_22.gunParts, table.find(v_u_22.gunParts, v_u_22.handCart))
+					v_u_22.handCart:Destroy()
+				end
+				v_u_22.cart.Transparency = 0
+				if v_u_22.cartWeld then
+					v_u_22.cartWeld.C1 = v_u_22.cartC1
+				end
+			end)
+			v_u_22._maid.cartOffEvent = v_u_22.animations.ReloadP2:GetMarkerReachedSignal("CartOff"):Connect(function()
+				-- upvalues: (ref) v_u_22
+				v_u_22.cart.Transparency = 1
+			end)
+			v_u_22._maid.cartStart = v_u_22.animations.ReloadP2:GetMarkerReachedSignal("CartridgeStart"):Connect(function()
+				-- upvalues: (ref) v_u_22
+				if v_u_22.cartWeld then
+					v_u_22.cartWeld.C1 = v_u_22.cartC1 * CFrame.new(0, -0.03, 0)
+				end
+			end)
+			v_u_22._maid.PourPowder = v_u_22.animations.ReloadP1:GetMarkerReachedSignal("PourPowder"):Connect(function()
+				-- upvalues: (ref) v_u_22
+				if v_u_22.powderParticle then
+					v_u_22.powderParticle.Enabled = true
+					task.delay(0.3, function()
+						-- upvalues: (ref) v_u_22
+						v_u_22.powderParticle.Enabled = false
+					end)
+				end
+			end)
+		end
+		local v42 = v_u_22.character:FindFirstChild("3D_Clothing")
+		if v42 then
+			local v43 = v42:FindFirstChild("Left Arm")
+			local v44 = v42:FindFirstChild("Right Arm")
+			if v43 then
+				for _, v45 in v43:GetChildren() do
+					if v45:IsA("BasePart") then
+						local v46 = v_u_22.arm3dClothing
+						table.insert(v46, v45)
+					end
+				end
+			end
+			if v44 then
+				for _, v47 in v44:GetChildren() do
+					if v47:IsA("BasePart") then
+						local v48 = v_u_22.arm3dClothing
+						table.insert(v48, v47)
+					end
+				end
+			end
+		end
+	end)
+	v_u_22.tool.Equipped:Connect(function()
+		-- upvalues: (copy) v_u_22
+		v_u_22.equipped = true
+		v_u_22.mouse.TargetFilter = workspace:FindFirstChild("IgnoreParts")
+		v_u_22:equip()
+	end)
+	v_u_22.tool.Unequipped:Connect(function()
+		-- upvalues: (copy) v_u_22, (ref) v_u_13
+		v_u_22.equipped = false
+		if v_u_22.tool:HasTag("DirectionLock") and v_u_13.Value == true then
+			v_u_22.tool:RemoveTag("DirectionLock")
+		end
+		v_u_22:unequip()
+	end)
+	v_u_22.mobileUI = p_u_19:WaitForChild("PlayerGui"):FindFirstChild("MobileGui")
+	local v49 = p_u_19:WaitForChild("PlayerGui"):WaitForChild("NewUI"):WaitForChild("InGame")
+	v_u_22.cursor = v49:WaitForChild("Cursor")
+	v_u_22.arrow = v_u_22.cursor:WaitForChild("Arrow")
+	v_u_22.arrow_glow = v_u_22.cursor:WaitForChild("Arrow_Glow")
+	v_u_22.ammoFrame = v49:WaitForChild("Alive"):WaitForChild("Visuals"):WaitForChild("Ammo")
+	v_u_22.ammoText = v_u_22.ammoFrame:WaitForChild("Number")
+	v_u_22.ammoScale = v_u_22.ammoFrame:WaitForChild("UIScale")
+	v_u_22.AnimationMaid = v_u_4.new()
+	v_u_22.InventoryFrame = p_u_19.PlayerGui.NewUI:WaitForChild("Customization")
+	v_u_22.ShopFrame = p_u_19.PlayerGui.NewUI:WaitForChild("Shop")
+	v_u_22._maid:GiveTask(game.CollectionService:GetInstanceAddedSignal("Charging"):Connect(function(p50)
+		-- upvalues: (copy) v_u_22, (copy) p_u_19
+		if v_u_22.equipped then
+			if p50.Name == p_u_19.Name and (v_u_22.stance == "HoldingBayonet" or v_u_22.stance == "PreparedBayonet") then
+				v_u_22.unreliableEvent:FireServer("UpdateLook", "reset", true)
+				v_u_22:ReadyBayonet()
+			end
+		end
+	end))
+	v_u_22._maid:GiveTask(game.CollectionService:GetInstanceRemovedSignal("Charging"):Connect(function(p51)
+		-- upvalues: (copy) v_u_22, (copy) p_u_19
+		if v_u_22.equipped then
+			if p51.Name == p_u_19.Name and (v_u_22.stance == "HoldingBayonet" or v_u_22.stance == "PreparedBayonet") then
+				v_u_22.stancing = false
+				v_u_22:ReadyBayonet(true)
+			end
+		end
+	end))
+	if v_u_22.tool:HasTag("Braceable") then
+		v_u_22._maid:GiveTask(v_u_22.tool:GetAttributeChangedSignal("Bracing"):Connect(function()
+			-- upvalues: (copy) v_u_22
+			if v_u_22.tool:GetAttribute("Bracing") then
+				if not v_u_22.stancing and (not v_u_22.aiming and (v_u_22.stance == "Idle" or v_u_22.stance == "Spent")) then
+					v_u_22:key_X()
+				end
+			end
+		end))
+	end
+	v_u_22._maid:GiveTask(v_u_8.Changed:Connect(function(p52)
+		-- upvalues: (copy) v_u_22
+		if v_u_22.equipped then
+			if v_u_22.mobileUI then
+				if p52 then
+					v_u_22:toggleMobileFire(true)
+					return
+				end
+				v_u_22:toggleMobileFire(false)
+			end
+		end
+	end))
+	v_u_22._maid:GiveTask(v_u_22.unreliableEvent.OnClientEvent:Connect(function(p53, ...)
+		-- upvalues: (ref) v_u_11, (ref) v_u_12, (copy) v_u_22, (ref) v_u_9
+		if p53 == "BayonetHit" and (v_u_11.Value and v_u_12.Value) then
+			local v54 = v_u_22
+			local v55 = v_u_22.bloodSaturation + 0.1
+			v54.bloodSaturation = math.min(v55, 1)
+			local v56 = 1 - (not (v_u_11.Value and v_u_12.Value) and 0 or v_u_22.bloodSaturation)
+			for v57 = 1, v_u_22.bloodTexturesNum do
+				v_u_22.bloodTextures[v57].Transparency = v56
+				local v58 = v_u_22
+				local v59 = v58.head.LocalTransparencyModifier >= 0.98 and not v58.InventoryFrame.Visible
+				if v59 then
+					v59 = not v58.ShopFrame.Visible
+				end
+				if v59 then
+					v_u_22.bloodTextures[v57].LocalTransparencyModifier = v_u_9.Value
+				end
+			end
+		end
+	end))
+	v_u_22._maid:GiveTask(v_u_22.humanoid.Died:Connect(function()
+		-- upvalues: (copy) v_u_22
+		v_u_22._maid:Destroy()
+	end))
+	v_u_22._maid:GiveTask(v_u_22.character.Destroying:Connect(function()
+		-- upvalues: (copy) v_u_22
+		v_u_22._maid:Destroy()
+	end))
+	return v_u_22
+end
+function v_u_1.toggleMobileFire(p_u_60, p61)
+	-- upvalues: (copy) v_u_15, (copy) v_u_16, (copy) v_u_17
+	if p_u_60.mobileController then
+		local _ = v_u_15.Fire
+		if p_u_60.ShotsLoadedValue.Value <= 0 then
+			local _ = v_u_15.Reload
+			UDim2.fromScale(1.35, 1.35)
+			UDim2.new(0.5, 0, 0.5, 5)
+		end
+		if p61 then
+			p_u_60.mobileController:FireButtonToggle(true, function()
+				-- upvalues: (copy) p_u_60
+				p_u_60:deactivate()
+			end, function()
+				-- upvalues: (copy) p_u_60
+				p_u_60:activate()
+			end, v_u_15.Fire, 2, v_u_16, v_u_17)
+			return
+		end
+		p_u_60.mobileController:FireButtonToggle(true, function()
+			-- upvalues: (copy) p_u_60
+			p_u_60:activate()
+		end, nil, v_u_15.Fire, 2, v_u_16, v_u_17)
+	end
+end
+function v_u_1.loadAnimations(p62)
+	if not p62.loadedAnims then
+		p62.loadedAnims = true
+		p62.animations = {}
+		p62.reloadAnims = {}
+		local v63 = p62.tool:WaitForChild("Animations")
+		for _, v64 in pairs(v63:GetChildren()) do
+			p62.animations[v64.Name] = p62.animator:LoadAnimation(v64)
+			if v64.Name:lower():find("load") and not v64:HasTag("IgnoreReload") then
+				local v65 = p62.reloadAnims
+				local v66 = p62.animations[v64.Name]
+				table.insert(v65, v66)
+			end
+		end
+	end
+end
+function v_u_1.equip(p_u_67)
+	-- upvalues: (copy) v_u_8, (copy) v_u_15, (copy) v_u_2
+	p_u_67.remoteEvent:FireServer("Equip", p_u_67.root)
+	if p_u_67.mobileUI == nil and p_u_67.player:GetAttribute("Mobile") == true then
+		p_u_67.mobileUI = p_u_67.player.PlayerGui:FindFirstChild("MobileGui")
+	end
+	if p_u_67.mobileUI and p_u_67.mobileController == nil then
+		p_u_67.mobileController = require(p_u_67.mobileUI:WaitForChild("InitMobile2"))
+		p_u_67.ammoScale.Scale = 1.3
+	end
+	if p_u_67.model:FindFirstChild("Bayonet") then
+		p_u_67.bayonetPart = p_u_67.model:FindFirstChild("Bayonet")
+		if p_u_67.bayonetPart:IsA("Model") then
+			p_u_67.bayonetPart = p_u_67.bayonetPart:FindFirstChild("Bayonet")
+		end
+	end
+	if p_u_67.CartridgesValue then
+		p_u_67.ammoFrame.Visible = true
+		p_u_67.ammoText.Text = p_u_67.CartridgesValue.Value
+	end
+	p_u_67.stancing = true
+	p_u_67.stance = "Equipping"
+	local v68 = game.CollectionService:HasTag(p_u_67.player.Character, "Charging")
+	local v69, v70
+	if p_u_67.tool:GetAttribute("Bracing") then
+		v69 = 2
+		v70 = 2
+	else
+		v69 = v68 and 1.6 or 1
+		v70 = v68 and 1.5 or 1
+	end
+	local v71 = p_u_67.tool:GetAttribute("ToBraceEquip")
+	p_u_67.animations.Equip:Play(0, 1, v69)
+	local v72 = p_u_67.tool:FindFirstChild("ReloadStage")
+	if v72 then
+		p_u_67.reloadStage = v72.Value
+	end
+	if p_u_67.ShotsLoadedValue.Value > 0 then
+		if p_u_67.animations.HammerDownLoaded then
+			p_u_67.animations.HammerDownLoaded:Play(0, 1, 1)
+		end
+		if p_u_67.cart then
+			p_u_67.cart.Transparency = 1
+		end
+		p_u_67.loaded = true
+	elseif p_u_67.animations.Unloaded then
+		p_u_67.animations.Unloaded:Play(0, 1, 1)
+	end
+	if p_u_67.shotsLoaded then
+		p_u_67.shotsLoaded = p_u_67.ShotsLoadedValue.Value
+	end
+	if p_u_67.Stats.AimOffset and p_u_67.aimCooldownTick == nil then
+		p_u_67.aimCooldownTick = 0
+	end
+	local function v78(p73)
+		-- upvalues: (copy) p_u_67, (ref) v_u_8, (ref) v_u_15
+		if p73 then
+			if p_u_67.animations.HammerDownLoaded then
+				p_u_67.animations.HammerDownLoaded:Stop(0)
+			end
+			if p_u_67.animations.HammerLoaded then
+				p_u_67.animations.HammerLoaded:Play(0, 1, 1)
+			end
+		end
+		p_u_67.animations.Idle:Play(0, 1, 1)
+		p_u_67.stance = "Idle"
+		if p_u_67.mobileController then
+			p_u_67:toggleMobileFire(v_u_8.Value)
+			if p_u_67.HasBayonet and p_u_67.BayonetAttached then
+				p_u_67.mobileController:CreateActionButton("B_Toggle", v_u_15.BayonetToggle, function()
+					-- upvalues: (ref) p_u_67
+					p_u_67:key_X()
+				end, UDim2.fromScale(0.85, 0.85), UDim2.new(0.5, -2, 0.5, -1))
+			elseif p_u_67.Stats.CanShove then
+				p_u_67.mobileController:CreateActionButton("B_Toggle", v_u_15.Buttstock, function()
+					-- upvalues: (ref) p_u_67
+					p_u_67:key_X()
+				end, UDim2.fromScale(0.85, 0.85), UDim2.new(0.5, -2, 0.5, -1))
+			end
+			if p_u_67.Stats.AimOffset then
+				local v_u_74 = p_u_67.player:FindFirstChild("ToggleAiming")
+				if v_u_74 ~= nil then
+					p_u_67.mobileController:CreateActionButton("B_ADS", v_u_15.ADS_On, function()
+						-- upvalues: (ref) p_u_67, (ref) v_u_15, (copy) v_u_74
+						if p_u_67.aimCooldownTick > tick() then
+							return
+						else
+							p_u_67.aimCooldownTick = tick() + 0.7
+							p_u_67:AimDownSights()
+							local v75 = p_u_67.mobileController
+							local v76 = "B_ADS"
+							local v77
+							if p_u_67.ADS then
+								v77 = v_u_15.ADS_Off
+							else
+								v77 = v_u_15.ADS_On
+							end
+							v75:UpdateActionButtonIcon(v76, v77)
+							if p_u_67.ADS then
+								v_u_74:Fire(true)
+							else
+								v_u_74:Fire(false)
+								p_u_67:Unaim()
+							end
+						end
+					end)
+				end
+			end
+		end
+	end
+	if p_u_67:YieldAnim(p_u_67.animations.Equip) then
+		if p_u_67.ShotsLoadedValue.Value > 0 then
+			local v79
+			if p_u_67.animations.HammerPull and not v71 then
+				v79 = p_u_67.animations.HammerPull
+			else
+				v79 = nil
+			end
+			if v79 then
+				v79:Play(0, 1, v70)
+				if p_u_67:YieldAnim(v79) then
+					v78(true)
+				end
+			else
+				v78(true)
+			end
+		else
+			v78()
+		end
+	end
+	p_u_67.stancing = false
+	v_u_2.MouseIconEnabled = false
+	p_u_67.cursor.Visible = true
+	if p_u_67.equipped and v71 then
+		p_u_67:ReadyBayonet(true)
+	end
+end
+function v_u_1.unequip(p_u_80)
+	-- upvalues: (copy) v_u_3, (copy) v_u_2
+	p_u_80.AnimationMaid:DoCleaning()
+	for _, v81 in pairs(p_u_80.animations) do
+		v81:Stop()
+	end
+	p_u_80.ammoFrame.Visible = false
+	if p_u_80.mobileController then
+		p_u_80.mobileController:FireButtonToggle(false)
+		p_u_80.mobileController:DestroyActionButton("StandDown")
+		p_u_80.mobileController:DestroyActionButton("B_Toggle")
+		p_u_80.mobileController:DestroyActionButton("B_ADS")
+		p_u_80.mobileController:DestroyActionButton("Reload")
+	end
+	p_u_80.activated = false
+	p_u_80.aiming = false
+	p_u_80.ADS = false
+	v_u_3.FieldOfView = 70
+	p_u_80.ADSFOV = 70
+	v_u_2.MouseDeltaSensitivity = 1
+	p_u_80.stance = "Idle"
+	p_u_80.stancing = false
+	p_u_80.reloading = false
+	game.CollectionService:RemoveTag(p_u_80.player.Character, "Bayonet")
+	if p_u_80.reloadStage == 1 and p_u_80.cart then
+		p_u_80.cart.Transparency = 0
+	end
+	if p_u_80.handCart then
+		p_u_80.handCart:Destroy()
+		p_u_80.handCart = nil
+	end
+	p_u_80.SpeedController.RemoveModifier("GunAction")
+	p_u_80.humanoid.AutoRotate = true
+	p_u_80.unreliableEvent:FireServer("UpdateLook", "reset", true)
+	task.spawn(function()
+		-- upvalues: (copy) p_u_80
+		task.wait(0.1)
+		p_u_80.left.C0 = p_u_80.leftC0
+		p_u_80.right.C0 = p_u_80.rightC0
+	end)
+	p_u_80.remoteEvent:FireServer("Unequip", p_u_80.handleWeld.Transform)
+	if p_u_80.gyro then
+		p_u_80.gyro:Destroy()
+		p_u_80.gyro = nil
+	end
+	if not p_u_80.character:FindFirstChildOfClass("Tool") then
+		v_u_2.MouseIconEnabled = true
+		p_u_80.cursor.Visible = false
+		p_u_80.arrow.Visible = false
+	end
+end
+function v_u_1.StanceWait(p82, p83, p84, p85)
+	local v86 = os.clock()
+	local v87 = false
+	while p82.stancing do
+		task.wait()
+		local v88
+		if p84 and p82[p84] ~= nil then
+			v88 = p83 * (1 / p82[p84])
+			if p85 then
+				p85:AdjustSpeed(p82[p84])
+			end
+		else
+			v88 = p83
+		end
+		if v86 + v88 <= os.clock() then
+			return true
+		end
+	end
+	return v87
+end
+function v_u_1.YieldAnim(p89, p90)
+	p90.Stopped:Wait()
+	return p89.equipped
+end
+function v_u_1.Aim(p91)
+	if p91.stance == "Idle" then
+		p91.stancing = true
+		p91.aiming = true
+		p91.animations.Idle:Stop()
+		p91.animations.Aim:Play(0, 1, 1)
+		if p91:YieldAnim(p91.animations.Aim) then
+			p91.animations.Aiming:Play(0, 1, 1)
+		end
+		p91.stancing = false
+		p91.remoteEvent:FireServer("Aim", true)
+	end
+end
+function v_u_1.Unaim(p92, p93)
+	if p92.aiming then
+		if p92.mobileController then
+			p92.mobileController:DestroyActionButton("StandDown")
+		end
+		p92.stancing = true
+		p92:AimDownSights(false)
+		p92.aiming = false
+		p92.animations.Aiming:Stop()
+		if not p93 then
+			p92.animations.Unaim:Play(0, 1, 1)
+		end
+		if p93 or p92:YieldAnim(p92.animations.Unaim) then
+			p92.stance = "Idle"
+			p92.animations.Idle:Play(0, 1, 1)
+		end
+		p92.stancing = false
+		p92.remoteEvent:FireServer("Aim", false)
+	end
+	p92.unreliableEvent:FireServer("UpdateLook", "reset")
+end
+function v_u_1.ReloadPart1(p94, p95)
+	p94.unreliableEvent:FireServer("UpdateLook", "reset")
+	p94.stancing = true
+	p94.animations.Unloaded:Stop(0)
+	if p94.stance == "Idle" and not p95 then
+		p94.animations.Idle:Stop(0)
+		if p94.animations.IdleToSpent then
+			p94.animations.IdleToSpent:Play(0, 1, 1)
+			p94:YieldAnim(p94.animations.IdleToSpent)
+		end
+	end
+	p94.stance = "ReloadP1"
+	p94.stancing = false
+end
+function v_u_1.ReloadPart2(p96)
+	p96.stancing = true
+	p96.stance = "ReloadP2"
+	p96.animations.ReloadP1.Priority = Enum.AnimationPriority.Action2
+	p96.animations.ReloadP1:Play(0, 1, 1)
+	if p96:YieldAnim(p96.animations.ReloadP1) and p96.reloading then
+		p96.reloadStage = 1
+	end
+	p96.stancing = false
+end
+function v_u_1.ReloadPart3(p97, p98)
+	-- upvalues: (copy) v_u_15, (copy) v_u_16
+	p97.stancing = true
+	p97.stance = "ReloadP3"
+	p97.animations.HammerDownLoaded:Play(0, 1, 1)
+	p97.animations.ReloadP1:Stop(0)
+	p97.animations.ReloadP2.Priority = Enum.AnimationPriority.Action2
+	if p98 then
+		p97.animations.ReloadP2:Play(0.2)
+	else
+		p97.animations.ReloadP2:Play(0, 1, 1)
+	end
+	if p97:YieldAnim(p97.animations.ReloadP2) and p97.reloading then
+		p97.reloadStage = 2
+		if p97.mobileController then
+			p97.mobileController:UpdateFireImage(v_u_15.Fire, UDim2.fromScale(0.5, 0.5), v_u_16)
+		end
+	end
+	p97.stancing = false
+end
+function v_u_1.ReadyBayonet(p_u_99, p100)
+	-- upvalues: (copy) v_u_15
+	if p_u_99.HasBayonet and p_u_99.BayonetAttached then
+		if p_u_99.aiming then
+			p_u_99:Unaim()
+		end
+		local v101 = game.CollectionService:HasTag(p_u_99.player.Character, "Charging")
+		if not game.CollectionService:HasTag(p_u_99.player.Character, "Bayonet") then
+			game.CollectionService:AddTag(p_u_99.player.Character, "Bayonet")
+		end
+		if v101 and not p100 then
+			p_u_99.stancing = false
+			p_u_99.animations.Idle:Stop(0.1)
+			p_u_99.animations.Spent:Stop(0)
+			p_u_99.animations.Bayonet:Stop(0)
+			p_u_99.animations.IdleToBayonet:Stop(0)
+			p_u_99.animations.IdleToSpent:Stop(0)
+			if p_u_99.animations.Overhead_BayonetCharge then
+				p_u_99.animations.Overhead_BayonetCharge:Stop(0)
+			end
+			if p_u_99.animations.Overhead_BayonetChargeIdle then
+				p_u_99.animations.Overhead_BayonetChargeIdle:Stop(0)
+			end
+			p_u_99.animations.BayonetPrepared:Stop(0)
+			p_u_99.animations.BayonetToPrepare:Stop(0)
+			p_u_99.stance = "HoldingBayonet"
+			p_u_99.humanoid.AutoRotate = true
+			if p_u_99.mobileController then
+				p_u_99.mobileController:FireButtonToggle(false)
+				p_u_99.mobileController:ToggleSwingEvent(false)
+			end
+			if p_u_99.gyro then
+				p_u_99.gyro:Destroy()
+				p_u_99.gyro = nil
+			end
+		else
+			p_u_99.stancing = true
+			p_u_99.arrow.Visible = true
+			if p_u_99.stance == "Idle" or p100 then
+				p_u_99.animations.Idle:Stop(0)
+				local function v102()
+					-- upvalues: (copy) p_u_99, (ref) v_u_15
+					p_u_99.stance = "HoldingBayonet"
+					p_u_99.stancing = false
+					if p_u_99.mobileController then
+						p_u_99.mobileController:FireButtonToggle(true, function()
+							-- upvalues: (ref) p_u_99
+							p_u_99:deactivate()
+						end, function()
+							-- upvalues: (ref) p_u_99
+							p_u_99:activate()
+						end, v_u_15.BayonetAttack, 2, UDim2.fromScale(1.55, 1.55))
+						p_u_99.mobileController:ToggleSwingEvent(true, {
+							["up"] = true,
+							["down"] = true
+						})
+					end
+				end
+				if p100 then
+					p_u_99.animations.Bayonet:Play(0.05)
+					v102()
+					return
+				end
+				p_u_99.animations.Bayonet:Play(p_u_99.animations.IdleToBayonet.Length - 0.05)
+				p_u_99.animations.IdleToBayonet:Play(0, 1, 1)
+				if p_u_99:YieldAnim(p_u_99.animations.IdleToBayonet) then
+					v102()
+					return
+				end
+			elseif p_u_99.stance == "Spent" then
+				p_u_99.animations.Spent:Stop()
+				p_u_99.animations.IdleToBayonet:Play(0.1, 1, 1)
+				if p_u_99:YieldAnim(p_u_99.animations.IdleToBayonet) then
+					p_u_99.animations.Bayonet:Play(0, 1, 1)
+					p_u_99.stance = "HoldingBayonet"
+					p_u_99.stancing = false
+					if p_u_99.mobileController then
+						p_u_99.mobileController:FireButtonToggle(true, function()
+							-- upvalues: (copy) p_u_99
+							p_u_99:deactivate()
+						end, function()
+							-- upvalues: (copy) p_u_99
+							p_u_99:activate()
+						end, v_u_15.BayonetAttack, 2, UDim2.fromScale(1.55, 1.55))
+						p_u_99.mobileController:ToggleSwingEvent(true, {
+							["up"] = true,
+							["down"] = true
+						})
+						return
+					end
+				end
+			end
+		end
+	end
+end
+function v_u_1.UnreadyBayonet(p103, _)
+	-- upvalues: (copy) v_u_8
+	local v104 = game.CollectionService:HasTag(p103.player.Character, "Charging")
+	game.CollectionService:RemoveTag(p103.player.Character, "Bayonet")
+	p103.stancing = true
+	p103.arrow.Visible = false
+	if v104 then
+		p103.animations.Bayonet:Stop(0.1)
+		p103.animations.Idle:Play()
+		p103.stance = "Idle"
+		p103.stancing = false
+		if p103.mobileController and p103.equipped then
+			p103:toggleMobileFire(v_u_8.Value)
+			p103.mobileController:ToggleSwingEvent(false)
+		end
+		p103.unreliableEvent:FireServer("UpdateLook", "reset")
+	else
+		p103.animations.Bayonet:Stop(0)
+		p103.animations.Idle:Play(p103.animations.BayonetToIdle.Length - 0.05)
+		p103.animations.BayonetToIdle:Play(0, 1, 1)
+		if p103:YieldAnim(p103.animations.BayonetToIdle) then
+			p103.stance = "Idle"
+			p103.stancing = false
+			if p103.mobileController and p103.equipped then
+				p103:toggleMobileFire(v_u_8.Value)
+				p103.mobileController:ToggleSwingEvent(false)
+			end
+		end
+		p103.unreliableEvent:FireServer("UpdateLook", "reset")
+	end
+end
+function v_u_1.PrepareBayonet(p105)
+	if not p105.stancing and (p105.HasBayonet and p105.BayonetAttached) then
+		if not game.CollectionService:HasTag(p105.character, "Charging") then
+			p105.stancing = true
+			p105.animations.Bayonet:Stop(0)
+			local v106 = p105.animations.BayonetToPrepare
+			if p105.swingType == "Up" then
+				v106 = p105.animations.Overhead_BayonetCharge
+			end
+			v106:Play(0, 1, 1)
+			if p105:YieldAnim(v106) then
+				if p105.swingType == "Up" then
+					p105.animations.Overhead_BayonetChargeIdle:Play(0, 1, 1)
+				else
+					p105.animations.BayonetPrepared:Play(0, 1, 1)
+				end
+				p105.stance = "PreparedBayonet"
+				p105.stancing = false
+			end
+		end
+	end
+end
+function v_u_1.ThrustBayonet(p_u_107)
+	-- upvalues: (copy) v_u_6
+	if p_u_107.stancing or not (p_u_107.HasBayonet and p_u_107.BayonetAttached) then
+		return
+	elseif not game.CollectionService:HasTag(p_u_107.character, "Charging") then
+		p_u_107.stancing = true
+		p_u_107.animations.BayonetPrepared:Stop(0)
+		p_u_107.animations.Overhead_BayonetChargeIdle:Stop(0)
+		local v108 = p_u_107.animations.BayonetThrust
+		if p_u_107.swingType == "Up" then
+			v108 = p_u_107.animations.Overhead_BayonetThrust
+		end
+		v108.Priority = Enum.AnimationPriority.Action4
+		local v109 = game.CollectionService:HasTag(p_u_107.player.Character, "Charging")
+		if v109 then
+			v108:Play(0, 1, 1.7)
+		else
+			v108:Play(0, 1, 1)
+		end
+		p_u_107.remoteEvent:FireServer("ThrustBayonet")
+		local v110 = p_u_107.sounds.Thrust
+		if v110 then
+			v110:Play()
+		end
+		task.spawn(function()
+			-- upvalues: (ref) v_u_6, (copy) p_u_107
+			local v111 = RaycastParams.new()
+			local v112
+			if v_u_6.Value then
+				v112 = {
+					workspace.Zombies,
+					workspace.Buildings,
+					workspace:FindFirstChild("IgnoreParts"),
+					p_u_107.character
+				}
+			else
+				v112 = {
+					workspace.Zombies,
+					workspace:FindFirstChild("IgnoreParts"),
+					workspace.Buildings,
+					workspace:FindFirstChild("Players")
+				}
+			end
+			v111.FilterDescendantsInstances = v112
+			local v113 = tick() + 0.3
+			local v114 = {}
+			while tick() < v113 do
+				p_u_107:BayonetHitCheck(p_u_107.muzzle.WorldPosition - p_u_107.muzzle.WorldCFrame.LookVector * 3, p_u_107.muzzle.WorldCFrame.LookVector * 4.7, v111, v114)
+				task.wait()
+			end
+		end)
+		if p_u_107:YieldAnim(v108) then
+			if v109 then
+				p_u_107.animations.Bayonet:Play(0, 1, 1.7)
+			else
+				p_u_107.animations.Bayonet:Play(0, 1, 1)
+			end
+			p_u_107.stance = "HoldingBayonet"
+			p_u_107.stancing = false
+		end
+	end
+end
+game:GetService("CollectionService")
+function v_u_1.BayonetHitCheck(p115, p116, p117, p118, p119)
+	local v120 = workspace:Raycast(p116, p117, p118)
+	if v120 then
+		if v120.Instance.Parent.Name == "m_Zombie" then
+			local v121 = p118.FilterDescendantsInstances
+			local v122 = v120.Instance
+			table.insert(v121, v122)
+			p118.FilterDescendantsInstances = v121
+			local v123 = v120.Instance.Parent:FindFirstChild("Orig")
+			if v123 then
+				p115.remoteEvent:FireServer("Bayonet_HitZombie", v123.Value, v120.Position, v120.Instance.Name == "Head", v120.Instance.Name)
+				local v_u_124 = v123.Value
+				local v_u_125 = tick()
+				v_u_124:SetAttribute("WepHitID", tick())
+				v_u_124:SetAttribute("WepHitDirection", p117 * 10)
+				v_u_124:SetAttribute("WepHitPos", v120.Position)
+				task.delay(0.2, function()
+					-- upvalues: (copy) v_u_124, (copy) v_u_125
+					if v_u_124:GetAttribute("WepHitID") == v_u_125 then
+						v_u_124:SetAttribute("WepHitDirection", nil)
+						v_u_124:SetAttribute("WepHitPos", nil)
+						v_u_124:SetAttribute("WepHitID", nil)
+					end
+				end)
+			end
+			return 1
+		end
+		local v126 = v120.Instance.Parent:FindFirstChild("DoorHit") or v120.Instance:FindFirstChild("BreakGlass")
+		if v126 and not table.find(p119, v126) then
+			table.insert(p119, v126)
+			p115.remoteEvent:FireServer("Bayonet_HitCon", v120.Instance, v120.Position, v120.Normal, v120.Material)
+			return 2
+		end
+		local v127 = v120.Instance.Parent:FindFirstChild("Humanoid") or v120.Instance.Parent.Parent:FindFirstChild("Humanoid")
+		if v127 and not table.find(p119, v127) then
+			table.insert(p119, v127)
+			p115.remoteEvent:FireServer("Bayonet_HitPlayer", v127, v120.Position)
+			return 2
+		end
+	end
+	return 0
+end
+function v_u_1.AttachBayonet(p128)
+	if p128.HasBayonet and (p128.DetachableBayonet and not p128.stancing) then
+		if p128.stance == "HoldingBayonet" then
+			p128:UnreadyBayonet()
+		elseif p128.stance ~= "Idle" then
+			return
+		end
+		if p128.equipped then
+			if p128.BayonetAttached then
+				p128.BayonetAttached = false
+				p128.bayonetPart.Transparency = 1
+				if p128.HiddenBayonet then
+					p128.HiddenBayonet:RemoveTag("HiddenTool")
+				end
+			else
+				local v129 = p128.player.Backpack:FindFirstChild(p128.DetachableBayonet)
+				if v129 then
+					p128.BayonetAttached = true
+					p128.bayonetPart.Transparency = 0
+					v129:AddTag("HiddenTool")
+					p128.HiddenBayonet = v129
+					return
+				end
+			end
+		end
+	else
+		return
+	end
+end
+function v_u_1.GetMousePos(p130, p131, _)
+	-- upvalues: (copy) v_u_3
+	local v132 = p130.mouse.UnitRay.Origin
+	local v133 = p130.mouse.UnitRay.Direction * 5000
+	local v134 = p130.character:GetAttribute("UsingGamepad")
+	if p131 or (v134 or p130.player:GetAttribute("Mobile")) then
+		v132 = v_u_3.CFrame.Position
+		if v134 then
+			v132 = v132 - Vector3.new(0, 0.05, 0)
+		end
+		v133 = v_u_3.CFrame.LookVector * 999
+	end
+	for _ = 1, 4 do
+		local v135 = workspace:Raycast(v132, v133, p130.mouseParams)
+		if v135 and v135.Instance.Transparency == 1 then
+			local v136 = p130.mouseParams.FilterDescendantsInstances
+			local v137 = v135.Instance
+			table.insert(v136, v137)
+			p130.mouseParams.FilterDescendantsInstances = v136
+		elseif v135 and (v135.Position - v_u_3.CFrame.Position).Magnitude > 5 then
+			return v135.Position
+		end
+	end
+	return v_u_3.CFrame.Position + v133
+end
+local v_u_138 = Random.new()
+function v_u_1.Recoil(p139)
+	-- upvalues: (copy) v_u_138, (copy) v_u_14
+	local v140 = v_u_138:NextNumber(not p139.Stats.Recoil and 0 or p139.Stats.Recoil.Min, not p139.Stats.Recoil and 0.3 or p139.Stats.Recoil.Max)
+	local v_u_141 = CFrame.Angles(-v140, v_u_138:NextNumber(-0.2, 0.2) * v140, 0)
+	task.delay(0.1, function()
+		-- upvalues: (ref) v_u_14, (copy) v_u_141
+		v_u_14:Fire(v_u_141)
+	end)
+end
+workspace:WaitForChild("Zombies")
+function v_u_1.Fire(p142)
+	-- upvalues: (copy) v_u_1
+	if not p142.loaded or (p142.ShotsLoadedValue.Value <= 0 or p142.stancing) then
+		return
+	end
+	p142.loaded = false
+	p142.firing = true
+	local v143 = workspace:GetServerTimeNow()
+	local v144 = p142.head.LocalTransparencyModifier >= 0.98 and not p142.InventoryFrame.Visible
+	if v144 then
+		v144 = not p142.ShopFrame.Visible
+	end
+	local v145 = p142:GetMousePos(v144)
+	p142.remoteEvent:FireServer("Fire", p142.model, v145, v143)
+	p142.animations.Idle:Stop(0, 1, 1)
+	p142.animations.Aiming:Stop(0)
+	p142.animations.Fire:Play(0, 1, 1)
+	p142.animations.HammerLoaded:Stop(0, 1, 1)
+	p142.animations.HammerDownLoaded:Stop(0, 1, 1)
+	p142:Recoil()
+	if p142.Stats.Knockback ~= nil then
+		local v146 = p142.muzzle.WorldCFrame.LookVector.X
+		local v147 = p142.muzzle.WorldCFrame.LookVector.Z
+		local v148 = Vector3.new(v146, 0, v147).Unit
+		local v149 = v148 ~= v148 and Vector3.new(0, 0, 0) or v148
+		p142.root:ApplyImpulse(v149 * -p142.Stats.Knockback)
+	end
+	local v150 = RaycastParams.new()
+	v150.FilterDescendantsInstances = { workspace.Zombies, p142.character }
+	local v151 = Random.new(v143)
+	local v152 = p142.muzzle.WorldPosition - p142.muzzle.WorldCFrame.LookVector * (p142.BarrelLength or 5)
+	local v153 = CFrame.new(v152, v145)
+	local v154 = CFrame.Angles
+	local v155 = p142.Stats.Spread
+	local v156 = math.rad(v155) * v151:NextNumber(-1, 1)
+	local v157 = p142.Stats.Spread
+	local v158 = (v153 * v154(v156, math.rad(v157) * v151:NextNumber(-1, 1), 0)).LookVector * 700
+	for v159 = 1, 3 do
+		local v160 = workspace:Raycast(v152, v158, v150)
+		if game.ReplicatedStorage:GetAttribute("SetDebugClient") then
+			local v161 = Instance.new("LineHandleAdornment")
+			v161.Parent = workspace.Terrain
+			v161.Adornee = workspace.Terrain
+			v161.Thickness = 10
+			v161.Transparency = 0.6
+			if v160 then
+				v161.Length = v160.Distance
+			else
+				v161.Length = 700
+			end
+			local v162 = Color3.fromRGB(0, 170, 255)
+			local v163 = Color3.fromRGB(0, 0, 127)
+			local v164 = 1 * (v159 * 0.3)
+			v161.Color3 = v162:Lerp(v163, (math.clamp(v164, 0, 1)))
+			v161.CFrame = CFrame.new(v152, v152 + v158)
+			game.Debris:AddItem(v161, 3)
+		end
+		if v160 then
+			if v160.Instance.Parent.Name ~= "m_Zombie" then
+				break
+			end
+			local v165 = v150.FilterDescendantsInstances
+			local v166 = v160.Instance.Parent
+			table.insert(v165, v166)
+			v150.FilterDescendantsInstances = v165
+			local v167 = v160.Instance.Parent:FindFirstChild("Orig")
+			if v167 and v167.Value then
+				if shared.Gib ~= nil then
+					shared.Gib(v167.Value, v160.Instance.Name, v160.Position, v160.Normal, false, true)
+				end
+				local v_u_168 = v167.Value
+				if not v_u_168:GetAttribute("WepHitDirection") then
+					local v_u_169 = tick()
+					v_u_168:SetAttribute("WepHitID", tick())
+					v_u_168:SetAttribute("WepHitDirection", v158.Unit * 30)
+					v_u_168:SetAttribute("WepHitPos", v160.Position)
+					task.delay(0.2, function()
+						-- upvalues: (copy) v_u_168, (copy) v_u_169
+						if v_u_168:GetAttribute("WepHitID") == v_u_169 then
+							v_u_168:SetAttribute("WepHitDirection", nil)
+							v_u_168:SetAttribute("WepHitPos", nil)
+							v_u_168:SetAttribute("WepHitID", nil)
+						end
+					end)
+				end
+			end
+		end
+	end
+	if p142.ADS then
+		task.delay(0.2, v_u_1.AimDownSights, p142, false)
+	end
+	task.wait(p142.animations.Fire.Length)
+	if p142.aiming then
+		p142.aiming = false
+		p142.animations.Aiming:Stop()
+	end
+	if p142.equipped then
+		p142.animations.Unloaded:Play(0, 1, 1)
+		p142.animations.Spent:Play(0, 1, 1)
+	end
+	p142.unreliableEvent:FireServer("UpdateLook", "reset")
+	p142.stance = "Spent"
+	p142.firing = false
+end
+function v_u_1.Reload(p170)
+	if p170.loaded and p170.ShotsLoadedValue.Value > 0 or (p170.ShotsLoadedValue:GetAttribute("Reloading") or (p170.reloading or (p170.stancing or p170.firing))) then
+		return
+	elseif not p170.CartridgesValue or p170.CartridgesValue.Value > 0 then
+		p170.reloading = true
+		p170.remoteEvent:FireServer("Reload")
+		local v171 = p170.reloadStage
+		p170.animations.Spent:Stop(0)
+		if p170.aiming then
+			p170:Unaim()
+		end
+		local v172 = tick()
+		p170:ReloadPart1(v171 ~= 0)
+		if p170.reloadStage == 0 and p170.reloading then
+			p170:ReloadPart2()
+		end
+		if p170.reloadStage == 1 and p170.reloading then
+			p170:ReloadPart3(v171 == 1)
+		end
+		if p170.reloadStage == 2 and p170.reloading then
+			p170.loaded = true
+			p170.reloadStage = 0
+			p170.reloading = false
+			p170.stance = "Idle"
+			p170.stancing = true
+			p170.animations.HammerPull:Play(0, 1, 1)
+			if p170:YieldAnim(p170.animations.HammerPull) then
+				p170.animations.HammerLoaded:Play(0, 1, 1)
+				p170.animations.Idle:Play(0, 1, 1)
+			end
+			p170.stancing = false
+		end
+		print("Reload took: ", tick() - v172)
+		p170.reloading = false
+	end
+end
+function v_u_1.activate(p_u_173)
+	-- upvalues: (copy) v_u_15, (copy) v_u_8
+	if p_u_173.equipped then
+		p_u_173.activated = true
+		local v174 = p_u_173.tool:GetAttribute("Bracing")
+		if v174 then
+			v174 = not p_u_173.aiming
+		end
+		if p_u_173.stancing then
+			return
+		elseif p_u_173.stance == "HoldingBayonet" and (not p_u_173.stancing and (p_u_173.HasBayonet and (p_u_173.BayonetAttached and not v174))) then
+			p_u_173:PrepareBayonet()
+			return
+		elseif p_u_173.loaded and p_u_173.ShotsLoadedValue.Value ~= 0 or (p_u_173.reloading or p_u_173.stance ~= "Idle" and p_u_173.stance ~= "Spent" or p_u_173.stancing) then
+			if not (p_u_173.reloading or v174) then
+				if p_u_173.stance == "Idle" and not p_u_173.aiming then
+					p_u_173:Aim()
+					if p_u_173.mobileController then
+						p_u_173.mobileController:CreateActionButton("StandDown", v_u_15.CancelAim, function()
+							-- upvalues: (copy) p_u_173
+							p_u_173:Unaim()
+						end, UDim2.fromScale(0.7, 0.7))
+						return
+					end
+				elseif not v_u_8.Value and p_u_173.stance == "Idle" then
+					if p_u_173.mobileController then
+						p_u_173.mobileController:DestroyActionButton("StandDown")
+						p_u_173.mobileController:UpdateFireImage(v_u_15.Reload, UDim2.new(0.5, 0, 0.5, 5), UDim2.fromScale(1.35, 1.35))
+					end
+					p_u_173:Fire()
+				end
+			end
+		else
+			p_u_173:Reload()
+		end
+	else
+		return
+	end
+end
+function v_u_1.deactivate(p175)
+	-- upvalues: (copy) v_u_8
+	if p175.equipped then
+		p175.activated = false
+		if p175.stance == "PreparedBayonet" and (not p175.stancing and (p175.HasBayonet and p175.BayonetAttached)) then
+			if not game.CollectionService:HasTag(p175.player.Character, "Charging") then
+				p175:ThrustBayonet()
+				return
+			end
+		elseif v_u_8.Value and (not p175.noHoldToAim and (p175.aiming and (p175.stance == "Idle" and not (p175.stancing or p175.firing)))) then
+			p175:Fire()
+		end
+	end
+end
+local v_u_176 = CFrame.new(0, -1.5, -0.2)
+function v_u_1.update(p177, p178)
+	-- upvalues: (copy) v_u_9, (copy) v_u_3, (copy) v_u_11, (copy) v_u_12, (copy) v_u_2, (copy) v_u_8, (copy) v_u_176
+	if not p177.equipped then
+		return
+	end
+	local v179 = tick()
+	local v180 = p177.head.LocalTransparencyModifier >= 0.98 and not p177.InventoryFrame.Visible
+	if v180 then
+		v180 = not p177.ShopFrame.Visible
+	end
+	local v181 = p177.tool:GetAttribute("Bracing")
+	if v181 then
+		v181 = not p177.aiming
+	end
+	if v180 then
+		for v182 = 1, #p177.gunParts do
+			p177.gunParts[v182].LocalTransparencyModifier = 0
+			p177.gunParts[v182].CanCollide = false
+		end
+		p177.rarm.LocalTransparencyModifier = v_u_9.Value
+		p177.larm.LocalTransparencyModifier = v_u_9.Value
+		for v183 = 1, #p177.arm3dClothing do
+			p177.arm3dClothing[v183].LocalTransparencyModifier = v_u_9.Value
+		end
+		local v184 = p177.character:FindFirstChild("LeftGlove") and p177.character:FindFirstChild("LeftGlove"):FindFirstChild("Handle")
+		if v184 then
+			v184.LocalTransparencyModifier = v_u_9.Value
+		end
+		local v185 = p177.character:FindFirstChild("RightGlove") and p177.character:FindFirstChild("RightGlove"):FindFirstChild("Handle")
+		if v185 then
+			v185.LocalTransparencyModifier = v_u_9.Value
+		end
+		p177.cursor.Visible = not p177.ADS
+	else
+		p177.ADSProgress = 0
+		if p177.ADSFOV < 70 then
+			p177.ADSFOV = 70
+			v_u_3.FieldOfView = 70
+		end
+		p177.cursor.Visible = true
+	end
+	if p177.HasBayonet and p177.bloodTexturesNum > 0 then
+		if p177.lastUpdateBloodStain <= 0 then
+			local v186 = 1 - (not (v_u_11.Value and v_u_12.Value) and 0 or p177.bloodSaturation)
+			for v187 = 1, p177.bloodTexturesNum do
+				p177.bloodTextures[v187].Transparency = v186
+				if v180 then
+					p177.bloodTextures[v187].LocalTransparencyModifier = v_u_9.Value
+				end
+			end
+			local v188 = p177.bloodSaturation - p178 * 5
+			p177.bloodSaturation = math.max(v188, 0)
+			p177.lastUpdateBloodStain = 5
+		else
+			p177.lastUpdateBloodStain = p177.lastUpdateBloodStain - p178
+		end
+	end
+	if p177.lastCheckBuff < tick() then
+		p177.lastCheckBuff = tick() + 0.2
+		local v189 = p177.character:FindFirstChild("ColdDebuff")
+		local v190 = p177.tool:FindFirstChild("ReloadBuff")
+		p177.reloadSpeed = p177.normalReloadSpeed
+		if v190 then
+			p177.reloadSpeed = p177.reloadSpeed + 0.2 * v190.Value
+		end
+		if v189 then
+			p177.reloadSpeed = p177.reloadSpeed - 0.2 * v189.Value
+		end
+		if p177.reloading then
+			for v191 = 1, #p177.reloadAnims do
+				if p177.reloadAnims[v191].IsPlaying then
+					p177.reloadAnims[v191]:AdjustSpeed(p177.reloadSpeed)
+				end
+			end
+		end
+	end
+	local v192 = p177.character:GetAttribute("UsingGamepad")
+	local v193 = p177.player:GetAttribute("Mobile")
+	local v194 = game:GetService("GuiService"):GetGuiInset()
+	if v192 or v193 then
+		p177.cursor.Position = UDim2.new(0.5, 0, 0.5, 0)
+	else
+		p177.cursor.Position = UDim2.new(0, p177.mouse.X, 0, p177.mouse.Y + v194.Y)
+	end
+	local v195 = Vector2.new(p177.mouse.X, p177.mouse.Y)
+	if p177.stancing or (p177.stance ~= "HoldingBayonet" or p177.activated) then
+		if v_u_8.Value and (not p177.noHoldToAim and (not p177.activated and (not p177.stancing and (p177.stance == "Idle" and (p177.aiming and not (p177.firing or (p177.manualClickFire or p177.mobileController and p177.ADS))))))) then
+			p177:Fire()
+		end
+	elseif p177.player:GetAttribute("Mobile") == true then
+		if p177.mobileUI then
+			p177.arrow.Visible = false
+			p177.swingType = p177.mobileUI:GetAttribute("Direction")
+			p177.arrow_glow.Position = UDim2.fromScale(0.5, 0.5)
+		end
+	else
+		local v196 = v_u_2:GetMouseDelta()
+		if v192 then
+			v196 = p177._gamepad_delta
+		end
+		local v197
+		if v196.Magnitude == 0 then
+			v197 = (v195 - p177.lastMousePos).Unit
+		else
+			v197 = v196.Unit
+		end
+		if v197.Magnitude > 0.2 and not p177.tool:HasTag("DirectionLock") then
+			local v198 = p177.dirs.Up
+			local v199 = (1 / 0)
+			local v200 = "Up"
+			for v201, v202 in pairs(p177.dirs) do
+				local v203 = (v202 - v197).Magnitude
+				if v203 < v199 then
+					v200 = v201
+					v198 = v202
+					v199 = v203
+				end
+			end
+			p177.arrow.Visible = true
+			local v204 = p177.arrow
+			local v205 = -v198.Y
+			local v206 = -v198.X
+			local v207 = math.atan2(v205, v206)
+			v204.Rotation = math.deg(v207) + 90
+			p177.arrow.Position = UDim2.new(0.5, v198.X * 20, 0.5, v198.Y * 20)
+			p177.arrow_glow.Position = p177.arrow.Position
+			p177.swingType = v200
+		end
+	end
+	local v208 = game.CollectionService:HasTag(p177.character, "Charging")
+	if (v208 or v181) and p177.stance == "HoldingBayonet" then
+		if not p177.LastBayonetCheck or p177.LastBayonetCheck < v179 then
+			local v209 = workspace:GetPartBoundsInBox(p177.muzzle.WorldCFrame * CFrame.new(0, 0, 3), Vector3.new(1.5, 1.5, 5), p177.overlapParams)
+			local v210 = {}
+			local v211 = 0
+			for v212 = 1, #v209 do
+				if v211 > 3 then
+					break
+				end
+				local v213 = v209[v212].Parent:FindFirstChild("Hit")
+				if v213 and not v210[v213] then
+					p177.remoteEvent:FireServer("ChargeBayonet", v213, v209[v212].Position, (p177.muzzle.WorldPosition - v209[v212].Position).Unit)
+					v210[v213] = true
+					v211 = v211 + 1
+				end
+			end
+			p177.LastBayonetCheck = v179 + 0.05
+		end
+		if not p177.character:HasTag("Bayonet") then
+			p177.character:AddTag("Bayonet")
+		end
+	elseif not p177.stancing and (p177.stance == "PreparedBayonet" and not p177.activated) then
+		p177:ThrustBayonet()
+	end
+	if p177.aiming or (p177.stance == "HoldingBayonet" or p177.stance == "PreparedBayonet") then
+		if p177.stance == "HoldingBayonet" or p177.stance == "PreparedBayonet" then
+			p177.SpeedController.RemoveModifier("GunAction")
+		else
+			p177.SpeedController.SetModifier("GunAction", p177.Stats.ReloadWalkSpeed or 10)
+		end
+		local v214 = p177:GetMousePos(v180)
+		if not v208 or p177.stance ~= "HoldingBayonet" and p177.stance ~= "PreparedBayonet" then
+			p177.humanoid.AutoRotate = v_u_2.MouseBehavior == Enum.MouseBehavior.LockCenter
+			if p177.humanoid.AutoRotate or v181 then
+				if p177.gyro then
+					p177.gyro:Destroy()
+					p177.gyro = nil
+				end
+			elseif p177.gyro then
+				p177.gyro.CFrame = CFrame.new(p177.root.Position, v214)
+			else
+				p177.gyro = Instance.new("BodyGyro")
+				p177.gyro.MaxTorque = Vector3.new(0, 4000000000000000, 0)
+				p177.gyro.P = 10000
+				p177.gyro.CFrame = CFrame.new(p177.root.Position, v214)
+				p177.gyro.Parent = p177.root
+			end
+			local v215 = (v214 - p177.mouse.Origin.p).Unit.Y
+			local v216 = -math.asin(v215)
+			if v180 then
+				local v217 = v_u_3.CFrame.LookVector.Y
+				v216 = -math.asin(v217)
+			elseif v181 then
+				if not p177.braceThetaProgress then
+					p177.braceThetaProgress = 0
+				end
+				local v218 = p177.braceThetaProgress + p178 * 1.4
+				p177.braceThetaProgress = math.min(v218, 1)
+				local v219 = p177.braceThetaProgress
+				v216 = math.lerp(v216, -0.12217304763960307, v219)
+			elseif p177.braceThetaProgress and p177.braceThetaProgress > 0 then
+				local v220 = p177.braceThetaProgress
+				v216 = math.lerp(v216, -0.12217304763960307, v220)
+			end
+			p177.neck.C0 = p177.neckC0 * CFrame.Angles(v216, 0, 0)
+			if p177.lastUpdateLook < v179 then
+				p177.lastUpdateLook = v179 + 0.2
+				p177.unreliableEvent:FireServer("UpdateLook", v216)
+			end
+			local v221 = -v216
+			local v222 = math.clamp(v221, -1.5, 1.5)
+			if v180 then
+				local v223 = v214.X
+				local v224 = p177.root.Position.Y
+				local v225 = v214.Z
+				local v226 = Vector3.new(v223, v224, v225)
+				p177.root.CFrame = CFrame.new(p177.root.Position, v226)
+				local v227, _, v228 = p177.rootJoint.Transform:ToEulerAnglesYXZ()
+				local v229 = p177.torso.CFrame:ToObjectSpace(v_u_3.CFrame * v_u_176 * CFrame.Angles(0, v228, v227))
+				if p177.Stats.AimOffset then
+					if p177.ADS then
+						local v230 = p177.ADSProgress + p178 * 8
+						p177.ADSProgress = math.min(v230, 1)
+						if p177.Stats.ADS_FOV then
+							p177.ADSFOV = 70 + (p177.Stats.ADS_FOV - 70) * p177.ADSProgress
+							v_u_3.FieldOfView = p177.ADSFOV
+						end
+					else
+						local v231 = p177.ADSProgress - p178 * 8
+						p177.ADSProgress = math.max(v231, 0)
+						if p177.Stats.ADS_FOV then
+							p177.ADSFOV = 70 + (p177.Stats.ADS_FOV - 70) * p177.ADSProgress
+							v_u_3.FieldOfView = p177.ADSFOV
+						end
+					end
+					local v232 = v_u_3.CFrame * p177.Stats.AimOffset
+					v229 = v229:Lerp(p177.torso.CFrame:ToObjectSpace(v232 * CFrame.Angles(0, v228, v227)) * p177.handleWeldC0I, p177.ADSProgress)
+				end
+				p177.right.C0 = v229 * p177.rightC0
+				if p177.leftArmOff then
+					p177.left.C0 = p177.leftC0
+				else
+					p177.left.C0 = v229 * p177.leftC0
+				end
+				p177.handleWeld.C0 = v229 * p177.handleWeldC0
+			elseif p177.CustomUpdateLook then
+				p177:CustomUpdateLook(v222)
+			else
+				local v233 = p177.root.CFrame * CFrame.new(0, -v222 * (p177.Stats.ShoulderModifier or 0), 0) * CFrame.new(0, 0, -v222 * 0.7) * CFrame.Angles(v222, 0, 0)
+				local v234, _, v235 = p177.rootJoint.Transform:ToEulerAnglesYXZ()
+				local v236 = p177.torso.CFrame:ToObjectSpace(v233 * CFrame.Angles(0, v235, v234))
+				p177.right.C0 = v236 * p177.rightC0
+				if p177.leftArmOff then
+					p177.left.C0 = p177.leftC0
+				else
+					p177.left.C0 = v236 * p177.leftC0
+				end
+				p177.handleWeld.C0 = v236 * p177.handleWeldC0
+			end
+		end
+	elseif p177.stancing and p177.stance ~= "Equipping" then
+		p177.SpeedController.SetModifier("GunAction", p177.Stats.ReloadWalkSpeed or 10)
+		p177.humanoid.AutoRotate = true
+		if p177.gyro then
+			p177.gyro:Destroy()
+			p177.gyro = nil
+		end
+		if p177.lastUpdateLook < v179 then
+			p177.lastUpdateLook = v179 + 0.2
+			p177.unreliableEvent:FireServer("UpdateLook", "reset")
+		end
+		if p177.Stats.AimOffset then
+			local v237 = p177.ADSProgress - p178 * 8
+			p177.ADSProgress = math.max(v237, 0)
+		end
+		if p177.Stats.ADS_FOV then
+			local v238 = p177.ADSFOV + p178 * 100
+			p177.ADSFOV = math.min(v238, 70)
+			v_u_3.FieldOfView = p177.ADSFOV
+		end
+	elseif not p177.stancing then
+		p177.SpeedController.RemoveModifier("GunAction")
+		p177.humanoid.AutoRotate = true
+		if p177.gyro then
+			p177.gyro:Destroy()
+			p177.gyro = nil
+		end
+		if p177.lastUpdateLook < v179 then
+			p177.lastUpdateLook = v179 + 0.2
+			p177.unreliableEvent:FireServer("UpdateLook", "reset")
+		end
+		if p177.Stats.AimOffset then
+			local v239 = p177.ADSProgress - p178 * 8
+			p177.ADSProgress = math.max(v239, 0)
+		end
+		if p177.Stats.ADS_FOV then
+			local v240 = p177.ADSFOV + p178 * 100
+			p177.ADSFOV = math.min(v240, 70)
+			v_u_3.FieldOfView = p177.ADSFOV
+		end
+	end
+	if not v181 and (p177.braceThetaProgress and p177.braceThetaProgress > 0) then
+		local v241 = p177.braceThetaProgress - p178 * 1.4
+		p177.braceThetaProgress = math.max(v241, 0)
+		if p177.braceThetaProgress <= 0 then
+			p177.braceThetaProgress = 0
+		end
+	end
+	p177.lastMousePos = v195
+end
+function v_u_1.AimDownSights(p242, p243)
+	-- upvalues: (copy) v_u_8, (copy) v_u_2, (copy) v_u_10
+	if p242.Stats.AimOffset then
+		if p242.stance ~= "HoldingBayonet" and p242.stance ~= "PreparedBayonet" then
+			if p243 == nil then
+				if not p242.loaded or (p242.reloading or (p242.firing or p242.stancing)) then
+					return
+				end
+				if not p242.ADS and (not p242.aiming and v_u_8.Value) then
+					return
+				end
+				p242.ADS = not p242.ADS
+				if p242.ADS and not p242.aiming then
+					p242:Aim()
+				end
+			else
+				p242.ADS = p243
+			end
+			p242.cursor.Visible = not p242.ADS
+			v_u_2.MouseDeltaSensitivity = not p242.ADS and 1 or v_u_10.Value
+		end
+	else
+		return
+	end
+end
+function v_u_1.key_R(p244)
+	if (not p244.loaded or p244.ShotsLoadedValue.Value == 0) and not p244.stancing then
+		if p244.stance == "Idle" or p244.stance == "Spent" then
+			p244:Reload()
+			return
+		end
+		if p244.stance == "HoldingBayonet" then
+			p244:UnreadyBayonet()
+			if p244.equipped then
+				p244:Reload()
+			end
+		end
+	end
+end
+function v_u_1.key_X(p_u_245)
+	if p_u_245.HasBayonet and p_u_245.BayonetAttached then
+		if p_u_245.stancing then
+			if p_u_245.reloading then
+				p_u_245.reloading = false
+				if p_u_245.animations.ReloadP1 then
+					p_u_245.animations.ReloadP1:Stop()
+				end
+				if p_u_245.animations.ReloadP2 then
+					p_u_245.animations.ReloadP2:Stop()
+				end
+				if p_u_245.animations.ReloadP3 then
+					p_u_245.animations.ReloadP3:Stop()
+				end
+				p_u_245.stance = "Idle"
+				p_u_245.stancing = false
+				if p_u_245.handCart then
+					p_u_245.handCart:Destroy()
+				end
+				p_u_245.remoteEvent:FireServer("CancelReload")
+				p_u_245:ReadyBayonet()
+				return
+			end
+		else
+			if p_u_245.stance == "Idle" or p_u_245.stance == "Spent" then
+				p_u_245:ReadyBayonet()
+				return
+			end
+			if p_u_245.stance == "HoldingBayonet" then
+				p_u_245:UnreadyBayonet()
+				return
+			end
+		end
+	elseif p_u_245.Stats.CanShove then
+		if p_u_245.lastShove and p_u_245.lastShove > tick() then
+			return
+		end
+		if p_u_245.reloading then
+			p_u_245.remoteEvent:FireServer("CancelReload")
+			p_u_245.reloading = false
+			if p_u_245.handCart then
+				table.remove(p_u_245.gunParts, table.find(p_u_245.gunParts, p_u_245.handCart))
+				p_u_245.handCart:Destroy()
+				p_u_245.handCart = nil
+			end
+			if p_u_245.animations.ReloadP1 then
+				p_u_245.animations.ReloadP1:Stop()
+			end
+			if p_u_245.animations.ReloadP2 then
+				p_u_245.animations.ReloadP2:Stop()
+			end
+			if p_u_245.animations.ReloadP3 then
+				p_u_245.animations.ReloadP3:Stop()
+			end
+		elseif p_u_245.aiming then
+			p_u_245:Unaim(true)
+		elseif p_u_245.stance ~= "Idle" and p_u_245.stance ~= "Spent" or p_u_245.stancing then
+			return
+		end
+		p_u_245.stancing = true
+		p_u_245.stance = "Shoving"
+		p_u_245.animations.Shove:Play(0, 1, 1)
+		p_u_245.animations.Shove.Priority = Enum.AnimationPriority.Action2
+		local v_u_246 = OverlapParams.new()
+		v_u_246.FilterType = Enum.RaycastFilterType.Include
+		v_u_246.FilterDescendantsInstances = { workspace.CurrentCamera, game.CollectionService:GetTagged("Glass"), game.CollectionService:GetTagged("Doors") }
+		v_u_246.MaxParts = 30
+		task.wait(0.1)
+		p_u_245.remoteEvent:FireServer("Shove")
+		local v_u_247 = {}
+		task.spawn(function()
+			-- upvalues: (copy) p_u_245, (copy) v_u_246, (copy) v_u_247
+			p_u_245.lastShove = tick() + (p_u_245.Stats.ShoveCooldown or 2)
+			local v248 = tick() + 0.4
+			local v249 = {}
+			while p_u_245.equipped and tick() < v248 do
+				local v250 = workspace:GetPartBoundsInRadius(p_u_245.root.Position + p_u_245.root.CFrame.LookVector * 2, 3, v_u_246)
+				if #v250 > 0 then
+					for _, v251 in pairs(v250) do
+						if v251.Parent.Name == "m_Zombie" and not v_u_247[v251.Parent] then
+							v_u_247[v251.Parent] = true
+							local v252 = v251.Parent:FindFirstChild("Orig")
+							if v252 and shared.Gib ~= nil then
+								shared.Gib(v252.Value, v251.Name, v251.Position, Vector3.new(0, 0, 0), true)
+								p_u_245.remoteEvent:FireServer("FeedbackStun", v252.Value, v251.Position)
+							end
+						elseif v251:HasTag("Glass") and v251:FindFirstChild("BreakGlass") then
+							local v253 = v251:FindFirstChild("BreakGlass")
+							if not v249[v253] then
+								v249[v253] = true
+								p_u_245.remoteEvent:FireServer("FeedbackStunObject", v253, v251.Position)
+							end
+						elseif v251.Parent:FindFirstChild("DoorHit") or v251.Parent.Parent:FindFirstChild("DoorHit") then
+							local v254 = v251.Parent:FindFirstChild("DoorHit") or v251.Parent.Parent:FindFirstChild("DoorHit")
+							if not v249[v254] then
+								v249[v254] = true
+								p_u_245.remoteEvent:FireServer("FeedbackStunObject", v254, v251.Position)
+							end
+						end
+					end
+				end
+				task.wait(0.02)
+			end
+		end)
+		if p_u_245:YieldAnim(p_u_245.animations.Shove) then
+			p_u_245.animations.Spent:Stop(0)
+			p_u_245.animations.Idle:Play(0, 1, 1)
+			p_u_245.stance = "Idle"
+			p_u_245.stancing = false
+			return
+		end
+		p_u_245.stance = "Idle"
+		p_u_245.stancing = false
+	end
+end
+function v_u_1.key_F(p255)
+	if not p255.stancing and p255.aiming then
+		p255:Unaim()
+	end
+end
+function v_u_1.key_B(p256)
+	p256:AttachBayonet()
+end
+function v_u_1.key_ButtonX(p257)
+	p257:key_X()
+end
+function v_u_1.key_ButtonY(p258)
+	p258:key_F()
+end
+function v_u_1.key_ButtonL2(p259)
+	p259:AimDownSights()
+end
+function v_u_1.key_M3(p260)
+	p260:AimDownSights()
+end
+return v_u_1
