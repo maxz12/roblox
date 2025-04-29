@@ -1,0 +1,92 @@
+-- Script to teleport player to all items in workspace.Treasure
+-- AND modify/auto-trigger all proximity prompts in the game
+
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+humanoidRootPart.Anchored = true
+
+-- Part 1: Modify all proximity prompts in the game
+local function setupProximityPrompts()
+    print("Setting up all proximity prompts...")
+    
+    -- Find all proximity prompts in the game and set hold time to 0
+    local function modifyProximityPrompts(parent)
+        for _, v in pairs(parent:GetDescendants()) do
+            if v:IsA("ProximityPrompt") then
+                v.HoldDuration = 0  -- Set hold time to 0 seconds
+                print("Set hold duration to 0 for " .. v:GetFullName())
+            end
+        end
+    end
+    
+    -- Setup proximity prompts in workspace
+    modifyProximityPrompts(workspace)
+    
+    -- Connect to proximity prompt detection
+    local function setupPromptAutoTrigger()
+        workspace.DescendantAdded:Connect(function(descendant)
+            if descendant:IsA("ProximityPrompt") then
+                descendant.HoldDuration = 0
+                print("Set hold duration to 0 for new prompt: " .. descendant:GetFullName())
+            end
+        end)
+    end
+    
+    setupPromptAutoTrigger()
+    
+    -- Auto-trigger prompts when detected
+    local promptTriggered = false
+    
+    game:GetService("ProximityPromptService").PromptShown:Connect(function(prompt)
+        local promptObject = prompt
+        task.spawn(function()
+            if not promptTriggered then
+                promptTriggered = true
+                fireproximityprompt(promptObject)
+                print("Auto-triggered proximity prompt: " .. promptObject:GetFullName())
+                task.wait(0.1)
+                promptTriggered = false
+            end
+        end)
+    end)
+    
+    print("All proximity prompts have been modified and auto-trigger enabled")
+end
+
+-- Set up all proximity prompts first
+setupProximityPrompts()
+
+-- Part 2: Teleport to treasures
+if not workspace:FindFirstChild("Treasure") then
+    warn("Treasure folder not found in workspace!")
+else
+    local treasureItems = workspace.Treasure:GetChildren()
+    print("Found " .. #treasureItems .. " treasure items to teleport to")
+
+    for _, item in ipairs(treasureItems) do
+        -- Get valid position to teleport to
+        local targetPosition
+        
+        if item:IsA("BasePart") then
+            targetPosition = item.CFrame
+        else
+            local basePart = item:FindFirstChildWhichIsA("BasePart")
+            if basePart then
+                targetPosition = basePart.CFrame
+            end
+        end
+        
+        -- Teleport if we have a valid position
+        if targetPosition then
+            humanoidRootPart.CFrame = targetPosition
+            print("Teleported to " .. item.Name)
+            task.wait(0.5) -- Wait for 0.5 seconds between teleports
+        else
+            print("Skipped " .. item.Name .. " - No valid position found")
+        end
+    end
+
+    print("Teleport sequence completed!")
+end
+humanoidRootPart.Anchored = false
