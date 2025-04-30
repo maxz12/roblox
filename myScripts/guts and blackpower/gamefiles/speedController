@@ -1,0 +1,176 @@
+--workspace.Players.blue_Zz7.UserStates.SpeedController
+local v_u_1 = require(game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RbxUtil"):WaitForChild("Trove"))
+local v_u_2 = {
+	["CuirassierImpale"] = 12,
+	["Recover"] = 11,
+	["Grabbed"] = 10,
+	["SapperBlock"] = 8,
+	["MinorStun"] = 6,
+	["Charge"] = 1.5,
+	["ChargePrepare"] = 1.4,
+	["GunAction"] = 1,
+	["Environment"] = 1,
+	["Cold"] = 1,
+	["Crouching"] = 1,
+	["Exorcism"] = 1,
+	["Armor"] = 1,
+	["MeleeAction"] = 1,
+	["CarryingSupply"] = 1
+}
+local v_u_3 = {
+	["Charge"] = { "GunAction", "MeleeAction" },
+	["MinorStun"] = { "CarryingSupply" }
+}
+local v_u_37 = {
+	["player"] = nil,
+	["character"] = nil,
+	["humanoid"] = nil,
+	["speedMods"] = nil,
+	["activeModifiers"] = {},
+	["activeMap"] = {},
+	["Init"] = function(p4, p5, p6)
+		-- upvalues: (copy) v_u_37, (copy) v_u_1
+		v_u_37.player = p4
+		v_u_37.character = p5
+		v_u_37.humanoid = p6
+		v_u_37.speedMods = p5:WaitForChild("UserStates"):WaitForChild("SpeedModifiers")
+		if v_u_37.trove then
+			v_u_37.trove:Destroy()
+		end
+		v_u_37.trove = v_u_1.new()
+		v_u_37.speedMods.ChildAdded:Connect(v_u_37._AddPriority)
+		v_u_37.speedMods.ChildRemoved:Connect(function(p7)
+			-- upvalues: (ref) v_u_37
+			local v8 = v_u_37.activeMap[p7.Name]
+			if v8 and v8.value == p7 then
+				local v9 = table.find(v_u_37.activeModifiers, v8)
+				if v9 then
+					table.remove(v_u_37.activeModifiers, v9)
+				end
+				v_u_37.activeMap[p7.Name] = nil
+				v_u_37.SortPriorities()
+				if v8.connection then
+					v_u_37.trove:Remove(v8.connection)
+				end
+			end
+		end)
+		for _, v10 in v_u_37.speedMods:GetChildren() do
+			v_u_37._AddPriority(v10)
+		end
+	end,
+	["_AddPriority"] = function(p11)
+		-- upvalues: (copy) v_u_37, (copy) v_u_2
+		if p11:IsA("NumberValue") then
+			if v_u_37.activeMap[p11.Name] then
+				return
+			else
+				local v12 = p11:GetAttribute("Priority") or v_u_2[p11.Name]
+				if v12 and typeof(v12) == "number" then
+					local v_u_13 = {
+						["speed"] = p11.Value,
+						["priority"] = v12,
+						["value"] = p11
+					}
+					v_u_13.connection = v_u_37.trove:Connect(p11.Changed, function(p14)
+						-- upvalues: (copy) v_u_13, (ref) v_u_37
+						v_u_13.speed = p14
+						v_u_37.SortPriorities()
+					end)
+					v_u_37.activeMap[p11.Name] = v_u_13
+					local v15 = v_u_37.activeModifiers
+					local v16 = v_u_37.activeMap[p11.Name]
+					table.insert(v15, v16)
+					v_u_37.SortPriorities()
+				end
+			end
+		else
+			return
+		end
+	end,
+	["SortPriorities"] = function()
+		-- upvalues: (copy) v_u_37, (copy) v_u_3
+		local v17 = nil
+		for v18 = 1, #v_u_37.activeModifiers do
+			local v19 = v_u_37.activeModifiers[v18]
+			local v20 = v_u_3[v19.value.Name]
+			if v20 then
+				local v21 = false
+				for v22 = 1, #v20 do
+					if v_u_37.activeMap[v20[v22]] then
+						v21 = true
+						break
+					end
+				end
+				if not v21 then
+					goto l4
+				end
+			else
+				::l4::
+				if not v17 or v19.priority == v17.priority and v19.speed < v17.speed or v19.priority > v17.priority then
+					v17 = v19
+				end
+			end
+		end
+		if v17 then
+			v_u_37.humanoid.WalkSpeed = v17.speed
+		else
+			v_u_37.humanoid.WalkSpeed = 16
+		end
+	end,
+	["AddModifier"] = function(p23, p24, p25)
+		-- upvalues: (copy) v_u_37, (copy) v_u_2
+		if assert(p23, "No name given") then
+			if assert(p24, "No speed given") then
+				local v26 = v_u_37.activeMap[p23]
+				if v26 then
+					return v26.value
+				end
+				local v27 = p25 or v_u_2[p23]
+				if not v27 then
+					warn("No Priority given, or preset, for: " .. p23)
+				end
+				local v28 = Instance.new("NumberValue")
+				v28.Name = p23
+				v28.Value = p24
+				v28:SetAttribute("Priority", v27 or 0)
+				v28.Parent = v_u_37.speedMods
+				return v28
+			end
+		end
+	end,
+	["RemoveModifier"] = function(p29)
+		-- upvalues: (copy) v_u_37
+		local v30 = v_u_37.activeMap[p29]
+		if v30 then
+			v30.value:Destroy()
+		end
+	end,
+	["SetModifier"] = function(p31, p32, p33)
+		-- upvalues: (copy) v_u_2, (copy) v_u_37
+		if assert(p31, "No name given") then
+			if assert(p32, "No speed given") then
+				local v34 = p33 or v_u_2[p31]
+				if not v34 then
+					warn("No Priority given, or preset, for: " .. p31)
+				end
+				local v35 = v_u_37.activeMap[p31]
+				if v35 then
+					v35.speed = p32
+					v35.priority = v34 or 0
+					v_u_37.SortPriorities()
+				else
+					local v36 = Instance.new("NumberValue")
+					v36.Name = p31
+					v36.Value = p32
+					v36:SetAttribute("Priority", v34)
+					v36.Parent = v_u_37.speedMods
+				end
+			else
+				return
+			end
+		else
+			return
+		end
+	end
+}
+return v_u_37
