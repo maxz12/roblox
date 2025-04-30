@@ -1,0 +1,33 @@
+--workspace.Players.blue_Zz7.Pistol.Client
+local v1 = script.Parent
+local v2 = require(game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Weapons"):WaitForChild("Flintlock"))
+local v3 = game:GetService("UserInputService")
+local v4 = game.Players.LocalPlayer
+local v_u_5 = v2.new(v4, v1, script)
+v_u_5.leftArmOff = true
+v3.InputBegan:Connect(function(p6, p7)
+	-- upvalues: (copy) v_u_5
+	if not game.Players.LocalPlayer:HasTag("InCallouts") then
+		if not p7 and v_u_5.equipped then
+			if p6.UserInputType == Enum.UserInputType.MouseButton1 or p6.KeyCode == Enum.KeyCode.ButtonR2 then
+				v_u_5:activate()
+				return
+			end
+			if (p6.UserInputType == Enum.UserInputType.Keyboard or p6.UserInputType == Enum.UserInputType.Gamepad1) and v_u_5["key_" .. p6.KeyCode.Name] then
+				v_u_5["key_" .. p6.KeyCode.Name](v_u_5)
+			end
+		end
+	end
+end)
+v3.InputEnded:Connect(function(p8, p9)
+	-- upvalues: (copy) v_u_5
+	if not game.Players.LocalPlayer:HasTag("InCallouts") then
+		if not p9 and (v_u_5.equipped and (p8.UserInputType == Enum.UserInputType.MouseButton1 or p8.KeyCode == Enum.KeyCode.ButtonR2)) then
+			v_u_5:deactivate()
+		end
+	end
+end)
+game:GetService("RunService").RenderStepped:Connect(function(p10)
+	-- upvalues: (copy) v_u_5
+	v_u_5:update(p10)
+end)
