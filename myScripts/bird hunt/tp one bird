@@ -1,0 +1,74 @@
+-- Ultra simple script based on your example code, with fixes
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+-- Toggle state
+local isActive = false
+local index = 2  -- Bird index (2nd bird, as in your example)
+
+-- Main function to position bird
+local function positionBird()
+    -- Get player's character and HumanoidRootPart
+    local character = Players.LocalPlayer.Character
+    if not character then return end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    -- Get bird container
+    local birds = workspace.Regions.Beakwoods.ClientBirds
+    if not birds then return end
+    
+    -- Get specific bird
+    local bird = birds:GetChildren()[index]
+    if not bird then
+        print("Bird at index " .. index .. " not found")
+        return
+    end
+    
+    -- Get CFrameVal
+    local cframeVal = bird:FindFirstChild("CFrameVal")
+    if not cframeVal then
+        print("CFrameVal not found in bird")
+        return
+    end
+    
+    -- Set the position
+    cframeVal.Value = hrp.CFrame * CFrame.new(-2.5, 0, -10)
+    
+    -- Set health to 0
+    if bird:GetAttribute("Health") ~= nil then
+        bird:SetAttribute("Health", 0)
+    end
+end
+
+-- Toggle function
+local function toggleBird()
+    isActive = not isActive
+    
+    if isActive then
+        print("Bird positioning ACTIVE")
+        
+        -- Start loop
+        spawn(function()
+            while isActive do
+                positionBird()
+                task.wait(0)  -- Same delay as your original code
+            end
+        end)
+    else
+        print("Bird positioning INACTIVE")
+    end
+end
+
+-- Listen for P key
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.P then
+        toggleBird()
+    end
+end)
+
+print("===== SIMPLE BIRD FIXER LOADED =====")
+print("Press P to toggle")
+print("Date: 2025-04-30 23:03:37")
+print("User: maxz12")
