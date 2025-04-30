@@ -1,0 +1,2097 @@
+-- Origin: ReplicatedStorage.Modules.Weapons.Flintlock
+
+local FlintlockWeapon = {}
+FlintlockWeapon.__index = FlintlockWeapon
+
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local CollectionService = game:GetService("CollectionService") -- Added explicit get service
+game:GetService("RunService") -- Not stored, possibly used implicitly
+
+-- Modules
+local RbxUtil = game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RbxUtil")
+local MaidUtil = require(RbxUtil:WaitForChild("Maid"))
+local SoundSystem = require(game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("World"):WaitForChild("SoundSystem"))
+
+-- Settings & Events
+local GameplaySettings = game.ReplicatedStorage:WaitForChild("GameStates"):WaitForChild("Gameplay")
+local FriendlyFireSetting = GameplaySettings:WaitForChild("FriendlyFire")
+local PlayerOptions = game.Players.LocalPlayer:WaitForChild("Options")
+local HoldToAimSetting = PlayerOptions:WaitForChild("HoldToAim")
+local FPArmTransparencySetting = PlayerOptions:WaitForChild("FPArmTransparency")
+local ADSSensitivitySetting = PlayerOptions:WaitForChild("ADSSens")
+local GoreSetting = PlayerOptions:WaitForChild("Gore")
+local WeaponStainsSetting = PlayerOptions:WaitForChild("WeaponStains")
+local UnlockDirectionOnUnequip = PlayerOptions:WaitForChild("UnlockDirAtUnEquip")
+local RecoilEvent = game.ReplicatedStorage:WaitForChild("RecoilEvent")
+
+-- Assets
+local ActionIcons = {
+	["Fire"] = "rbxassetid://14228569908",
+	["Reload"] = "rbxassetid://14228570786",
+	["BayonetAttack"] = "rbxassetid://14228880526",
+	["BayonetToggle"] = "rbxassetid://14228572871",
+	["Buttstock"] = "rbxassetid://17219734067",
+	["CancelAim"] = "rbxassetid://14229391966",
+	["ADS_On"] = "rbxassetid://13137621651",
+	["ADS_Off"] = "rbxassetid://9952047700"
+}
+FlintlockWeapon.Icons = ActionIcons
+
+local LargeButtonScale = UDim2.fromScale(1.55, 1.55)
+local CenterAnchor = UDim2.new(0.5, 0, 0.5, 0)
+
+-- Workspace dependencies (waitForChild might block module load, consider moving)
+local ZombiesFolder = workspace:WaitForChild("Zombies") -- Added explicit variable
+
+local CameraOffset = CFrame.new(0, -1.5, -0.2)
+local RandomGenerator = Random.new() -- Added explicit variable
+
+function FlintlockWeapon.new(player, tool)
+	local self = setmetatable({}, FlintlockWeapon)
+
+	self.player = player
+	self.tool = tool
+	self.model = self.tool:WaitForChild("ModelReference").Value
+	self.handle = self.model:WaitForChild("Handle")
+	self.muzzle = self.handle:WaitForChild("Muzzle")
+
+	-- Remotes
+	self.remoteEvent = self.tool:WaitForChild("RemoteEvent")
+	self.remoteFunc = self.tool:WaitForChild("RemoteFunction")
+	self.unreliableEvent = self.tool:WaitForChild("UnreliableRemoteEvent")
+
+	-- Cleanup utility
+	self._maid = MaidUtil.new()
+
+	-- Weapon State
+	self.handCart = nil -- Represents a cartridge held by hand during reload
+	self.bloodSaturation = 0
+	self.bloodTexturesNum = 0
+	self.lastUpdateBloodStain = 0
+	self.bloodTextures = {}
+	self.gunParts = {} -- List of BaseParts in the gun model for transparency changes
+
+	-- Populate gunParts and bloodTextures after a short delay
+	task.delay(0.5, function()
+		for _, part in pairs(self.model:GetDescendants()) do
+			if part:IsA("BasePart") then
+				table.insert(self.gunParts, part)
+			elseif part.Name == "BloodTexture" then
+				table.insert(self.bloodTextures, part)
+				self.bloodTexturesNum = #self.bloodTextures
+			end
+		end
+	end)
+
+	-- Stats and Configuration
+	local ConfigFolder = self.tool:WaitForChild("Configuration")
+	self.Stats = {}
+	for attributeName, attributeValue in pairs(ConfigFolder:GetAttributes()) do
+		self.Stats[attributeName] = attributeValue
+	end
+
+	-- Cartridge specific setup
+	if not self.Stats.NoCart then
+		self.cart = self.model:WaitForChild("Cartridge")
+		for _, joint in self.handle:GetJoints() do
+			if joint:IsA("Weld") and joint.Part1 == self.cart then
+				self.cartWeld = joint
+				self.cartC1 = self.cartWeld.C1
+				break
+			end
+		end
+	end
+
+	-- Aiming State
+	self.ADS = false -- Aiming Down Sights boolean
+	self.ADSProgress = 0 -- 0-1 progress for ADS transition
+	self.ADSFOV = 70 -- Current Field of View
+
+	-- Update AimOffset stat if it changes
+	if self.Stats.AimOffset then
+		self._maid:GiveTask(ConfigFolder:GetAttributeChangedSignal("AimOffset"):Connect(function()
+			self.Stats.AimOffset = ConfigFolder:GetAttribute("AimOffset")
+		end))
+	end
+
+	-- Player Input
+	self.mouse = self.player:GetMouse()
+
+	-- Weapon State
+	self.loaded = self.tool:GetAttribute("InitUnload") ~= true
+	self.stancing = false -- Is the weapon currently in a transitional animation?
+	self.stance = "Idle" -- Current stable animation state (Idle, Spent, HoldingBayonet, etc.)
+	self.firing = false
+	self.reloading = false
+	self.aiming = false -- Is the player holding/toggling aim?
+	self.reloadStage = 0
+	self.normalReloadSpeed = self.Stats.ReloadMultiplier or 1
+	self.reloadSpeed = self.normalReloadSpeed
+	self.lastCheckBuff = 0 -- Timer for buff/debuff checks
+	self.equipped = false
+
+	-- UI and Ammo Values
+	self.Config = ConfigFolder -- Redundant, already assigned to Stats
+	self.ShotsLoadedValue = self.tool:WaitForChild("ShotsLoaded")
+
+	-- Bayonet Setup
+	self.HasBayonet = self.Config:GetAttribute("HasBayonet")
+	self.DetachableBayonet = self.Config:GetAttribute("DetachableBayonet")
+	self.LeftArmInactive = self.Config:GetAttribute("LeftArmInactive") -- Seems unused?
+
+	-- Limited Cartridges setup
+	if self.tool:GetAttribute("LimitedCartridges") then
+		self.CartridgesValue = self.tool:WaitForChild("Cartridges")
+		self._maid:GiveTask(self.CartridgesValue.Changed:Connect(function()
+			if self.ammoText then -- Check if ammoText UI exists
+				self.ammoText.Text = self.CartridgesValue.Value
+			end
+		end))
+	end
+
+	-- Bayonet specific setup
+	if self.HasBayonet then
+		self.dirs = { -- Direction vectors for bayonet swing input
+			["Up"] = Vector2.new(0, -1),
+			["Down"] = Vector2.new(0, 1)
+		}
+		self.swingType = "Up" -- Current bayonet swing direction
+
+		-- Find Bayonet part
+		if self.model:FindFirstChild("Bayonet") then
+			self.bayonetPart = self.model:FindFirstChild("Bayonet")
+			if self.bayonetPart:IsA("Model") then
+				self.bayonetPart = self.bayonetPart:FindFirstChildOfClass("BasePart")
+			end
+		end
+		self.BayonetAttached = not self.DetachableBayonet -- Is bayonet attached by default or detachable?
+	end
+
+	-- Gamepad Input
+	self._gamepad_delta = Vector2.zero -- Store gamepad delta for aiming/direction
+
+	-- Listen for gamepad input changes
+	self._maid:GiveTask(UserInputService.InputChanged:Connect(function(input, gameProcessedEvent)
+		if not gameProcessedEvent then
+			if input.KeyCode == Enum.KeyCode.Thumbstick2 and (input.Delta.Magnitude > 0.1 or input.Delta.Magnitude < -0.1) then
+				self._gamepad_delta = Vector2.new(input.Delta.X, -input.Delta.Y) -- Store vertical inverted
+			end
+		end
+	end))
+
+	-- Character Setup (wait until character exists and is in workspace)
+	task.wait()
+	repeat
+		task.wait()
+	until player.Character and player.Character:IsDescendantOf(workspace)
+
+	self.character = player.Character
+	self.humanoid = self.character:WaitForChild("Humanoid")
+	self.animator = self.humanoid:WaitForChild("Animator")
+	self.root = self.character:WaitForChild("HumanoidRootPart")
+	self.head = self.character:WaitForChild("Head")
+
+	-- User states dependencies
+	local UserStatesFolder = player.Character:WaitForChild("UserStates")
+	self.SpeedController = require(UserStatesFolder:WaitForChild("SpeedController"))
+
+	-- Mouse/Raycast Setup
+	self.mouse.TargetFilter = self.character -- Initially filter self
+
+	-- Character Rig Joints
+	self.rootJoint = self.root:WaitForChild("Root Hip")
+	self.torso = self.character:WaitForChild("Torso")
+	self.neck = self.torso:WaitForChild("Neck")
+	self.neckC0 = CFrame.new(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0) -- Default Neck C0
+	self.right = self.torso:WaitForChild("Right Shoulder")
+	self.rightC0 = CFrame.new(1, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0) -- Default Right Shoulder C0
+	self.left = self.torso:WaitForChild("Left Shoulder")
+	self.leftC0 = CFrame.new(-1, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0) -- Default Left Shoulder C0
+
+	-- Arm Parts
+	self.rarm = self.right.Part1
+	self.larm = self.left.Part1
+	self.arm3dClothing = {} -- List of arm clothing parts for transparency
+
+	-- Look Tracking
+	self.lastUpdateLook = 0 -- Timer for unreliable look updates
+
+	-- Raycast/Overlap Setup
+	self.mouseParams = RaycastParams.new()
+	self.ignore = { self.character, workspace:FindFirstChild("IgnoreParts"), workspace:FindFirstChild("Players") } -- Base ignore list
+
+	-- Add LocationTriggers to ignore list
+	for _, taggedInstance in pairs(CollectionService:GetTagged("LocationTrigger")) do
+		table.insert(self.ignore, taggedInstance)
+	end
+	self.mouseParams.FilterDescendantsInstances = self.ignore
+
+	self.overlapParams = OverlapParams.new()
+	self.overlapParams.FilterDescendantsInstances = { self.character, workspace:FindFirstChild("IgnoreParts"), workspace:FindFirstChild("Players") } -- Base overlap ignore list
+
+	-- Weapon Weld Setup
+	self.handleWeld = self.tool:WaitForChild("HandleWeldRef").Value
+	self.handleWeldC0 = self.handleWeld.C0
+	self.handleWeldC0I = self.handleWeldC0:Inverse()
+	self.handleWeldC1 = self.handleWeld.C1 -- Seems unused?
+
+	-- Wait for tool model to be parented correctly
+	repeat
+		task.wait()
+	until self.model.Parent ~= self.tool
+
+	-- Animation and Sound Loading (async)
+	task.spawn(function()
+		self:loadAnimations() -- Load and classify animations
+
+		-- Collect sounds from the handle
+		self.sounds = {}
+		for _, sound in pairs(self.handle:GetChildren()) do
+			if sound:IsA("Sound") then
+				self.sounds[sound.Name] = sound
+			end
+		end
+
+		-- Function to play sounds triggered by animation markers
+		local function playSoundFromMarker(soundName)
+			if self.sounds[soundName] then
+				SoundSystem:PlaySound(self.sounds[soundName].Parent, self.sounds[soundName]:Clone(), {
+					["SoundGroup"] = SoundSystem.SFX -- Use SoundSystem's SFX group
+				})
+			end
+		end
+
+		-- Connect animation marker signals to play sounds
+		for _, animTrack in pairs(self.animations) do
+			self._maid[animTrack.Name .. "_Sound"] = animTrack:GetMarkerReachedSignal("Sound"):Connect(playSoundFromMarker)
+		end
+
+		-- Reload Animation Marker Events (Cartridge specific)
+		if not self.Stats.NoCart then
+			self._maid.handCartEvent = self.animations.ReloadP1:GetMarkerReachedSignal("HandCart"):Connect(function()
+				-- Spawn a visual representation of the cartridge being held
+				self.handCart = self.cart:Clone()
+				self.powderParticle = self.handCart:FindFirstChild("Powder", true)
+				self.handCart.Transparency = 0
+
+				local handWeld = Instance.new("Weld")
+				handWeld.Part0 = self.right.Part1 -- Weld to right arm
+				handWeld.Part1 = self.handCart
+				handWeld.C0 = CFrame.new(-0.5, -0.85, -0.4) * CFrame.Angles(0, 0, math.pi / 2) -- Position relative to hand
+				handWeld.Parent = self.handCart
+
+				self.handCart.Parent = self.model -- Keep it with the weapon model
+				table.insert(self.gunParts, self.handCart) -- Add to parts list for transparency
+			end)
+
+			self._maid.handCartoffEvent = self.animations.ReloadP1:GetMarkerReachedSignal("HandCartOff"):Connect(function()
+				-- Remove the hand-held cartridge visual
+				if self.handCart then
+					table.remove(self.gunParts, table.find(self.gunParts, self.handCart))
+					self.handCart:Destroy()
+					self.handCart = nil
+				end
+				self.cart.Transparency = 0 -- Make the original cartridge visible again
+				if self.cartWeld then
+					self.cartWeld.C1 = self.cartC1 -- Reset cartridge weld
+				end
+			end)
+
+			self._maid.cartOffEvent = self.animations.ReloadP2:GetMarkerReachedSignal("CartOff"):Connect(function()
+				self.cart.Transparency = 1 -- Make the original cartridge transparent
+			end)
+
+			self._maid.cartStart = self.animations.ReloadP2:GetMarkerReachedSignal("CartridgeStart"):Connect(function()
+				if self.cartWeld then
+					self.cartWeld.C1 = self.cartC1 * CFrame.new(0, -0.03, 0) -- Move cartridge slightly
+				end
+			end)
+
+			self._maid.PourPowder = self.animations.ReloadP1:GetMarkerReachedSignal("PourPowder"):Connect(function()
+				if self.powderParticle then
+					self.powderParticle.Enabled = true
+					task.delay(0.3, function()
+						if self.powderParticle then -- Ensure particle still exists
+							self.powderParticle.Enabled = false
+						end
+					end)
+				end
+			end)
+		end
+
+		-- Find and store 3D arm clothing parts for transparency
+		local clothing3D = self.character:FindFirstChild("3D_Clothing")
+		if clothing3D then
+			local leftArmClothing = clothing3D:FindFirstChild("Left Arm")
+			local rightArmClothing = clothing3D:FindFirstChild("Right Arm")
+			if leftArmClothing then
+				for _, clothingPart in leftArmClothing:GetChildren() do
+					if clothingPart:IsA("BasePart") then
+						table.insert(self.arm3dClothing, clothingPart)
+					end
+				end
+			end
+			if rightArmClothing then
+				for _, clothingPart in rightArmClothing:GetChildren() do
+					if clothingPart:IsA("BasePart") then
+						table.insert(self.arm3dClothing, clothingPart)
+					end
+				end
+			end
+		end
+	end)
+
+	-- Tool Equipped/Unequipped Events
+	self._maid:GiveTask(self.tool.Equipped:Connect(function()
+		self.equipped = true
+		self.mouse.TargetFilter = workspace:FindFirstChild("IgnoreParts") -- Change filter when equipped
+		self:equip()
+	end))
+
+	self._maid:GiveTask(self.tool.Unequipped:Connect(function()
+		self.equipped = false
+		-- Remove DirectionLock tag if option is enabled
+		if self.tool:HasTag("DirectionLock") and UnlockDirectionOnUnequip.Value == true then
+			self.tool:RemoveTag("DirectionLock")
+		end
+		self:unequip()
+	end))
+
+	-- UI References
+	self.mobileUI = player:WaitForChild("PlayerGui"):FindFirstChild("MobileGui") -- Check for mobile UI
+	local InGameUI = player:WaitForChild("PlayerGui"):WaitForChild("NewUI"):WaitForChild("InGame")
+	self.cursor = InGameUI:WaitForChild("Cursor")
+	self.arrow = self.cursor:WaitForChild("Arrow") -- Bayonet direction arrow
+	self.arrow_glow = self.cursor:WaitForChild("Arrow_Glow")
+	self.ammoFrame = InGameUI:WaitForChild("Alive"):WaitForChild("Visuals"):WaitForChild("Ammo")
+	self.ammoText = self.ammoFrame:WaitForChild("Number")
+	self.ammoScale = self.ammoFrame:WaitForChild("UIScale") -- Used for ammo text scaling
+
+	-- Animation Maid (for animation-specific cleanup)
+	self.AnimationMaid = MaidUtil.new()
+
+	-- UI State References
+	self.InventoryFrame = player.PlayerGui.NewUI:WaitForChild("Customization") -- Used for FP check
+	self.ShopFrame = player.PlayerGui.NewUI:WaitForChild("Shop") -- Used for FP check
+
+	-- CollectionService Listeners (Charging tag)
+	self._maid:GiveTask(CollectionService:GetInstanceAddedSignal("Charging"):Connect(function(characterObject)
+		if self.equipped then
+			if characterObject.Name == player.Name and (self.stance == "HoldingBayonet" or self.stance == "PreparedBayonet") then
+				self.unreliableEvent:FireServer("UpdateLook", "reset", true) -- Reset look rotation server-side
+				self:ReadyBayonet() -- Re-evaluate bayonet state
+			end
+		end
+	end))
+
+	self._maid:GiveTask(CollectionService:GetInstanceRemovedSignal("Charging"):Connect(function(characterObject)
+		if self.equipped then
+			if characterObject.Name == player.Name and (self.stance == "HoldingBayonet" or self.stance == "PreparedBayonet") then
+				self.stancing = false -- Allow animation transition
+				self:ReadyBayonet(true) -- Re-evaluate bayonet state (force ready)
+			end
+		end
+	end))
+
+	-- Braceable Weapon Attribute Listener
+	if self.tool:HasTag("Braceable") then
+		self._maid:GiveTask(self.tool:GetAttributeChangedSignal("Bracing"):Connect(function()
+			if self.tool:GetAttribute("Bracing") then
+				-- Auto-shove/brace if not stancing/aiming/firing
+				if not self.stancing and (not self.aiming and (self.stance == "Idle" or self.stance == "Spent")) then
+					self:key_X()
+				end
+			end
+		end))
+	end
+
+	-- HoldToAim Setting Listener (for mobile UI)
+	self._maid:GiveTask(HoldToAimSetting.Changed:Connect(function(holdToAimValue)
+		if self.equipped then
+			if self.mobileUI then
+				if holdToAimValue then
+					self:toggleMobileFire(true) -- Enable hold-to-fire logic
+					return
+				end
+				self:toggleMobileFire(false) -- Disable hold-to-fire logic
+			end
+		end
+	end))
+
+	-- Unreliable Event Listener (for server -> client events)
+	self._maid:GiveTask(self.unreliableEvent.OnClientEvent:Connect(function(eventName, ...)
+		if eventName == "BayonetHit" and (GoreSetting.Value and WeaponStainsSetting.Value) then
+			-- Apply blood stain effect
+			local newBloodSaturation = self.bloodSaturation + 0.1
+			self.bloodSaturation = math.min(newBloodSaturation, 1) -- Clamp saturation
+
+			local textureTransparency = 1 - (not (GoreSetting.Value and WeaponStainsSetting.Value) and 0 or self.bloodSaturation)
+			local isInFirstPerson = self.head.LocalTransparencyModifier >= 0.98 and not self.InventoryFrame.Visible and not self.ShopFrame.Visible
+
+			for i = 1, self.bloodTexturesNum do
+				self.bloodTextures[i].Transparency = textureTransparency
+				if isInFirstPerson then
+					self.bloodTextures[i].LocalTransparencyModifier = FPArmTransparencySetting.Value
+				end
+			end
+		end
+		-- Potentially handle other unreliable events here
+	end))
+
+	-- Cleanup on Death or Character Destruction
+	self._maid:GiveTask(self.humanoid.Died:Connect(function()
+		self._maid:Destroy()
+	end))
+
+	self._maid:GiveTask(self.character.Destroying:Connect(function()
+		self._maid:Destroy()
+	end))
+
+	return self
+end
+
+function FlintlockWeapon.toggleMobileFire(self, enableHoldToAim)
+	if self.mobileController then
+		local fireIcon = ActionIcons.Fire
+		local reloadIcon = ActionIcons.Reload -- Unused?
+
+		-- Check for empty gun state - potentially change button appearance (currently commented out logic)
+		if self.ShotsLoadedValue.Value <= 0 then
+			local emptyFireIcon = ActionIcons.Reload -- Re-using reload icon for empty state?
+			local emptyButtonScale = UDim2.fromScale(1.35, 1.35)
+			local emptyButtonOffset = UDim2.new(0.5, 0, 0.5, 5)
+		end
+
+		if enableHoldToAim then
+			-- Setup Fire button for Hold-to-Aim
+			self.mobileController:FireButtonToggle(true, function()
+				self:deactivate() -- Call deactivate when hold ends
+			end, function()
+				self:activate() -- Call activate when hold starts
+			end, fireIcon, 2, LargeButtonScale, CenterAnchor)
+		else
+			-- Setup Fire button for Click-to-Fire
+			self.mobileController:FireButtonToggle(true, function()
+				self:activate() -- Call activate on click
+			end, nil, fireIcon, 2, LargeButtonScale, CenterAnchor)
+		end
+	end
+end
+
+function FlintlockWeapon.loadAnimations(self)
+	if not self.loadedAnims then
+		self.loadedAnims = true
+		self.animations = {}
+		self.reloadAnims = {}
+
+		local animationsFolder = self.tool:WaitForChild("Animations")
+
+		for _, anim in pairs(animationsFolder:GetChildren()) do
+			local animTrack = self.animator:LoadAnimation(anim)
+			self.animations[anim.Name] = animTrack
+
+			-- Classify reload animations
+			if anim.Name:lower():find("load") and not anim:HasTag("IgnoreReload") then
+				table.insert(self.reloadAnims, animTrack)
+			end
+		end
+	end
+end
+
+function FlintlockWeapon.equip(self)
+	self.remoteEvent:FireServer("Equip", self.root) -- Notify server
+
+	-- Check and initialize mobile controller if needed
+	if self.mobileUI == nil and self.player:GetAttribute("Mobile") == true then
+		self.mobileUI = self.player.PlayerGui:FindFirstChild("MobileGui")
+	end
+	if self.mobileUI and self.mobileController == nil then
+		self.mobileController = require(self.mobileUI:WaitForChild("InitMobile2"))
+		self.ammoScale.Scale = 1.3 -- Scale up ammo text for mobile
+	end
+
+	-- Find Bayonet part again if it wasn't found in new() (redundant?)
+	if self.model:FindFirstChild("Bayonet") then
+		self.bayonetPart = self.model:FindFirstChild("Bayonet")
+		if self.bayonetPart:IsA("Model") then
+			self.bayonetPart = self.bayonetPart:FindFirstChild("Bayonet")
+		end
+	end
+
+	-- Show ammo counter if limited cartridges
+	if self.CartridgesValue then
+		self.ammoFrame.Visible = true
+		self.ammoText.Text = self.CartridgesValue.Value
+	end
+
+	self.stancing = true
+	self.stance = "Equipping"
+
+	local isCharging = CollectionService:HasTag(self.player.Character, "Charging")
+	local equipSpeed, hammerPullSpeed
+	if self.tool:GetAttribute("Bracing") then -- Apply different speed if bracing
+		equipSpeed = 2
+		hammerPullSpeed = 2
+	else
+		equipSpeed = isCharging and 1.6 or 1
+		hammerPullSpeed = isCharging and 1.5 or 1
+	end
+
+	local toBraceEquip = self.tool:GetAttribute("ToBraceEquip") -- Specific equip for bracing
+
+	-- Play equip animation
+	self.animations.Equip:Play(0, 1, equipSpeed)
+
+	-- Load initial reload stage
+	local reloadStageValue = self.tool:FindFirstChild("ReloadStage")
+	if reloadStageValue then
+		self.reloadStage = reloadStageValue.Value
+	end
+
+	-- Handle loaded state animations
+	if self.ShotsLoadedValue.Value > 0 then
+		if self.animations.HammerDownLoaded then -- Hammer down state
+			self.animations.HammerDownLoaded:Play(0, 1, 1)
+		end
+		if self.cart then -- Hide cartridge if loaded
+			self.cart.Transparency = 1
+		end
+		self.loaded = true
+	elseif self.animations.Unloaded then -- Unloaded state
+		self.animations.Unloaded:Play(0, 1, 1)
+	end
+
+	-- Update shotsLoaded variable (if it exists, redundant?)
+	if self.shotsLoaded then
+		self.shotsLoaded = self.ShotsLoadedValue.Value
+	end
+
+	-- Initialize aim cooldown
+	if self.Stats.AimOffset and self.aimCooldownTick == nil then
+		self.aimCooldownTick = 0
+	end
+
+	-- Local function to finish equip and transition to Idle
+	local function finishEquipAnimation(hammerPulled)
+		if hammerPulled then
+			-- Handle hammer state animation after pull
+			if self.animations.HammerDownLoaded then
+				self.animations.HammerDownLoaded:Stop(0)
+			end
+			if self.animations.HammerLoaded then
+				self.animations.HammerLoaded:Play(0, 1, 1)
+			end
+		end
+		self.animations.Idle:Play(0, 1, 1)
+		self.stance = "Idle"
+
+		-- Setup mobile UI buttons
+		if self.mobileController then
+			self:toggleMobileFire(HoldToAimSetting.Value) -- Set fire button based on setting
+
+			-- Create Bayonet/Shove button
+			if self.HasBayonet and self.BayonetAttached then
+				self.mobileController:CreateActionButton("B_Toggle", ActionIcons.BayonetToggle, function()
+					self:key_X()
+				end, UDim2.fromScale(0.85, 0.85), UDim2.new(0.5, -2, 0.5, -1))
+			elseif self.Stats.CanShove then
+				self.mobileController:CreateActionButton("B_Toggle", ActionIcons.Buttstock, function()
+					self:key_X()
+				end, UDim2.fromScale(0.85, 0.85), UDim2.new(0.5, -2, 0.5, -1))
+			end
+
+			-- Create ADS button if applicable
+			if self.Stats.AimOffset then
+				local toggleAimEvent = self.player:FindFirstChild("ToggleAiming") -- Assuming this is a RemoteEvent for toggling ADS
+				if toggleAimEvent ~= nil then
+					self.mobileController:CreateActionButton("B_ADS", ActionIcons.ADS_On, function()
+						-- Check cooldown before toggling ADS
+						if self.aimCooldownTick > tick() then
+							return
+						else
+							self.aimCooldownTick = tick() + 0.7 -- Set cooldown
+
+							self:AimDownSights() -- Toggle ADS state
+							local buttonIcon = self.ADS and ActionIcons.ADS_Off or ActionIcons.ADS_On -- Get correct icon
+							self.mobileController:UpdateActionButtonIcon("B_ADS", buttonIcon)
+
+							-- Notify server about ADS state
+							if self.ADS then
+								toggleAimEvent:Fire(true)
+							else
+								toggleAimEvent:Fire(false)
+								self:Unaim() -- Unaime if ADS is toggled off (redundant with button action?)
+							end
+						end
+					end)
+				end
+			end
+		end
+	end
+
+	-- Wait for equip animation to finish
+	if self:YieldAnim(self.animations.Equip) then
+		-- Play hammer pull animation if loaded and not bracing equip
+		if self.ShotsLoadedValue.Value > 0 then
+			local hammerPullAnim = (self.animations.HammerPull and not toBraceEquip) and self.animations.HammerPull or nil
+			if hammerPullAnim then
+				hammerPullAnim:Play(0, 1, hammerPullSpeed)
+				if self:YieldAnim(hammerPullAnim) then
+					finishEquipAnimation(true)
+				end
+			else
+				finishEquipAnimation(true)
+			end
+		else
+			finishEquipAnimation() -- No hammer pull if unloaded
+		end
+	end
+
+	self.stancing = false
+
+	-- Manage mouse icon and cursor visibility
+	UserInputService.MouseIconEnabled = false
+	self.cursor.Visible = true
+
+	-- Ready bayonet if bracing equip is used
+	if self.equipped and toBraceEquip then
+		self:ReadyBayonet(true)
+	end
+end
+
+function FlintlockWeapon.unequip(self)
+	self.AnimationMaid:DoCleaning() -- Stop and clean up active animations
+	for _, animTrack in pairs(self.animations) do
+		animTrack:Stop()
+	end
+
+	self.ammoFrame.Visible = false -- Hide ammo counter
+
+	-- Clean up mobile UI buttons
+	if self.mobileController then
+		self.mobileController:FireButtonToggle(false)
+		self.mobileController:DestroyActionButton("StandDown")
+		self.mobileController:DestroyActionButton("B_Toggle")
+		self.mobileController:DestroyActionButton("B_ADS")
+		self.mobileController:DestroyActionButton("Reload")
+	end
+
+	-- Reset state
+	self.activated = false
+	self.aiming = false
+	self.ADS = false
+	Camera.FieldOfView = 70 -- Reset FOV
+	self.ADSFOV = 70 -- Reset internal FOV tracker
+	UserInputService.MouseDeltaSensitivity = 1 -- Reset mouse sensitivity
+	self.stance = "Idle"
+	self.stancing = false
+	self.reloading = false
+
+	CollectionService:RemoveTag(self.player.Character, "Bayonet") -- Remove bayonet tag
+
+	-- Reset cartridge transparency if mid-reload
+	if self.reloadStage == 1 and self.cart then
+		self.cart.Transparency = 0
+	end
+	-- Destroy hand cartridge if it exists
+	if self.handCart then
+		self.handCart:Destroy()
+		self.handCart = nil
+	end
+
+	-- Reset SpeedController modifier
+	self.SpeedController.RemoveModifier("GunAction")
+
+	-- Reset character rotation behavior
+	self.humanoid.AutoRotate = true
+	self.unreliableEvent:FireServer("UpdateLook", "reset", true) -- Notify server to reset look rotation
+
+	-- Reset arm C0s after a short delay
+	task.spawn(function()
+		task.wait(0.1)
+		self.left.C0 = self.leftC0
+		self.right.C0 = self.rightC0
+	end)
+
+	-- Notify server about unequip
+	self.remoteEvent:FireServer("Unequip", self.handleWeld.Transform) -- Send current weld transform?
+
+	-- Destroy BodyGyro if it exists
+	if self.gyro then
+		self.gyro:Destroy()
+		self.gyro = nil
+	end
+
+	-- Restore default mouse icon if no other tool is equipped
+	if not self.character:FindFirstChildOfClass("Tool") then
+		UserInputService.MouseIconEnabled = true
+		self.cursor.Visible = false
+		self.arrow.Visible = false
+	end
+end
+
+function FlintlockWeapon.StanceWait(self, duration, speedProperty, animTrackToAdjust)
+	local startTime = os.clock()
+	local finished = false
+	while self.stancing do
+		task.wait()
+		local calculatedDuration
+		if speedProperty and self[speedProperty] ~= nil then
+			calculatedDuration = duration / (self[speedProperty] or 1) -- Adjust duration by speed property
+			if animTrackToAdjust then
+				animTrackToAdjust:AdjustSpeed(self[speedProperty] or 1) -- Adjust animation speed
+			end
+		else
+			calculatedDuration = duration
+		end
+
+		if startTime + calculatedDuration <= os.clock() then
+			return true -- Wait finished
+		end
+	end
+	return finished -- Stancing ended prematurely
+end
+
+function FlintlockWeapon.YieldAnim(self, animTrack)
+	animTrack.Stopped:Wait() -- Wait for the animation track to stop playing
+	return self.equipped -- Return whether the tool is still equipped
+end
+
+function FlintlockWeapon.Aim(self)
+	if self.stance == "Idle" then
+		self.stancing = true
+		self.aiming = true
+		self.animations.Idle:Stop()
+		self.animations.Aim:Play(0, 1, 1) -- Play Aim transition animation
+		if self:YieldAnim(self.animations.Aim) then
+			self.animations.Aiming:Play(0, 1, 1) -- Play Aiming loop animation
+		end
+		self.stancing = false
+		self.remoteEvent:FireServer("Aim", true) -- Notify server of aiming state
+	end
+end
+
+function FlintlockWeapon.Unaim(self, instant)
+	if self.aiming then
+		if self.mobileController then
+			self.mobileController:DestroyActionButton("StandDown") -- Remove mobile 'Stand Down' button
+		end
+		self.stancing = true
+		self:AimDownSights(false) -- Ensure ADS is off
+		self.aiming = false
+		self.animations.Aiming:Stop() -- Stop Aiming loop animation
+
+		if not instant then
+			self.animations.Unaim:Play(0, 1, 1) -- Play Unaim transition animation
+		end
+
+		if instant or self:YieldAnim(self.animations.Unaim) then
+			self.stance = "Idle"
+			self.animations.Idle:Play(0, 1, 1) -- Return to Idle loop animation
+		end
+
+		self.stancing = false
+		self.remoteEvent:FireServer("Aim", false) -- Notify server of unaiming state
+	end
+	self.unreliableEvent:FireServer("UpdateLook", "reset") -- Reset server look
+end
+
+function FlintlockWeapon.ReloadPart1(self, isMidReload)
+	self.unreliableEvent:FireServer("UpdateLook", "reset") -- Reset server look
+	self.stancing = true
+	self.animations.Unloaded:Stop(0) -- Stop Unloaded animation
+
+	-- Stop Idle or IdleToSpent if not already mid-reload
+	if self.stance == "Idle" and not isMidReload then
+		self.animations.Idle:Stop(0)
+		if self.animations.IdleToSpent then -- Play transition if it exists
+			self.animations.IdleToSpent:Play(0, 1, 1)
+			self:YieldAnim(self.animations.IdleToSpent)
+		end
+	end
+
+	self.stance = "ReloadP1"
+	self.stancing = false -- This seems incorrect, stancing should probably be true until the end of the whole reload sequence
+end
+
+function FlintlockWeapon.ReloadPart2(self)
+	self.stancing = true -- This seems incorrect, stancing should probably be true until the end of the whole reload sequence
+	self.stance = "ReloadP2"
+	self.animations.ReloadP1.Priority = Enum.AnimationPriority.Action2 -- Increase priority
+	self.animations.ReloadP1:Play(0, 1, 1) -- Play Reload Part 1 animation
+
+	if self:YieldAnim(self.animations.ReloadP1) and self.reloading then
+		self.reloadStage = 1 -- Advance reload stage
+	end
+	self.stancing = false -- This seems incorrect
+end
+
+function FlintlockWeapon.ReloadPart3(self, wasMidReload)
+	self.stancing = true -- This seems incorrect
+	self.stance = "ReloadP3"
+	self.animations.HammerDownLoaded:Play(0, 1, 1) -- Play hammer down animation
+	self.animations.ReloadP1:Stop(0) -- Stop previous reload animation
+	self.animations.ReloadP2.Priority = Enum.AnimationPriority.Action2 -- Increase priority
+
+	if wasMidReload then
+		self.animations.ReloadP2:Play(0.2) -- Play from offset if resuming
+	else
+		self.animations.ReloadP2:Play(0, 1, 1) -- Play from start
+	end
+
+	if self:YieldAnim(self.animations.ReloadP2) and self.reloading then
+		self.reloadStage = 2 -- Advance reload stage
+
+		-- Update mobile fire button icon to show loaded state
+		if self.mobileController then
+			self.mobileController:UpdateFireImage(ActionIcons.Fire, UDim2.fromScale(0.5, 0.5), LargeButtonScale)
+		end
+	end
+	self.stancing = false -- This seems incorrect
+end
+
+function FlintlockWeapon.ReadyBayonet(self, forceReady)
+	if self.HasBayonet and self.BayonetAttached then
+		if self.aiming then
+			self:Unaim() -- Exit aim if trying to ready bayonet
+		end
+
+		local isCharging = CollectionService:HasTag(self.player.Character, "Charging")
+
+		-- Add Bayonet tag to character
+		if not CollectionService:HasTag(self.player.Character, "Bayonet") then
+			CollectionService:AddTag(self.player.Character, "Bayonet")
+		end
+
+		if isCharging and not forceReady then
+			-- Special state for charging with bayonet (server dictates anim?)
+			self.stancing = false
+			self.animations.Idle:Stop(0.1)
+			self.animations.Spent:Stop(0)
+			self.animations.Bayonet:Stop(0)
+			self.animations.IdleToBayonet:Stop(0)
+			self.animations.IdleToSpent:Stop(0)
+			if self.animations.Overhead_BayonetCharge then self.animations.Overhead_BayonetCharge:Stop(0) end
+			if self.animations.Overhead_BayonetChargeIdle then self.animations.Overhead_BayonetChargeIdle:Stop(0) end
+			self.animations.BayonetPrepared:Stop(0)
+			self.animations.BayonetToPrepare:Stop(0)
+			self.stance = "HoldingBayonet" -- Should this be a different stance like "ChargingBayonet"?
+			self.humanoid.AutoRotate = true -- Allow character rotation
+			if self.mobileController then
+				self.mobileController:FireButtonToggle(false) -- Disable fire button while charging?
+				self.mobileController:ToggleSwingEvent(false) -- Disable mobile swing input
+			end
+			if self.gyro then -- Destroy gyro if exists
+				self.gyro:Destroy()
+				self.gyro = nil
+			end
+		else
+			-- Standard Bayonet Ready state
+			self.stancing = true
+			self.arrow.Visible = true -- Show bayonet direction arrow
+
+			local function finishBayonetReady()
+				self.stance = "HoldingBayonet"
+				self.stancing = false
+
+				-- Setup mobile UI for bayonet
+				if self.mobileController then
+					-- Fire button triggers bayonet attack
+					self.mobileController:FireButtonToggle(true, function()
+						self:deactivate() -- Deactivate on release (if hold)
+					end, function()
+						self:activate() -- Activate on press (if hold)
+					end, ActionIcons.BayonetAttack, 2, LargeButtonScale)
+					-- Enable mobile swing input
+					self.mobileController:ToggleSwingEvent(true, { ["up"] = true, ["down"] = true }) -- Allow up/down swings
+				end
+			end
+
+			if self.stance == "Idle" or forceReady then
+				self.animations.Idle:Stop(0)
+				if forceReady then
+					self.animations.Bayonet:Play(0.05) -- Play Bayonet loop animation (slightly offset?)
+					finishBayonetReady()
+					return
+				end
+				-- Play transition from Idle to Bayonet
+				self.animations.Bayonet:Play(self.animations.IdleToBayonet.Length - 0.05) -- Start loop animation near the end of transition
+				self.animations.IdleToBayonet:Play(0, 1, 1)
+				if self:YieldAnim(self.animations.IdleToBayonet) then
+					finishBayonetReady()
+					return
+				end
+			elseif self.stance == "Spent" then
+				-- Play transition from Spent to Bayonet
+				self.animations.Spent:Stop()
+				self.animations.IdleToBayonet:Play(0.1, 1, 1) -- Use IdleToBayonet transition
+				if self:YieldAnim(self.animations.IdleToBayonet) then
+					self.animations.Bayonet:Play(0, 1, 1) -- Play Bayonet loop
+					self.stance = "HoldingBayonet"
+					self.stancing = false
+					-- Setup mobile UI for bayonet
+					if self.mobileController then
+						self.mobileController:FireButtonToggle(true, function()
+							self:deactivate()
+						end, function()
+							self:activate()
+						end, ActionIcons.BayonetAttack, 2, LargeButtonScale)
+						self.mobileController:ToggleSwingEvent(true, { ["up"] = true, ["down"] = true })
+						return
+					end
+				end
+			end
+		end
+	end
+end
+
+function FlintlockWeapon.UnreadyBayonet(self, _) -- Underscore parameter seems unused
+	local isCharging = CollectionService:HasTag(self.player.Character, "Charging")
+	CollectionService:RemoveTag(self.player.Character, "Bayonet") -- Remove Bayonet tag
+
+	self.stancing = true
+	self.arrow.Visible = false -- Hide bayonet direction arrow
+
+	if isCharging then
+		-- Special state for unreadying while charging (should likely exit charge first)
+		self.animations.Bayonet:Stop(0.1)
+		self.animations.Idle:Play() -- Return to Idle loop
+		self.stance = "Idle"
+		self.stancing = false
+
+		-- Setup mobile UI for idle state
+		if self.mobileController and self.equipped then
+			self:toggleMobileFire(HoldToAimSetting.Value)
+			self.mobileController:ToggleSwingEvent(false) -- Disable mobile swing input
+		end
+
+		self.unreliableEvent:FireServer("UpdateLook", "reset") -- Reset server look
+	else
+		-- Standard Bayonet Unready state
+		self.animations.Bayonet:Stop(0)
+		-- Play transition from Bayonet to Idle
+		self.animations.BayonetToIdle:Play(0, 1, 1) -- Play transition animation
+		self.animations.Idle:Play(self.animations.BayonetToIdle.Length - 0.05) -- Start Idle loop near end of transition
+
+		if self:YieldAnim(self.animations.BayonetToIdle) then
+			self.stance = "Idle"
+			self.stancing = false
+
+			-- Setup mobile UI for idle state
+			if self.mobileController and self.equipped then
+				self:toggleMobileFire(HoldToAimSetting.Value)
+				self.mobileController:ToggleSwingEvent(false)
+			end
+		end
+		self.unreliableEvent:FireServer("UpdateLook", "reset") -- Reset server look
+	end
+end
+
+function FlintlockWeapon.PrepareBayonet(self)
+	if not self.stancing and (self.HasBayonet and self.BayonetAttached) then
+		if not CollectionService:HasTag(self.character, "Charging") then -- Cannot prepare if charging?
+			self.stancing = true
+			self.animations.Bayonet:Stop(0) -- Stop Bayonet loop
+
+			local prepareAnim = self.animations.BayonetToPrepare
+			if self.swingType == "Up" then -- Use different animation for overhead swing
+				prepareAnim = self.animations.Overhead_BayonetCharge -- Misnamed? Should be Overhead_BayonetPrepare?
+			end
+
+			prepareAnim:Play(0, 1, 1)
+			if self:YieldAnim(prepareAnim) then
+				-- Play prepared stance loop animation
+				if self.swingType == "Up" then
+					self.animations.Overhead_BayonetChargeIdle:Play(0, 1, 1)
+				else
+					self.animations.BayonetPrepared:Play(0, 1, 1)
+				end
+				self.stance = "PreparedBayonet"
+				self.stancing = false
+			end
+		end
+	end
+end
+
+function FlintlockWeapon.ThrustBayonet(self)
+	-- Check if allowed to thrust
+	if self.stancing or not (self.HasBayonet and self.BayonetAttached) then
+		return
+	elseif not CollectionService:HasTag(self.character, "Charging") then -- Cannot thrust if charging? (Seems contradictory to ReadyBayonet logic)
+		self.stancing = true -- Start stancing state
+
+		-- Stop prepared stance loop
+		self.animations.BayonetPrepared:Stop(0)
+		self.animations.Overhead_BayonetChargeIdle:Stop(0)
+
+		-- Select thrust animation based on swing type
+		local thrustAnim = self.animations.BayonetThrust
+		if self.swingType == "Up" then
+			thrustAnim = self.animations.Overhead_BayonetThrust
+		end
+		thrustAnim.Priority = Enum.AnimationPriority.Action4 -- High priority
+
+		-- Play thrust animation (faster if charging?)
+		local isCharging = CollectionService:HasTag(self.player.Character, "Charging")
+		if isCharging then
+			thrustAnim:Play(0, 1, 1.7)
+		else
+			thrustAnim:Play(0, 1, 1)
+		end
+
+		self.remoteEvent:FireServer("ThrustBayonet") -- Notify server
+
+		-- Play thrust sound
+		local thrustSound = self.sounds.Thrust
+		if thrustSound then
+			thrustSound:Play()
+		end
+
+		-- Perform hit detection on the client asynchronously
+		task.spawn(function()
+			local hitParams = RaycastParams.new()
+			local filterList
+			-- Determine filter based on FriendlyFire setting
+			if FriendlyFireSetting.Value then
+				filterList = {
+					ZombiesFolder, -- Hit Zombies
+					workspace.Buildings, -- Hit Buildings (for destructibles)
+					workspace:FindFirstChild("IgnoreParts"),
+					self.character -- Ignore self
+				}
+			else
+				filterList = {
+					ZombiesFolder, -- Hit Zombies
+					workspace:FindFirstChild("IgnoreParts"),
+					workspace.Buildings, -- Hit Buildings (for destructibles)
+					workspace:FindFirstChild("Players") -- Ignore other Players
+				}
+			end
+			hitParams.FilterDescendantsInstances = filterList
+
+			local endTime = tick() + 0.3 -- Check for a duration (0.3 seconds)
+			local hitInstances = {} -- Track instances already hit
+
+			-- Loop while animation is playing and time hasn't elapsed
+			while tick() < endTime do
+				-- Perform raycast from slightly behind muzzle, forward
+				self:BayonetHitCheck(self.muzzle.WorldPosition - self.muzzle.WorldCFrame.LookVector * 3, self.muzzle.WorldCFrame.LookVector * 4.7, hitParams, hitInstances) -- Ray length 4.7? (3+4.7 = 7.7 total range?)
+				task.wait() -- Wait a frame
+			end
+		end)
+
+		-- Wait for thrust animation to finish
+		if self:YieldAnim(thrustAnim) then
+			-- Return to Bayonet loop animation (faster if charging?)
+			if isCharging then
+				self.animations.Bayonet:Play(0, 1, 1.7)
+			else
+				self.animations.Bayonet:Play(0, 1, 1)
+			end
+			self.stance = "HoldingBayonet" -- Return to HoldingBayonet stance
+			self.stancing = false -- End stancing state
+		end
+	end
+end
+
+function FlintlockWeapon.BayonetHitCheck(self, origin, direction, params, hitInstances)
+	local hitResult = workspace:Raycast(origin, direction, params)
+
+	if hitResult then
+		local hitPart = hitResult.Instance
+
+		-- Check for Zombie hit
+		if hitPart.Parent and hitPart.Parent.Name == "m_Zombie" then
+			-- Add hit part to filter list to avoid multiple hits on the same part in one check iteration
+			local currentFilter = params.FilterDescendantsInstances
+			table.insert(currentFilter, hitPart)
+			params.FilterDescendantsInstances = currentFilter -- Update filter
+
+			-- Find the original zombie object
+			local zombieOriginal = hitPart.Parent:FindFirstChild("Orig")
+			if zombieOriginal and zombieOriginal.Value then
+				local originalZombie = zombieOriginal.Value
+				local hitTimestamp = tick()
+
+				-- Notify server about the zombie hit
+				self.remoteEvent:FireServer("Bayonet_HitZombie", originalZombie, hitResult.Position, hitPart.Name == "Head", hitPart.Name)
+
+				-- Set attributes on the original zombie for server side knockback/feedback
+				originalZombie:SetAttribute("WepHitID", hitTimestamp) -- Use tick() as a unique hit ID
+				originalZombie:SetAttribute("WepHitDirection", direction * 10) -- Store hit direction
+				originalZombie:SetAttribute("WepHitPos", hitResult.Position) -- Store hit position
+
+				-- Clear the hit attributes after a delay
+				task.delay(0.2, function()
+					if originalZombie and originalZombie:GetAttribute("WepHitID") == hitTimestamp then
+						originalZombie:SetAttribute("WepHitDirection", nil)
+						originalZombie:SetAttribute("WepHitPos", nil)
+						originalZombie:SetAttribute("WepHitID", nil)
+					end
+				end)
+			end
+			return 1 -- Indicate a hit occurred
+		end
+
+		-- Check for Destructible object hit (Doors or Glass)
+		local destructibleObject = hitPart.Parent and hitPart.Parent:FindFirstChild("DoorHit") or hitPart:FindFirstChild("BreakGlass")
+		if destructibleObject and not table.find(hitInstances, destructibleObject) then
+			table.insert(hitInstances, destructibleObject) -- Add to tracked hits to avoid repeat
+			self.remoteEvent:FireServer("Bayonet_HitCon", hitPart, hitResult.Position, hitResult.Normal, hitResult.Material) -- Notify server
+			return 2 -- Indicate a hit occurred
+		end
+
+		-- Check for Player hit
+		local hitHumanoid = hitPart.Parent and hitPart.Parent:FindFirstChildOfClass("Humanoid") or hitPart.Parent.Parent and hitPart.Parent.Parent:FindFirstChildOfClass("Humanoid")
+		if hitHumanoid and not table.find(hitInstances, hitHumanoid) then
+			table.insert(hitInstances, hitHumanoid) -- Add to tracked hits
+			self.remoteEvent:FireServer("Bayonet_HitPlayer", hitHumanoid, hitResult.Position) -- Notify server
+			return 2 -- Indicate a hit occurred
+		end
+	end
+	return 0 -- Indicate no valid hit occurred
+end
+
+function FlintlockWeapon.AttachBayonet(self)
+	-- Check if weapon has a detachable bayonet and is not stancing
+	if self.HasBayonet and (self.DetachableBayonet and not self.stancing) then
+		if self.stance == "HoldingBayonet" then
+			self:UnreadyBayonet() -- Unready if currently holding
+		elseif self.stance ~= "Idle" then
+			return -- Cannot attach/detach in other states
+		end
+
+		if self.equipped then
+			if self.BayonetAttached then
+				-- Detach Bayonet
+				self.BayonetAttached = false
+				self.bayonetPart.Transparency = 1 -- Make bayonet visual transparent
+
+				-- Remove "HiddenTool" tag from the bayonet tool in backpack
+				if self.HiddenBayonet then
+					self.HiddenBayonet:RemoveTag("HiddenTool")
+					self.HiddenBayonet = nil -- Clear reference
+				end
+			else
+				-- Attach Bayonet
+				local bayonetTool = self.player.Backpack:FindFirstChild(self.DetachableBayonet) -- Find the bayonet tool in backpack
+				if bayonetTool then
+					self.BayonetAttached = true
+					self.bayonetPart.Transparency = 0 -- Make bayonet visual visible
+					bayonetTool:AddTag("HiddenTool") -- Hide the tool in backpack
+					self.HiddenBayonet = bayonetTool -- Store reference
+					return -- Success
+				end
+			end
+		end
+	else
+		return -- Not allowed to attach/detach
+	end
+end
+
+function FlintlockWeapon.GetMousePos(self, useCameraLook, _) -- Underscore parameter seems unused
+	local rayOrigin = self.mouse.UnitRay.Origin
+	local rayDirection = self.mouse.UnitRay.Direction * 5000 -- Long ray
+
+	-- Use camera CFrame for origin/direction if requested or using gamepad/mobile
+	local usingGamepad = self.character:GetAttribute("UsingGamepad")
+	local usingMobile = self.player:GetAttribute("Mobile")
+	if useCameraLook or usingGamepad or usingMobile then
+		rayOrigin = Camera.CFrame.Position
+		if usingGamepad then
+			rayOrigin = rayOrigin - Vector3.new(0, 0.05, 0) -- Small vertical offset for gamepad aim?
+		end
+		rayDirection = Camera.CFrame.LookVector * 999 -- Shorter ray for camera look
+	end
+
+	-- Perform raycast, ignoring transparent parts encountered until a non-transparent hit or max iterations
+	for _ = 1, 4 do -- Max 4 attempts
+		local hitResult = workspace:Raycast(rayOrigin, rayDirection, self.mouseParams)
+		if hitResult and hitResult.Instance.Transparency == 1 then
+			-- Ignore this transparent instance and try again
+			local currentFilter = self.mouseParams.FilterDescendantsInstances
+			table.insert(currentFilter, hitResult.Instance)
+			self.mouseParams.FilterDescendantsInstances = currentFilter
+		elseif hitResult and (hitResult.Position - Camera.CFrame.Position).Magnitude > 5 then
+			-- Found a non-transparent hit point reasonably far away
+			return hitResult.Position
+		end
+	end
+
+	-- If no suitable hit found, return a point far along the ray direction
+	return Camera.CFrame.Position + rayDirection
+end
+
+function FlintlockWeapon.Recoil(self)
+	-- Calculate random recoil amount based on stats
+	local recoilAmount = RandomGenerator:NextNumber(not self.Stats.Recoil and 0 or self.Stats.Recoil.Min, not self.Stats.Recoil and 0.3 or self.Stats.Recoil.Max)
+	-- Create a CFrame rotation for the recoil
+	local recoilCFrame = CFrame.Angles(-recoilAmount, RandomGenerator:NextNumber(-0.2, 0.2) * recoilAmount, 0) -- Vertical and horizontal recoil
+
+	-- Fire Recoil event with a small delay
+	task.delay(0.1, function()
+		RecoilEvent:Fire(recoilCFrame)
+	end)
+end
+
+function FlintlockWeapon.Fire(self)
+	-- Check if allowed to fire
+	if not self.loaded or (self.ShotsLoadedValue.Value <= 0 or self.stancing) then
+		return -- Cannot fire if unloaded, empty, or stancing
+	end
+
+	self.loaded = false -- Set weapon to unloaded state
+	self.firing = true -- Set firing state
+
+	local serverTime = workspace:GetServerTimeNow() -- Get server time for sync (might be used elsewhere)
+
+	-- Check if in first-person and not in UI
+	local isInFirstPerson = self.head.LocalTransparencyModifier >= 0.98 and not self.InventoryFrame.Visible and not self.ShopFrame.Visible
+
+	-- Get target position (mouse position in world)
+	local targetPosition = self:GetMousePos(isInFirstPerson)
+
+	-- Notify server to fire
+	self.remoteEvent:FireServer("Fire", self.model, targetPosition, serverTime)
+
+	-- Play firing animations
+	self.animations.Idle:Stop(0, 1, 1)
+	self.animations.Aiming:Stop(0)
+	self.animations.Fire:Play(0, 1, 1)
+	self.animations.HammerLoaded:Stop(0, 1, 1)
+	self.animations.HammerDownLoaded:Stop(0, 1, 1)
+
+	self:Recoil() -- Apply client-side camera recoil
+
+	-- Apply character knockback if defined in stats
+	if self.Stats.Knockback ~= nil then
+		local lookVectorX = self.muzzle.WorldCFrame.LookVector.X
+		local lookVectorZ = self.muzzle.WorldCFrame.LookVector.Z
+		local flatLookVector = Vector3.new(lookVectorX, 0, lookVectorZ).Unit -- Get the look vector ignoring Y
+		local knockbackDirection = flatLookVector ~= flatLookVector and Vector3.new(0, 0, 0) or flatLookVector -- Handle NaN if unit failed
+		self.root:ApplyImpulse(knockbackDirection * -self.Stats.Knockback) -- Apply impulse backwards
+	end
+
+	-- Client-side hit detection for visual effects/feedback (only zombies?)
+	local bulletParams = RaycastParams.new()
+	bulletParams.FilterDescendantsInstances = { ZombiesFolder, self.character } -- Only filter Zombies and self
+
+	local spreadRandom = Random.new(serverTime) -- Use server time to seed random for reproducible spread?
+
+	-- Calculate bullet start and end points with spread
+	local bulletOrigin = self.muzzle.WorldPosition - self.muzzle.WorldCFrame.LookVector * (self.BarrelLength or 5) -- Start point slightly behind muzzle
+	local targetCFrame = CFrame.new(bulletOrigin, targetPosition) -- CFrame pointing from origin to target
+
+	local spreadDegrees = self.Stats.Spread -- Max spread angle
+	local yawSpread = math.rad(spreadDegrees) * spreadRandom:NextNumber(-1, 1) -- Random yaw spread
+	local pitchSpread = math.rad(spreadDegrees) * spreadRandom:NextNumber(-1, 1) -- Random pitch spread
+	local spreadDirection = (targetCFrame * CFrame.Angles(pitchSpread, yawSpread, 0)).LookVector * 700 -- Apply spread rotation and extend
+
+	-- Cast multiple rays for pellets/buckshot effect (hardcoded 3 rays)
+	for i = 1, 3 do
+		local raycastResult = workspace:Raycast(bulletOrigin, spreadDirection, bulletParams)
+
+		-- Debug ray visualization
+		if game.ReplicatedStorage:GetAttribute("SetDebugClient") then
+			local debugLine = Instance.new("LineHandleAdornment")
+			debugLine.Parent = workspace.Terrain -- Parent to a suitable container
+			debugLine.Adornee = workspace.Terrain
+			debugLine.Thickness = 10
+			debugLine.Transparency = 0.6
+			if raycastResult then
+				debugLine.Length = raycastResult.Distance
+			else
+				debugLine.Length = 700
+			end
+			local startColor = Color3.fromRGB(0, 170, 255)
+			local endColor = Color3.fromRGB(0, 0, 127)
+			local colorFactor = 1 - (i * 0.3) -- Color varies slightly per ray
+			debugLine.Color3 = startColor:Lerp(endColor, (math.clamp(colorFactor, 0, 1)))
+			debugLine.CFrame = CFrame.new(bulletOrigin, bulletOrigin + spreadDirection)
+			game.Debris:AddItem(debugLine, 3) -- Clean up debug line after 3 seconds
+		end
+
+		if raycastResult then
+			local hitPart = raycastResult.Instance
+			-- Check for Zombie hit
+			if hitPart.Parent and hitPart.Parent.Name ~= "m_Zombie" then
+				break -- Stop casting rays if a non-zombie is hit (bullets stop?)
+			end
+
+			local hitInstance = hitPart.Parent -- The zombie model
+			-- Add hit zombie to filter for subsequent rays in this shot
+			local currentFilter = bulletParams.FilterDescendantsInstances
+			table.insert(currentFilter, hitInstance)
+			bulletParams.FilterDescendantsInstances = currentFilter
+
+			-- Find original zombie object
+			local zombieOriginal = hitInstance:FindFirstChild("Orig")
+			if zombieOriginal and zombieOriginal.Value then
+				local originalZombie = zombieOriginal.Value
+
+				-- Trigger client-side Gib effect if available
+				if shared.Gib ~= nil then -- Assuming 'shared' global exists and has 'Gib' function
+					shared.Gib(originalZombie, hitPart.Name, raycastResult.Position, raycastResult.Normal, false, true) -- Args: zombie, hitPartName, pos, normal, isMelee, isGun
+				end
+
+				-- Apply knockback/feedback attributes if not already applied for this hit
+				if not originalZombie:GetAttribute("WepHitDirection") then
+					local hitTimestamp = tick()
+					originalZombie:SetAttribute("WepHitID", tick())
+					originalZombie:SetAttribute("WepHitDirection", spreadDirection.Unit * 30) -- Store hit direction with magnitude
+					originalZombie:SetAttribute("WepHitPos", raycastResult.Position) -- Store hit position
+
+					-- Clear hit attributes after a delay
+					task.delay(0.2, function()
+						if originalZombie and originalZombie:GetAttribute("WepHitID") == hitTimestamp then
+							originalZombie:SetAttribute("WepHitDirection", nil)
+							originalZombie:SetAttribute("WepHitPos", nil)
+							originalZombie:SetAttribute("WepHitID", nil)
+						end
+					end)
+				end
+			end
+		end
+	end
+
+	-- Re-enter ADS after a delay if ADS was active
+	if self.ADS then
+		task.delay(0.2, FlintlockWeapon.AimDownSights, self, false) -- Pass self and false (means don't toggle, just ensure off first?) - This seems wrong, should likely be `self, true` to resume ADS. Let's assume the original logic intended `self, true` or a nil parameter to just re-evaluate ADS state. Using `self, nil` to let the function re-check `self.ADS`.
+		task.delay(0.2, FlintlockWeapon.AimDownSights, self, nil) -- Re-evaluate ADS state
+	end
+
+	-- Wait for the Fire animation to finish
+	task.wait(self.animations.Fire.Length)
+
+	-- Exit aiming state if it was active (ADS logic above might re-enter it)
+	if self.aiming then -- Check state again after wait
+		self.aiming = false
+		self.animations.Aiming:Stop()
+	end
+
+	-- Play appropriate post-fire animations if still equipped
+	if self.equipped then
+		self.animations.Unloaded:Play(0, 1, 1) -- Play Unloaded loop
+		self.animations.Spent:Play(0, 1, 1) -- Play Spent loop
+	end
+
+	self.unreliableEvent:FireServer("UpdateLook", "reset") -- Reset server look
+	self.stance = "Spent" -- Set stance to Spent
+	self.firing = false -- End firing state
+end
+
+function FlintlockWeapon.Reload(self)
+	-- Check if allowed to reload
+	if self.loaded and self.ShotsLoadedValue.Value > 0 or (self.ShotsLoadedValue:GetAttribute("Reloading") or (self.reloading or (self.stancing or self.firing))) then
+		return -- Cannot reload if loaded, server is reloading, already reloading, stancing, or firing
+	elseif not self.CartridgesValue or self.CartridgesValue.Value > 0 then
+		-- Cannot reload if limited cartridges are enabled and there are none left (already checked by CartridgesValue > 0)
+		-- Or if there are cartridges, start reload
+		self.reloading = true
+		self.remoteEvent:FireServer("Reload") -- Notify server
+
+		local initialReloadStage = self.reloadStage -- Store current stage
+		self.animations.Spent:Stop(0) -- Stop Spent animation
+
+		if self.aiming then
+			self:Unaim() -- Exit aim before reloading
+		end
+
+		local reloadStartTime = tick() -- Start timer for reload duration print
+
+		-- Execute reload stages sequentially
+		self:ReloadPart1(initialReloadStage ~= 0)
+		if self.reloadStage == 0 and self.reloading then -- Check self.reloading in case it was cancelled
+			self:ReloadPart2()
+		end
+		if self.reloadStage == 1 and self.reloading then
+			self:ReloadPart3(initialReloadStage == 1) -- Pass if starting from stage 1
+		end
+
+		-- After all parts are done (or cancelled), check final stage
+		if self.reloadStage == 2 and self.reloading then
+			-- Reload finished successfully
+			self.loaded = true
+			self.reloadStage = 0
+			self.reloading = false
+			self.stance = "Idle" -- Return to Idle state
+			self.stancing = true -- Temporarily stancing for hammer pull anim?
+
+			-- Play hammer pull animation after reload
+			self.animations.HammerPull:Play(0, 1, 1)
+			if self:YieldAnim(self.animations.HammerPull) then
+				self.animations.HammerLoaded:Play(0, 1, 1) -- Play hammer loaded loop
+				self.animations.Idle:Play(0, 1, 1) -- Play Idle loop
+			end
+			self.stancing = false -- End stancing
+		end
+
+		print("Reload took: ", tick() - reloadStartTime) -- Print reload duration
+
+		self.reloading = false -- Ensure reloading state is false at the end
+	end
+end
+
+function FlintlockWeapon.activate(self)
+	-- Triggered by input press (e.g., mouse down, tap, button press)
+	if self.equipped then
+		self.activated = true -- Flag that the activation input is currently held
+
+		local isBracingAndNotAiming = self.tool:GetAttribute("Bracing") and not self.aiming
+
+		if self.stancing then
+			return -- Ignore input if stancing
+		elseif self.stance == "HoldingBayonet" and (not self.stancing and (self.HasBayonet and (self.BayonetAttached and not isBracingAndNotAiming))) then
+			-- If holding bayonet, pressing activate prepares the thrust
+			self:PrepareBayonet()
+			return
+		elseif self.loaded and self.ShotsLoadedValue.Value ~= 0 or (self.reloading or self.stance ~= "Idle" and self.stance ~= "Spent" or self.stancing) then
+			-- If loaded/reloading/stancing/not in idle/spent:
+			if not (self.reloading or isBracingAndNotAiming) then -- If not reloading or bracing+not-aiming
+				if self.stance == "Idle" and not self.aiming then
+					-- If idle and not aiming, pressing activate starts aim
+					self:Aim()
+					if self.mobileController then
+						-- Create 'Stand Down' button for mobile aim
+						self.mobileController:CreateActionButton("StandDown", ActionIcons.CancelAim, function()
+							self:Unaim() -- Unaime when button is pressed
+						end, UDim2.fromScale(0.7, 0.7))
+						return
+					end
+				elseif not HoldToAimSetting.Value and self.stance == "Idle" then
+					-- If not using Hold-to-Aim and is Idle, pressing activate fires (click-to-fire)
+					if self.mobileController then
+						-- Update mobile fire button image (potentially to reload? seems incorrect)
+						self.mobileController:DestroyActionButton("StandDown")
+						self.mobileController:UpdateFireImage(ActionIcons.Reload, UDim2.new(0.5, 0, 0.5, 5), UDim2.fromScale(1.35, 1.35)) -- Should this be Fire?
+					end
+					self:Fire() -- Fire the weapon
+				end
+			end
+		else
+			-- If not loaded/reloading/stancing/firing and in Idle/Spent, pressing activate starts reload
+			self:Reload()
+		end
+	else
+		return -- Do nothing if not equipped
+	end
+end
+
+function FlintlockWeapon.deactivate(self)
+	-- Triggered by input release (e.g., mouse up, tap release, button release)
+	if self.equipped then
+		self.activated = false -- Flag that activation input is no longer held
+
+		-- If in PreparedBayonet stance and not stancing/activated, pressing deactivate triggers thrust
+		if self.stance == "PreparedBayonet" and (not self.stancing and (self.HasBayonet and self.BayonetAttached)) then
+			if not CollectionService:HasTag(self.player.Character, "Charging") then -- Cannot thrust if charging?
+				self:ThrustBayonet() -- Perform bayonet thrust
+				return
+			end
+		-- If using Hold-to-Aim and is aiming, pressing deactivate fires
+		elseif HoldToAimSetting.Value and (not self.noHoldToAim and (self.aiming and (self.stance == "Idle" and not (self.stancing or self.firing)))) then
+			-- Excludes specific conditions like manualClickFire or mobile ADS being active
+			self:Fire() -- Fire the weapon
+		end
+	end
+end
+
+-- Update function (likely connected to RenderStepped/Stepped)
+function FlintlockWeapon.update(self, deltaTime)
+	if not self.equipped then
+		return
+	end
+
+	local currentTime = tick()
+
+	-- Check if in first-person view (head transparent and no UI open)
+	local isInFirstPerson = self.head.LocalTransparencyModifier >= 0.98 and not self.InventoryFrame.Visible and not self.ShopFrame.Visible
+
+	-- Check if weapon is currently braced and not aiming
+	local isBracing = self.tool:GetAttribute("Bracing")
+	local isBracingAndNotAiming = isBracing and not self.aiming
+
+	-- Handle First Person transparency and cursor visibility
+	if isInFirstPerson then
+		-- Make gun parts and arms transparent
+		for i = 1, #self.gunParts do
+			self.gunParts[i].LocalTransparencyModifier = 0 -- Make fully visible? This seems incorrect. Should be FPArmTransparencySetting.Value
+			-- Let's assume it should be FPArmTransparencySetting.Value based on context
+			self.gunParts[i].LocalTransparencyModifier = FPArmTransparencySetting.Value
+			self.gunParts[i].CanCollide = false -- Disable collision
+		end
+		self.rarm.LocalTransparencyModifier = FPArmTransparencySetting.Value
+		self.larm.LocalTransparencyModifier = FPArmTransparencySetting.Value
+
+		-- Make 3D clothing on arms transparent
+		for i = 1, #self.arm3dClothing do
+			self.arm3dClothing[i].LocalTransparencyModifier = FPArmTransparencySetting.Value
+		end
+
+		-- Make gloves transparent if they exist
+		local leftGloveHandle = self.character:FindFirstChild("LeftGlove") and self.character:FindFirstChild("LeftGlove"):FindFirstChild("Handle")
+		if leftGloveHandle then
+			leftGloveHandle.LocalTransparencyModifier = FPArmTransparencySetting.Value
+		end
+		local rightGloveHandle = self.character:FindFirstChild("RightGlove") and self.character:FindFirstChild("RightGlove"):FindFirstChild("Handle")
+		if rightGloveHandle then
+			rightGloveHandle.LocalTransparencyModifier = FPArmTransparencySetting.Value
+		end
+
+		self.cursor.Visible = not self.ADS -- Hide cursor if ADS is active in FP
+	else
+		-- Reset transparency when not in FP
+		-- (Missing code to reset transparency of gunParts, rarm, larm, arm3dClothing, gloves back to 0 or their original value)
+		self.ADSProgress = 0 -- Reset ADS progress outside FP
+		if self.ADSFOV < 70 then
+			self.ADSFOV = 70
+			Camera.FieldOfView = 70 -- Reset FOV outside FP
+		end
+		self.cursor.Visible = true -- Show cursor outside FP
+	end
+
+	-- Handle blood stain fading
+	if self.HasBayonet and self.bloodTexturesNum > 0 then
+		if self.lastUpdateBloodStain <= 0 then
+			local bloodTransparency = 1 - (not (GoreSetting.Value and WeaponStainsSetting.Value) and 0 or self.bloodSaturation)
+			for i = 1, self.bloodTexturesNum do
+				self.bloodTextures[i].Transparency = bloodTransparency
+				if isInFirstPerson then
+					self.bloodTextures[i].LocalTransparencyModifier = FPArmTransparencySetting.Value
+				end
+			end
+			local newSaturation = self.bloodSaturation - deltaTime * 5 -- Fade saturation over time
+			self.bloodSaturation = math.max(newSaturation, 0) -- Clamp saturation
+			self.lastUpdateBloodStain = 5 -- Reset timer (this should likely be a shorter duration like 0.1 or 0.05) - Let's assume it's meant to be a throttle, maybe `0.05`? Sticking to original `5` for now but noting it's weird.
+		else
+			self.lastUpdateBloodStain = self.lastUpdateBloodStain - deltaTime -- Countdown timer
+		end
+	end
+
+	-- Check for buffs/debuffs affecting reload speed
+	if self.lastCheckBuff < currentTime then
+		self.lastCheckBuff = currentTime + 0.2 -- Check every 0.2 seconds
+		local coldDebuff = self.character:FindFirstChild("ColdDebuff")
+		local reloadBuff = self.tool:FindFirstChild("ReloadBuff")
+
+		self.reloadSpeed = self.normalReloadSpeed
+		if reloadBuff then
+			self.reloadSpeed = self.reloadSpeed + 0.2 * reloadBuff.Value -- Apply reload buff
+		end
+		if coldDebuff then
+			self.reloadSpeed = self.reloadSpeed - 0.2 * coldDebuff.Value -- Apply cold debuff
+		end
+		self.reloadSpeed = math.max(self.reloadSpeed, 0.1) -- Ensure speed doesn't go below a minimum
+
+		-- Adjust speed of currently playing reload animations
+		if self.reloading then
+			for i = 1, #self.reloadAnims do
+				if self.reloadAnims[i].IsPlaying then
+					self.reloadAnims[i]:AdjustSpeed(self.reloadSpeed)
+				end
+			end
+		end
+	end
+
+	-- Update cursor position
+	local usingGamepad = self.character:GetAttribute("UsingGamepad")
+	local usingMobile = self.player:GetAttribute("Mobile")
+	local guiInset = game:GetService("GuiService"):GetGuiInset()
+	if usingGamepad or usingMobile then
+		self.cursor.Position = UDim2.new(0.5, 0, 0.5, 0) -- Center cursor for gamepad/mobile
+	else
+		self.cursor.Position = UDim2.new(0, self.mouse.X, 0, self.mouse.Y + guiInset.Y) -- Follow mouse
+	end
+
+	local currentMousePos = Vector2.new(self.mouse.X, self.mouse.Y)
+
+	-- Handle firing based on HoldToAim (when activated is released)
+	if self.stancing or (self.stance ~= "HoldingBayonet" or self.activated) then -- If stancing OR (not holding bayonet OR activated input is held)
+		-- This condition looks complex. It seems to enable firing when `activated` goes false under specific non-stancing, non-bayonet conditions IF HoldToAim is true.
+		-- Simplified: If HoldToAim is true, input is NOT held, NOT stancing, is in Idle stance, is aiming, and NOT firing/manual fire/mobile ADS.
+		if HoldToAimSetting.Value and (not self.noHoldToAim and (not self.activated and (not self.stancing and (self.stance == "Idle" and (self.aiming and not (self.firing or (self.manualClickFire or (self.mobileController and self.ADS)))))))) then
+			self:Fire() -- Auto-fire on release
+		end
+	elseif usingMobile then
+		-- Mobile specific bayonet direction logic
+		if self.mobileUI then
+			self.arrow.Visible = false -- Hide direction arrow on mobile?
+			self.swingType = self.mobileUI:GetAttribute("Direction") -- Get swing type from mobile UI
+			self.arrow_glow.Position = UDim2.fromScale(0.5, 0.5) -- Center glow?
+		end
+	else
+		-- PC/Gamepad bayonet direction logic
+		local mouseDelta = UserInputService:GetMouseDelta()
+		if usingGamepad then
+			mouseDelta = self._gamepad_delta -- Use stored gamepad delta
+		end
+
+		local mouseDeltaUnit
+		if mouseDelta.Magnitude == 0 then
+			-- If no delta, use the direction from the last position (can cause issues with static mouse)
+			mouseDeltaUnit = (currentMousePos - self.lastMousePos).Unit
+		else
+			mouseDeltaUnit = mouseDelta.Unit -- Use the actual delta direction
+		end
+
+		-- Update bayonet swing direction if delta is significant and not direction locked
+		if mouseDeltaUnit.Magnitude > 0.2 and not self.tool:HasTag("DirectionLock") then
+			local closestDirection = self.dirs.Up -- Default direction
+			local minMagnitudeDiff = math.huge -- Track closest direction
+			local closestDirectionName = "Up"
+
+			-- Find the direction vector closest to the mouse delta unit vector
+			for directionName, directionVector in pairs(self.dirs) do
+				local magnitudeDiff = (directionVector - mouseDeltaUnit).Magnitude
+				if magnitudeDiff < minMagnitudeDiff then
+					closestDirectionName = directionName
+					closestDirection = directionVector
+					minMagnitudeDiff = magnitudeDiff
+				end
+			end
+
+			self.arrow.Visible = true -- Show direction arrow
+			local rotY = -closestDirection.Y -- Y component for atan2
+			local rotX = -closestDirection.X -- X component for atan2
+			local rotationAngle = math.atan2(rotY, rotX) -- Angle in radians
+			self.arrow.Rotation = math.deg(rotationAngle) + 90 -- Set arrow rotation
+
+			self.arrow.Position = UDim2.new(0.5, closestDirection.X * 20, 0.5, closestDirection.Y * 20) -- Position arrow slightly offset
+			self.arrow_glow.Position = self.arrow.Position -- Position glow with arrow
+			self.swingType = closestDirectionName -- Set swing type
+		end
+	end
+
+	-- Handle bayonet charging/thrusting logic
+	local isCharging = CollectionService:HasTag(self.character, "Charging")
+	if (isCharging or isBracingAndNotAiming) and self.stance == "HoldingBayonet" then
+		-- If charging or bracing-not-aiming while HoldingBayonet, perform overlap checks for charge hits
+		if not self.LastBayonetCheck or self.LastBayonetCheck < currentTime then
+			local overlapResults = workspace:GetPartBoundsInBox(self.muzzle.WorldCFrame * CFrame.new(0, 0, 3), Vector3.new(1.5, 1.5, 5), self.overlapParams) -- Check a box in front of muzzle
+			local hitInstances = {} -- Track hit instances in this check iteration
+			local hitCount = 0
+
+			-- Process overlap results
+			for i = 1, #overlapResults do
+				if hitCount > 3 then break end -- Limit number of hits processed per check?
+
+				local hitPart = overlapResults[i]
+				local hitObject = hitPart.Parent:FindFirstChild("Hit") -- Look for a 'Hit' indicator in the parent
+
+				if hitObject and not hitInstances[hitObject] then
+					-- Found a valid hit object not already processed
+					self.remoteEvent:FireServer("ChargeBayonet", hitObject, hitPart.Position, (self.muzzle.WorldPosition - hitPart.Position).Unit) -- Notify server
+					hitInstances[hitObject] = true -- Mark as processed
+					hitCount = hitCount + 1 -- Increment hit counter
+				end
+			end
+			self.LastBayonetCheck = currentTime + 0.05 -- Set timer for next overlap check
+		end
+		-- Add Bayonet tag if not already present
+		if not self.character:HasTag("Bayonet") then
+			self.character:AddTag("Bayonet")
+		end
+	-- If in PreparedBayonet stance and not stancing/activated, pressing deactivate triggers thrust (this is also handled in deactivate)
+	elseif not self.stancing and (self.stance == "PreparedBayonet" and not self.activated) then
+		-- This condition suggests an automatic thrust if staying in Prepared state without activating.
+		self:ThrustBayonet()
+	end
+
+	-- Handle Character Rotation and Arm/Weapon Posing (Aiming, HoldingBayonet, PreparedBayonet)
+	if self.aiming or (self.stance == "HoldingBayonet" or self.stance == "PreparedBayonet") then
+		-- Adjust walk speed while aiming or holding/prepared bayonet
+		if self.stance == "HoldingBayonet" or self.stance == "PreparedBayonet" then
+			self.SpeedController.RemoveModifier("GunAction") -- Remove speed modifier (allow full speed?)
+		else
+			self.SpeedController.SetModifier("GunAction", self.Stats.ReloadWalkSpeed or 10) -- Apply walk speed modifier (using reload speed stat)
+		end
+
+		local mouseWorldPosition = self:GetMousePos(isInFirstPerson) -- Get target position
+
+		-- Manage Humanoid AutoRotate and BodyGyro
+		if not isCharging or (self.stance ~= "HoldingBayonet" and self.stance ~= "PreparedBayonet") then -- If not charging OR (not holding/prepared bayonet)
+			self.humanoid.AutoRotate = UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter -- Enable AutoRotate if mouse is locked
+			if self.humanoid.AutoRotate or isBracing then -- If AutoRotate or Bracing, don't use BodyGyro
+				if self.gyro then
+					self.gyro:Destroy()
+					self.gyro = nil
+				end
+			elseif self.gyro then -- If BodyGyro exists, update its target
+				self.gyro.CFrame = CFrame.new(self.root.Position, mouseWorldPosition)
+			else -- If BodyGyro doesn't exist, create it
+				self.gyro = Instance.new("BodyGyro")
+				self.gyro.MaxTorque = Vector3.new(0, 4e15, 0) -- High torque on Y axis
+				self.gyro.P = 10000 -- Proportional gain
+				self.gyro.CFrame = CFrame.new(self.root.Position, mouseWorldPosition) -- Target CFrame
+				self.gyro.Parent = self.root -- Parent to RootPart
+			end
+
+			-- Calculate vertical look angle for neck rotation
+			local verticalLookComponent = (mouseWorldPosition - self.mouse.Origin.p).Unit.Y -- Vertical component relative to mouse origin
+			local verticalLookAngle = -math.asin(verticalLookComponent) -- Angle from horizontal plane
+
+			if isInFirstPerson then
+				-- In FP, derive angle from camera's LookVector
+				local cameraLookY = Camera.CFrame.LookVector.Y
+				verticalLookAngle = -math.asin(cameraLookY)
+			elseif isBracing then
+				-- Interpolate vertical angle towards a fixed brace angle
+				if not self.braceThetaProgress then self.braceThetaProgress = 0 end
+				local newBraceProgress = self.braceThetaProgress + deltaTime * 1.4 -- Progress towards 1
+				self.braceThetaProgress = math.min(newBraceProgress, 1)
+				local braceProgress = self.braceThetaProgress
+				-- Interpolate current vertical angle towards a fixed angle (-0.122 radians)
+				verticalLookAngle = math.lerp(verticalLookAngle, -0.12217304763960307, braceProgress)
+			elseif self.braceThetaProgress and self.braceThetaProgress > 0 then
+				-- Interpolate back if bracing ends but progress is > 0
+				local braceProgress = self.braceThetaProgress
+				verticalLookAngle = math.lerp(verticalLookAngle, -0.12217304763960307, braceProgress)
+			end
+
+			-- Apply neck rotation
+			self.neck.C0 = self.neckC0 * CFrame.Angles(verticalLookAngle, 0, 0)
+
+			-- Notify server about look angle (throttled)
+			if self.lastUpdateLook < currentTime then
+				self.lastUpdateLook = currentTime + 0.2 -- Update every 0.2 seconds
+				self.unreliableEvent:FireServer("UpdateLook", verticalLookAngle)
+			end
+
+			local verticalAngleInverse = -verticalLookAngle
+			local clampedVerticalAngle = math.clamp(verticalAngleInverse, -1.5, 1.5) -- Clamped vertical angle
+
+			-- Apply arm and weapon posing
+			if isInFirstPerson then
+				-- FP Posing: Rotate root towards target, then calculate arm/weapon CFrame based on Camera CFrame
+				local targetX = mouseWorldPosition.X
+				local rootY = self.root.Position.Y
+				local targetZ = mouseWorldPosition.Z
+				local rootTargetPosition = Vector3.new(targetX, rootY, targetZ) -- Target position at root's Y level
+				self.root.CFrame = CFrame.new(self.root.Position, rootTargetPosition) -- Rotate root to look at target
+
+				-- Calculate transform CFrame from root rotation and camera orientation
+				local yaw, pitch, roll = self.rootJoint.Transform:ToEulerAnglesYXZ() -- Get Root Hip YXZ angles
+				-- Combine Camera CFrame offset and rotation derived from root angles
+				local transformCFrame = self.torso.CFrame:ToObjectSpace(Camera.CFrame * CameraOffset * CFrame.Angles(0, roll, yaw)) -- Using roll and yaw from root hip? Check YXZ order.
+
+				-- Interpolate transform towards ADS offset if aiming
+				if self.Stats.AimOffset then
+					if self.ADS then
+						-- Increase ADS progress
+						local newADSProgress = self.ADSProgress + deltaTime * 8
+						self.ADSProgress = math.min(newADSProgress, 1)
+						-- Adjust FOV if ADS_FOV is set
+						if self.Stats.ADS_FOV then
+							self.ADSFOV = 70 + (self.Stats.ADS_FOV - 70) * self.ADSProgress
+							Camera.FieldOfView = self.ADSFOV
+						end
+					else
+						-- Decrease ADS progress
+						local newADSProgress = self.ADSProgress - deltaTime * 8
+						self.ADSProgress = math.max(newADSProgress, 0)
+						-- Adjust FOV
+						if self.Stats.ADS_FOV then
+							self.ADSFOV = 70 + (self.Stats.ADS_FOV - 70) * self.ADSProgress
+							Camera.FieldOfView = self.ADSFOV
+						end
+					end
+					-- Interpolate transform towards the ADS offset CFrame
+					local adsTargetCFrame = Camera.CFrame * self.Stats.AimOffset -- Target CFrame in world space
+					-- Calculate the target transform in Torso object space and apply inverse of handleWeldC0
+					local adsTransform = self.torso.CFrame:ToObjectSpace(adsTargetCFrame * CFrame.Angles(0, roll, yaw)) * self.handleWeldC0I -- Apply root angles again? Seems complex interaction.
+					transformCFrame = transformCFrame:Lerp(adsTransform, self.ADSProgress) -- Interpolate
+				end
+
+				-- Apply the calculated transform to shoulder and handle welds
+				self.right.C0 = transformCFrame * self.rightC0
+				if self.leftArmOff then -- Option to disable left arm posing?
+					self.left.C0 = self.leftC0
+				else
+					self.left.C0 = transformCFrame * self.leftC0
+				end
+				self.handleWeld.C0 = transformCFrame * self.handleWeldC0 -- Apply to weapon weld
+			elseif self.CustomUpdateLook then
+				-- Allow custom update logic if defined
+				self:CustomUpdateLook(clampedVerticalAngle)
+			else
+				-- Third Person Posing: Calculate arm/weapon CFrame based on root rotation and vertical look angle
+				local cameraJointCFrame = self.root.CFrame * CFrame.new(0, -clampedVerticalAngle * (self.Stats.ShoulderModifier or 0), 0) * CFrame.new(0, 0, -clampedVerticalAngle * 0.7) * CFrame.Angles(clampedVerticalAngle, 0, 0) -- Offset and rotate based on vertical angle
+
+				-- Calculate transform CFrame from root and vertical adjustments
+				local yaw, pitch, roll = self.rootJoint.Transform:ToEulerAnglesYXZ()
+				local transformCFrame = self.torso.CFrame:ToObjectSpace(cameraJointCFrame * CFrame.Angles(0, roll, yaw)) -- Combine with root angles
+
+				-- Apply to shoulder and handle welds
+				self.right.C0 = transformCFrame * self.rightC0
+				if self.leftArmOff then
+					self.left.C0 = self.leftC0
+				else
+					self.left.C0 = transformCFrame * self.leftC0
+				end
+				self.handleWeld.C0 = transformCFrame * self.handleWeldC0
+			end
+		end
+	-- If stancing (and not aiming/bayonet stances handled above) OR not stancing at all
+	elseif self.stancing or not self.stancing then -- This simplifies to just 'true', covers all other states
+		-- Reset SpeedController modifier
+		self.SpeedController.RemoveModifier("GunAction") -- Seems redundant here if set above
+
+		-- Reset character rotation behavior
+		self.humanoid.AutoRotate = true
+		if self.gyro then -- Destroy BodyGyro
+			self.gyro:Destroy()
+			self.gyro = nil
+		end
+
+		-- Reset server look (throttled)
+		if self.lastUpdateLook < currentTime then
+			self.lastUpdateLook = currentTime + 0.2
+			self.unreliableEvent:FireServer("UpdateLook", "reset")
+		end
+
+		-- Decay ADS progress and reset FOV if needed
+		if self.Stats.AimOffset then
+			local newADSProgress = self.ADSProgress - deltaTime * 8
+			self.ADSProgress = math.max(newADSProgress, 0)
+		end
+		if self.Stats.ADS_FOV then
+			local newADSFOV = self.ADSFOV + deltaTime * 100 -- Return FOV to 70
+			self.ADSFOV = math.min(newADSFOV, 70)
+			Camera.FieldOfView = self.ADSFOV
+		end
+	end
+
+	-- Decay brace theta progress
+	if not isBracing and (self.braceThetaProgress and self.braceThetaProgress > 0) then
+		local newBraceProgress = self.braceThetaProgress - deltaTime * 1.4 -- Decrease progress
+		self.braceThetaProgress = math.max(newBraceProgress, 0)
+		if self.braceThetaProgress <= 0 then -- Clamp at 0
+			self.braceThetaProgress = 0
+		end
+	end
+
+	self.lastMousePos = currentMousePos -- Store current mouse position for next update
+end
+
+function FlintlockWeapon.AimDownSights(self, forceState)
+	-- Toggle ADS state if weapon has AimOffset stat
+	if self.Stats.AimOffset then
+		-- Do not allow ADS in bayonet stances
+		if self.stance ~= "HoldingBayonet" and self.stance ~= "PreparedBayonet" then
+			if forceState == nil then
+				-- Toggle ADS state
+				-- Check if allowed to toggle
+				if not self.loaded or (self.reloading or (self.firing or self.stancing)) then
+					return -- Cannot ADS if not loaded, reloading, firing, or stancing
+				end
+				-- If using HoldToAim, only toggle OFF if currently ADS and not aiming (This logic is a bit confusing)
+				if not self.ADS and (not self.aiming and HoldToAimSetting.Value) then -- If not ADS and not aiming, but HoldToAim is on - this means HoldToAim itself should start aiming, not this toggle
+					return -- Avoid unintended toggle
+				end
+				self.ADS = not self.ADS -- Perform the toggle
+
+				-- If ADS is now ON, and not already aiming, start aiming
+				if self.ADS and not self.aiming then
+					self:Aim() -- Transition to aiming state
+				end
+			else
+				-- Force ADS state
+				self.ADS = forceState
+			end
+
+			self.cursor.Visible = not self.ADS -- Hide cursor when ADS is on
+			UserInputService.MouseDeltaSensitivity = not self.ADS and 1 or ADSSensitivitySetting.Value -- Adjust mouse sensitivity
+		end
+	else
+		return -- Weapon does not support ADS
+	end
+end
+
+function FlintlockWeapon.key_R(self)
+	-- Triggered by 'R' key press
+	-- Check if weapon is unloaded/empty and not stancing
+	if (not self.loaded or self.ShotsLoadedValue.Value == 0) and not self.stancing then
+		if self.stance == "Idle" or self.stance == "Spent" then
+			self:Reload() -- Start reload if in Idle or Spent stance
+			return
+		end
+		if self.stance == "HoldingBayonet" then
+			-- If holding bayonet, unready it first, then reload
+			self:UnreadyBayonet()
+			if self.equipped then -- Ensure still equipped
+				self:Reload()
+			end
+		end
+	end
+end
+
+function FlintlockWeapon.key_X(self)
+	-- Triggered by 'X' key or equivalent (e.g., mobile button)
+	if self.HasBayonet and self.BayonetAttached then
+		-- If weapon has attached bayonet
+		if self.stancing then
+			-- If currently stancing (e.g., reloading), cancel the action
+			if self.reloading then
+				self.reloading = false
+				-- Stop reload animations
+				if self.animations.ReloadP1 then self.animations.ReloadP1:Stop() end
+				if self.animations.ReloadP2 then self.animations.ReloadP2:Stop() end
+				if self.animations.ReloadP3 then self.animations.ReloadP3:Stop() end
+				self.stance = "Idle" -- Return to Idle
+				self.stancing = false -- End stancing
+
+				-- Clean up hand cartridge visual
+				if self.handCart then
+					self.handCart:Destroy()
+					self.handCart = nil -- Clear reference
+				end
+
+				self.remoteEvent:FireServer("CancelReload") -- Notify server
+				self:ReadyBayonet() -- Automatically ready bayonet after cancelling reload? (Behavior seems complex)
+				return
+			end
+		else
+			-- If not stancing, toggle bayonet stance
+			if self.stance == "Idle" or self.stance == "Spent" then
+				self:ReadyBayonet() -- Ready the bayonet
+				return
+			end
+			if self.stance == "HoldingBayonet" then
+				self:UnreadyBayonet() -- Unready the bayonet
+				return
+			end
+		end
+	elseif self.Stats.CanShove then
+		-- If weapon can shove (and no bayonet attached or handling bayonet action fails)
+		if self.lastShove and self.lastShove > tick() then
+			return -- Respect shove cooldown
+		end
+
+		-- Cancel current action if reloading or aiming
+		if self.reloading then
+			self.remoteEvent:FireServer("CancelReload")
+			self.reloading = false
+			-- Clean up hand cartridge visual
+			if self.handCart then
+				table.remove(self.gunParts, table.find(self.gunParts, self.handCart)) -- Remove from gun parts list
+				self.handCart:Destroy()
+				self.handCart = nil
+			end
+			-- Stop reload animations
+			if self.animations.ReloadP1 then self.animations.ReloadP1:Stop() end
+			if self.animations.ReloadP2 then self.animations.ReloadP2:Stop() end
+			if self.animations.ReloadP3 then self.animations.ReloadP3:Stop() end
+		elseif self.aiming then
+			self:Unaim(true) -- Unaime instantly
+		elseif self.stance ~= "Idle" and self.stance ~= "Spent" or self.stancing then
+			return -- Cannot shove in other stances or while stancing
+		end
+
+		-- Start shove action
+		self.stancing = true
+		self.stance = "Shoving"
+		self.animations.Shove:Play(0, 1, 1) -- Play shove animation
+		self.animations.Shove.Priority = Enum.AnimationPriority.Action2 -- Medium priority
+
+		-- Setup overlap parameters for shove hit detection
+		local shoveOverlapParams = OverlapParams.new()
+		shoveOverlapParams.FilterType = Enum.RaycastFilterType.Include
+		-- Include specific object types for shove hits
+		shoveOverlapParams.FilterDescendantsInstances = { Camera, CollectionService:GetTagged("Glass"), CollectionService:GetTagged("Doors") }
+		shoveOverlapParams.MaxParts = 30 -- Max parts to check
+
+		task.wait(0.1) -- Small delay before notifying server and checking hits
+
+		self.remoteEvent:FireServer("Shove") -- Notify server
+
+		local shovedZombies = {} -- Track zombies hit by this shove
+
+		-- Perform client-side hit detection for shove feedback (async)
+		task.spawn(function()
+			self.lastShove = tick() + (self.Stats.ShoveCooldown or 2) -- Set cooldown timer
+			local endTime = tick() + 0.4 -- Check for hits for a duration (0.4 seconds)
+			local hitObjects = {} -- Track non-zombie objects hit for feedback
+
+			while self.equipped and tick() < endTime do
+				-- Check a radius around the player's root (slightly forward)
+				local overlapResults = workspace:GetPartBoundsInRadius(self.root.Position + self.root.CFrame.LookVector * 2, 3, shoveOverlapParams) -- Radius 3
+
+				if #overlapResults > 0 then
+					for _, hitPart in pairs(overlapResults) do
+						-- Check for Zombie hit
+						if hitPart.Parent and hitPart.Parent.Name == "m_Zombie" and not shovedZombies[hitPart.Parent] then
+							shovedZombies[hitPart.Parent] = true
+							local zombieOriginal = hitPart.Parent:FindFirstChild("Orig")
+							if zombieOriginal and shared.Gib ~= nil then
+								shared.Gib(zombieOriginal.Value, hitPart.Name, hitPart.Position, Vector3.new(0, 0, 0), true) -- Trigger client-side Gib (isMelee = true)
+								self.remoteEvent:FireServer("FeedbackStun", zombieOriginal.Value, hitPart.Position) -- Notify server for stun/feedback
+							end
+						-- Check for Glass hit
+						elseif hitPart:HasTag("Glass") and hitPart:FindFirstChild("BreakGlass") then
+							local breakGlassPart = hitPart:FindFirstChild("BreakGlass")
+							if not hitObjects[breakGlassPart] then
+								hitObjects[breakGlassPart] = true
+								self.remoteEvent:FireServer("FeedbackStunObject", breakGlassPart, hitPart.Position) -- Notify server for object feedback
+							end
+						-- Check for Door hit
+						elseif hitPart.Parent and hitPart.Parent:FindFirstChild("DoorHit") or hitPart.Parent.Parent and hitPart.Parent.Parent:FindFirstChild("DoorHit") then
+							local doorHitPart = hitPart.Parent:FindFirstChild("DoorHit") or hitPart.Parent.Parent:FindFirstChild("DoorHit")
+							if not hitObjects[doorHitPart] then
+								hitObjects[doorHitPart] = true
+								self.remoteEvent:FireServer("FeedbackStunObject", doorHitPart, hitPart.Position) -- Notify server for object feedback
+							end
+						end
+					end
+				end
+				task.wait(0.02) -- Wait briefly between checks
+			end
+		end)
+
+		-- Wait for shove animation to finish
+		if self:YieldAnim(self.animations.Shove) then
+			self.animations.Spent:Stop(0) -- Stop Spent loop
+			self.animations.Idle:Play(0, 1, 1) -- Play Idle loop
+			self.stance = "Idle" -- Return to Idle
+			self.stancing = false -- End stancing
+			return
+		end
+
+		-- If animation yield was interrupted (e.g., unequipped), reset state
+		self.stance = "Idle"
+		self.stancing = false
+	end
+end
+
+function FlintlockWeapon.key_F(self)
+	-- Triggered by 'F' key or equivalent
+	-- If not stancing and currently aiming, unaim
+	if not self.stancing and self.aiming then
+		self:Unaim()
+	end
+end
+
+function FlintlockWeapon.key_B(self)
+	-- Triggered by 'B' key or equivalent
+	self:AttachBayonet() -- Attempt to attach/detach bayonet
+end
+
+-- Gamepad Button Mappings (assuming these are called by a separate input handling script)
+function FlintlockWeapon.key_ButtonX(self)
+	self:key_X() -- Map Gamepad X button to key_X logic
+end
+
+function FlintlockWeapon.key_ButtonY(self)
+	self:key_F() -- Map Gamepad Y button to key_F logic (Unaim)
+end
+
+function FlintlockWeapon.key_ButtonL2(self)
+	self:AimDownSights() -- Map Gamepad L2 (Left Trigger) to AimDownSights toggle/action
+end
+
+function FlintlockWeapon.key_M3(self)
+	self:AimDownSights() -- Map Mouse Middle Button to AimDownSights toggle/action
+end
+
+return FlintlockWeapon
