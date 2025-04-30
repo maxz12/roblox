@@ -1,0 +1,1295 @@
+--game:GetService("ReplicatedStorage").Modules.Weapons.MeleeBase
+local v_u_1 = {}
+v_u_1.__index = v_u_1
+local v_u_2 = game:GetService("UserInputService")
+local v_u_3 = workspace.CurrentCamera
+game:GetService("RunService")
+local v_u_4 = game.ReplicatedStorage:WaitForChild("LocalUpdateCrosshair")
+local v5 = game.ReplicatedStorage:WaitForChild("GameStates"):WaitForChild("Gameplay")
+local v_u_6 = v5:WaitForChild("FriendlyFire")
+local v_u_7 = v5:WaitForChild("PVP")
+local v_u_8 = game:GetService("CollectionService")
+local v_u_9 = require(game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("World"):WaitForChild("SoundSystem"))
+local v_u_10 = require(game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RbxUtil"):WaitForChild("DebugVisualizer"))
+local v11 = game.Players.LocalPlayer:WaitForChild("Options")
+local v_u_12 = v11:WaitForChild("FPArmTransparency")
+local v_u_13 = v11:WaitForChild("FlipHorizontalSwing")
+local v_u_14 = v11:WaitForChild("Gore")
+local v_u_15 = v11:WaitForChild("WeaponStains")
+local v_u_16 = v11:WaitForChild("UnlockDirAtUnEquip")
+local v_u_17 = {
+	["Swing"] = "rbxassetid://14228572354",
+	["Charge"] = "rbxassetid://14228574464",
+	["AxeFront"] = "rbxassetid://18550335136",
+	["AxeBack"] = "rbxassetid://18550335251"
+}
+function v_u_1.new(p_u_18, p_u_19, p20)
+	-- upvalues: (copy) v_u_1, (copy) v_u_16, (copy) v_u_2
+	local v21 = v_u_1
+	local v_u_22 = setmetatable({}, v21)
+	v_u_22.player = p_u_18
+	v_u_22.tool = p_u_19
+	v_u_22.remoteEvent = v_u_22.tool:WaitForChild("RemoteEvent")
+	v_u_22.remoteFunc = v_u_22.tool:WaitForChild("RemoteFunction")
+	v_u_22.mouse = p_u_18:GetMouse()
+	v_u_22.dirs = {
+		["Left"] = Vector2.new(-1, 0),
+		["Right"] = Vector2.new(1, 0),
+		["Up"] = Vector2.new(0, -1),
+		["Down"] = Vector2.new(0, 1)
+	}
+	v_u_22.stance = "Hold"
+	v_u_22.swingType = "Up"
+	v_u_22.stancing = false
+	p_u_19:SetAttribute("Melee", true)
+	v_u_22.lastSwing = 0
+	v_u_22.baseSpeed = 1
+	v_u_22.preAnimText = ""
+	v_u_22._gamepad_delta = Vector2.zero
+	v_u_22.equipped = false
+	v_u_22.m1Down = false
+	v_u_22.lastMousePos = Vector2.new()
+	v_u_22.sharp = true
+	v_u_22.captain = p20 or v_u_22.tool:HasTag("CanOfficerCharge")
+	v_u_22.sergeant = v_u_22.tool:HasTag("CanFormation")
+	v_u_22.branchWidth = 1
+	v_u_22.branchLength = 4
+	v_u_22.cursor = p_u_18:WaitForChild("PlayerGui"):WaitForChild("NewUI"):WaitForChild("InGame"):WaitForChild("Cursor")
+	v_u_22.arrow = v_u_22.cursor:WaitForChild("Arrow")
+	v_u_22.arrow_glow = v_u_22.cursor:WaitForChild("Arrow_Glow")
+	v_u_22.arrow_meter = v_u_22.cursor:WaitForChild("Meter")
+	v_u_22.arrow_meter_bar = v_u_22.arrow_meter:WaitForChild("Bar")
+	v_u_22.InventoryFrame = p_u_18.PlayerGui.NewUI:WaitForChild("Customization")
+	v_u_22.ShopFrame = p_u_18.PlayerGui.NewUI:WaitForChild("Shop")
+	local v23 = v_u_22.tool:WaitForChild("Configuration")
+	v_u_22.Stats = {}
+	for v24, v25 in pairs(v23:GetAttributes()) do
+		v_u_22.Stats[v24] = v25
+	end
+	if v_u_22.Stats.PowerSwingUp then
+		v_u_22.powerSwingActive = true
+	end
+	repeat
+		task.wait()
+	until p_u_18.Character and p_u_18.Character:IsDescendantOf(workspace)
+	v_u_22.character = p_u_18.Character
+	v_u_22.humanoid = v_u_22.character:WaitForChild("Humanoid")
+	v_u_22.root = v_u_22.character:WaitForChild("HumanoidRootPart")
+	v_u_22.rootJoint = v_u_22.root:WaitForChild("Root Hip")
+	v_u_22.rarm = v_u_22.character:WaitForChild("Right Arm")
+	v_u_22.larm = v_u_22.character:WaitForChild("Left Arm")
+	v_u_22.head = v_u_22.character:WaitForChild("Head")
+	local v26 = p_u_18.Character:WaitForChild("UserStates")
+	v_u_22.SpeedController = require(v26:WaitForChild("SpeedController"))
+	v_u_22.arm3dClothing = {}
+	v_u_22.flipped = false
+	v_u_22.torso = v_u_22.character:WaitForChild("Torso")
+	v_u_22.rShoulder = v_u_22.torso:WaitForChild("Right Shoulder")
+	v_u_22.lShoulder = v_u_22.torso:WaitForChild("Left Shoulder")
+	v_u_22.rC0 = CFrame.new(1, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0)
+	v_u_22.lC0 = CFrame.new(-1, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
+	v_u_22.neck = v_u_22.torso:WaitForChild("Neck")
+	v_u_22.neckC0 = CFrame.new(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0)
+	v_u_22.viewmodelOffset = CFrame.new(0, -1.5, -0.5)
+	v_u_22.mobileUI = p_u_18:WaitForChild("PlayerGui"):FindFirstChild("MobileGui")
+	v_u_22.parts = {}
+	v_u_22.tool.Equipped:Connect(function()
+		-- upvalues: (copy) v_u_22
+		v_u_22.equipped = true
+		v_u_22:equip()
+	end)
+	v_u_22.tool.Unequipped:Connect(function()
+		-- upvalues: (copy) v_u_22, (ref) v_u_16
+		v_u_22.equipped = false
+		if v_u_22.tool:HasTag("DirectionLock") and v_u_16.Value == true then
+			v_u_22.tool:RemoveTag("DirectionLock")
+		end
+		v_u_22:unequip()
+	end)
+	v_u_22.castPoints = {}
+	v_u_22.flipCastPoints = {}
+	v_u_22.remoteEventFuncs = {}
+	v_u_22.handleWeld = nil
+	v_u_22.bloodSplatterTextures = {}
+	v_u_22.bloodSplatterTexNum = 0
+	v_u_22.bloodSaturation = 0
+	v_u_22.lastBloodUpdate = 0
+	v_u_22.defaultRayParams = RaycastParams.new()
+	v_u_22.defaultRayParams.FilterDescendantsInstances = { workspace.Zombies, workspace.Buildings, workspace:FindFirstChild("Players") }
+	function v_u_22.remoteEventFuncs.Callback(p27)
+		-- upvalues: (copy) v_u_22
+		if v_u_22.handleWeld ~= nil then
+			return
+		end
+		v_u_22.handleWeld = p27
+		if v_u_22.handleWeld.Part1 ~= v_u_22.handle then
+			for _, v28 in v_u_22.rarm:GetChildren() do
+				if v28:IsA("Motor6D") and v28.Part1 == v_u_22.handle then
+					v_u_22.handleWeld = v28
+					break
+				end
+			end
+		end
+		v_u_22.model = v_u_22.tool:WaitForChild("Model")
+		v_u_22.handle = v_u_22.model:WaitForChild("Handle")
+		for _, v29 in pairs(v_u_22.model:GetDescendants()) do
+			if v29:IsA("BasePart") and v29 ~= v_u_22.handle then
+				local v30 = v_u_22.parts
+				table.insert(v30, v29)
+			elseif v29.Name == "Cast" and v29:IsA("Attachment") then
+				local v31 = v_u_22.castPoints
+				table.insert(v31, v29)
+			elseif v29.Name == "Flip_Cast" and v29:IsA("Attachment") then
+				local v32 = v_u_22.flipCastPoints
+				table.insert(v32, v29)
+			elseif v29.Name == "BloodTexture" then
+				local v33 = v_u_22.bloodSplatterTextures
+				table.insert(v33, v29)
+				local v34 = v_u_22.parts
+				table.insert(v34, v29)
+				v_u_22.bloodSplatterTexNum = #v_u_22.bloodSplatterTextures
+			end
+		end
+	end
+	function v_u_22.remoteEventFuncs.Error(...)
+		warn(...)
+	end
+	v_u_22.remoteEvent.OnClientEvent:Connect(function(p35, ...)
+		-- upvalues: (copy) v_u_22
+		if v_u_22.remoteEventFuncs[p35] ~= nil then
+			v_u_22.remoteEventFuncs[p35](...)
+		end
+	end)
+	if p_u_19.Name == "Shovel" then
+		v_u_22.model = v_u_22.tool:WaitForChild("Model")
+		v_u_22.handle = v_u_22.model:WaitForChild("Handle")
+		v_u_22.handleWeld = v_u_22.tool:WaitForChild("HandleWeldRef").Value
+		for _, v36 in pairs(v_u_22.model:GetDescendants()) do
+			if v36:IsA("BasePart") and v36 ~= v_u_22.handle then
+				local v37 = v_u_22.parts
+				table.insert(v37, v36)
+			elseif v36.Name == "Cast" and v36:IsA("Attachment") then
+				local v38 = v_u_22.castPoints
+				table.insert(v38, v36)
+			end
+		end
+		v_u_22.handle.Name = "Main"
+	end
+	v_u_2.InputChanged:Connect(function(p39, p40)
+		-- upvalues: (copy) v_u_22
+		if not p40 then
+			if p39.KeyCode == Enum.KeyCode.Thumbstick2 and (p39.Delta.Magnitude > 0.1 or p39.Delta.Magnitude < -0.1) then
+				v_u_22._gamepad_delta = Vector2.new(p39.Delta.X, -p39.Delta.Y)
+			end
+		end
+	end)
+	if v_u_22.captain then
+		v_u_22.meter = p_u_19:FindFirstChild("Heat") or p_u_18.Character:FindFirstChild("Heat")
+		function v_u_22.charge(p41)
+			-- upvalues: (copy) p_u_19, (copy) p_u_18
+			if p41.meter == nil then
+				p41.meter = p_u_19:FindFirstChild("Heat") or p_u_18.Character:FindFirstChild("Heat")
+			end
+			if p41.meter ~= nil and (not p41.meter or p41.meter.Value >= 100) then
+				p41.chargeAttack = true
+				p41.animations[p41.preAnimText .. "HoldUp"]:Stop(0)
+				p41.animations[p41.preAnimText .. "HoldRight"]:Stop(0)
+				p41.animations[p41.preAnimText .. "HoldLeft"]:Stop(0)
+				p41.animations[p41.preAnimText .. "HoldThrust"]:Stop(0)
+				local v42 = 0
+				for _, v43 in pairs(game.Players:GetPlayers()) do
+					if v43 ~= p_u_18 and v43.Character then
+						local v44 = v43.Character:FindFirstChild("Humanoid")
+						if v44 and (v44.Health > 0 and v43:DistanceFromCharacter(p41.root.Position) <= 35) then
+							v42 = v42 + 1
+						end
+					end
+				end
+				local v45 = p41.animations[p41.preAnimText .. "ChargeMulti"]
+				if v42 == 0 then
+					v45 = p41.animations[p41.preAnimText .. "ChargeAlone"]
+				end
+				v45:Play(0, 1, 1)
+				p41.chargeAttack = false
+				p41.remoteEvent:FireServer("Charge")
+			end
+		end
+	elseif v_u_22.sergeant then
+		local v46 = p_u_19:WaitForChild("MeterRef", 1)
+		if v46 then
+			v46 = v46.Value
+		end
+		v_u_22.meter = v46
+		function v_u_22.charge(p47)
+			-- upvalues: (copy) p_u_19
+			if not p47.meter then
+				local v48 = p_u_19:FindFirstChild("MeterRef")
+				if v48 then
+					v48 = v48.Value
+				end
+				p47.meter = v48
+			end
+			if p47.meter and p47.meter.Value >= 100 then
+				p47.remoteEvent:FireServer("Formation")
+				p47.animations.Form:Play()
+				local v49 = p47.SpeedController.AddModifier("FormationStop", 0, 11)
+				game.Debris:AddItem(v49, p47.animations.Form.Length)
+			end
+		end
+		function v_u_22.remoteEventFuncs.BoostAnim()
+			-- upvalues: (copy) v_u_22
+			if v_u_22.animations.SupportCharge then
+				v_u_22.animations.SupportCharge:Play()
+			end
+		end
+	end
+	v_u_22._maid = require(game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("RbxUtil"):WaitForChild("Maid")).new()
+	v_u_22._maid:GiveTask(game.CollectionService:GetInstanceAddedSignal("Charging"):Connect(function(p50)
+		-- upvalues: (copy) v_u_22, (copy) p_u_18
+		if v_u_22.equipped then
+			if p50.Name == p_u_18.Name then
+				if v_u_22.Stats.ThrustCharge then
+					if not game.CollectionService:HasTag(v_u_22.player.Character, v_u_22.Stats.ThrustCharge) then
+						game.CollectionService:AddTag(v_u_22.player.Character, v_u_22.Stats.ThrustCharge)
+					end
+					if v_u_22.animations[v_u_22.preAnimText .. "Hold"].IsPlaying then
+						v_u_22.animations[v_u_22.preAnimText .. "Hold"]:Stop()
+					end
+					if v_u_22.stance == "Prepared" then
+						v_u_22:stopAnimations({
+							v_u_22.preAnimText .. "HoldThrust",
+							v_u_22.preAnimText .. "HoldUp",
+							v_u_22.preAnimText .. "HoldRight",
+							v_u_22.preAnimText .. "HoldLeft"
+						})
+					end
+				else
+					if v_u_22.animations[v_u_22.preAnimText .. "Hold"].IsPlaying then
+						v_u_22.animations[v_u_22.preAnimText .. "Hold"]:Stop()
+					end
+					if v_u_22.animations.ChargeIdle then
+						v_u_22.animations.ChargeIdle:Play()
+					end
+					if v_u_22.stance == "Prepared" then
+						v_u_22:stopAnimations({
+							"HoldThrust",
+							"HoldUp",
+							"HoldRight",
+							"HoldLeft"
+						})
+						if v_u_22.swingType == "Left" then
+							v_u_22.animations[v_u_22.preAnimText .. "ChargeHoldLeft"]:Play(0, 1, 1)
+							return
+						elseif v_u_22.swingType == "Right" then
+							v_u_22.animations[v_u_22.preAnimText .. "ChargeHoldRight"]:Play(0, 1, 1)
+						else
+							local v51 = math.random(1, 2) == 1 and "Left" or "Right"
+							v_u_22.animations[v_u_22.preAnimText .. "ChargeHold" .. v51]:Play(0, 1, 1)
+							v_u_22.swingType = v51
+						end
+					end
+				end
+			end
+		end
+	end))
+	v_u_22._maid:GiveTask(game.CollectionService:GetInstanceRemovedSignal("Charging"):Connect(function(p52)
+		-- upvalues: (copy) v_u_22, (copy) p_u_18
+		if v_u_22.equipped then
+			if p52.Name == p_u_18.Name then
+				if not v_u_22.animations[v_u_22.preAnimText .. "Hold"].IsPlaying then
+					v_u_22.animations[v_u_22.preAnimText .. "Hold"].Priority = Enum.AnimationPriority.Movement
+					v_u_22.animations[v_u_22.preAnimText .. "Hold"]:Play()
+				end
+				if v_u_22.animations.ChargeIdle then
+					v_u_22.animations.ChargeIdle:Stop()
+				end
+				v_u_22:stopAnimations({
+					v_u_22.preAnimText .. "ChargePrepareRight",
+					v_u_22.preAnimText .. "ChargePrepareLeft",
+					v_u_22.preAnimText .. "ChargeHoldRight",
+					v_u_22.preAnimText .. "ChargeHoldLeft"
+				})
+				if v_u_22.Stats.ThrustCharge and game.CollectionService:HasTag(v_u_22.player.Character, v_u_22.Stats.ThrustCharge) then
+					game.CollectionService:AddTag(v_u_22.player.Character, v_u_22.Stats.ThrustCharge)
+				end
+				v_u_22.stancing = false
+			end
+		end
+	end))
+	v_u_22.controls = require(p_u_18.PlayerScripts.PlayerModule:WaitForChild("ControlModule"))
+	v_u_22._maid:GiveTask(v_u_22.humanoid.Died:Connect(function()
+		-- upvalues: (copy) v_u_22
+		v_u_22.controls:Enable()
+		v_u_22._maid:Destroy()
+	end))
+	v_u_22._maid:GiveTask(v_u_22.character.Destroying:Connect(function()
+		-- upvalues: (copy) v_u_22
+		v_u_22.controls:Enable()
+		v_u_22._maid:Destroy()
+	end))
+	v_u_22.animations = {}
+	v_u_22:loadAnimations()
+	local v53 = v_u_22.character:FindFirstChild("3D_Clothing")
+	if v53 then
+		local v54 = v53:FindFirstChild("Left Arm")
+		local v55 = v53:FindFirstChild("Right Arm")
+		if v54 then
+			for _, v56 in v54:GetChildren() do
+				if v56:IsA("BasePart") then
+					local v57 = v_u_22.arm3dClothing
+					table.insert(v57, v56)
+				end
+			end
+		end
+		if v55 then
+			for _, v58 in v55:GetChildren() do
+				if v58:IsA("BasePart") then
+					local v59 = v_u_22.arm3dClothing
+					table.insert(v59, v58)
+				end
+			end
+		end
+	end
+	return v_u_22
+end
+function v_u_1.stopAnimations(p60, p61, p62)
+	local v63 = p62 or 0
+	for _, v64 in pairs(p61) do
+		if p60.animations[v64] ~= nil then
+			p60.animations[v64]:Stop(v63)
+		end
+	end
+end
+function v_u_1.CalculateBuffScalar(p65)
+	local v66 = (p65.character:GetAttribute("SwingSpeedScalar") or 1) * (p65.Stats.SwingSpeedMultiplier or 1)
+	local v67 = p65.tool:FindFirstChild("SwingSpeedBuff")
+	if v67 then
+		v66 = v66 * (1 + v67.Value * 0.35)
+	end
+	local v68 = p65.character:FindFirstChild("ColdDebuff")
+	if v68 then
+		v66 = v66 - 0.33 * v68.Value
+	end
+	p65.buffScalar = p65.baseSpeed * v66
+end
+function v_u_1.StanceWait(p69, p70)
+	p69:CalculateBuffScalar()
+	p70:AdjustSpeed(p69.buffScalar)
+	p70.Stopped:Wait()
+	return p69.equipped
+end
+function v_u_1.loadAnimations(p_u_71)
+	if not p_u_71.loadedAnims then
+		p_u_71.loadedAnims = true
+		local v72 = p_u_71.tool:WaitForChild("Animations")
+		for _, v73 in pairs(v72:GetChildren()) do
+			p_u_71.animations[v73.Name] = p_u_71.humanoid:LoadAnimation(v73)
+		end
+		local v74 = p_u_71.tool:FindFirstChild("FlipAnimations")
+		if v74 then
+			for _, v75 in pairs(v74:GetChildren()) do
+				p_u_71.animations[v75.Name] = p_u_71.humanoid:LoadAnimation(v75)
+			end
+		end
+		local v76 = p_u_71.animations.ChargeHoldLeft and (p_u_71.animations.ChargeHoldRight and p_u_71.animations.ChargePrepareLeft and (p_u_71.animations.ChargePrepareRight and p_u_71.animations.ChargeSwingLeft))
+		if v76 then
+			v76 = p_u_71.animations.ChargeSwingRight
+		end
+		p_u_71.hasChargeSwings = v76 ~= nil
+		if p_u_71.sergeant and p_u_71.animations.Form then
+			p_u_71._maid:GiveTask(p_u_71.animations.Form:GetMarkerReachedSignal("Plant"):Connect(function()
+				-- upvalues: (copy) p_u_71
+				local v77 = p_u_71.handle:FindFirstChild("Plant")
+				if v77 then
+					v77:Play()
+				end
+			end))
+		end
+	end
+end
+function v_u_1.equip(p_u_78)
+	-- upvalues: (copy) v_u_2, (copy) v_u_17
+	if p_u_78.handleWeld == nil then
+		p_u_78.humanoid:UnequipTools()
+	else
+		p_u_78.remoteEvent:FireServer("Equip", p_u_78.root)
+		p_u_78.handleWeld.CurrentAngle = 0
+		p_u_78.handleWeld.Enabled = true
+		p_u_78.arrow_meter.Visible = false
+		if p_u_78.Stats.Walkspeed then
+			p_u_78.SpeedController.AddModifier("MeleeWalkDebuff", p_u_78.Stats.Walkspeed, 1)
+		end
+		if p_u_78.Stats.ThrustCharge and not game.CollectionService:HasTag(p_u_78.player.Character, p_u_78.Stats.ThrustCharge) then
+			game.CollectionService:AddTag(p_u_78.player.Character, p_u_78.Stats.ThrustCharge)
+		end
+		local v79 = game.CollectionService:HasTag(p_u_78.character, "Charging")
+		if v79 then
+			if v79 and (p_u_78.animations.ChargePrepareLeft == nil or p_u_78.animations.ChargePrepareRight == nil) then
+				if p_u_78.Stats.ThrustCharge then
+					if p_u_78.animations[p_u_78.preAnimText .. "Hold"] then
+						p_u_78.animations[p_u_78.preAnimText .. "Hold"]:Stop()
+					end
+				else
+					if p_u_78.animations[p_u_78.preAnimText .. "Hold"] then
+						p_u_78.animations[p_u_78.preAnimText .. "Hold"].Priority = Enum.AnimationPriority.Movement
+						p_u_78.animations[p_u_78.preAnimText .. "Hold"]:Play()
+					end
+					if p_u_78.animations.ChargeIdle then
+						p_u_78.animations.ChargeIdle:Play()
+					end
+				end
+			end
+		else
+			if p_u_78.animations.Equip then
+				p_u_78.animations.Equip:Play(0, 1, 1)
+			end
+			if p_u_78.animations[p_u_78.preAnimText .. "Hold"] then
+				p_u_78.animations[p_u_78.preAnimText .. "Hold"].Priority = Enum.AnimationPriority.Movement
+				p_u_78.animations[p_u_78.preAnimText .. "Hold"]:Play()
+			end
+		end
+		if p_u_78.tool and p_u_78.tool.Name == "Sword & Shield" then
+			p_u_78.hasShield = true
+		end
+		v_u_2.MouseIconEnabled = false
+		p_u_78.cursor.Visible = true
+		p_u_78.arrow.Visible = true
+		p_u_78.lastMousePos = Vector2.new(p_u_78.mouse.X, p_u_78.mouse.Y)
+		if p_u_78.mobileUI == nil and p_u_78.player:GetAttribute("Mobile") == true then
+			p_u_78.mobileUI = p_u_78.player.PlayerGui:FindFirstChild("MobileGui")
+		end
+		if p_u_78.mobileUI and p_u_78.mobileController == nil then
+			task.spawn(function()
+				-- upvalues: (copy) p_u_78
+				p_u_78.mobileController = require(p_u_78.mobileUI:WaitForChild("InitMobile2"))
+			end)
+		end
+		if p_u_78.guiVisualizer ~= nil then
+			if p_u_78.guiVisualizer.Name == "BoardAxe" then
+				local v80 = p_u_78.guiVisualizer
+				local v81
+				if p_u_78.flipped then
+					v81 = v_u_17.AxeBack
+				else
+					v81 = v_u_17.AxeFront
+				end
+				v80.Image = v81
+			end
+			p_u_78.guiVisualizer.Visible = true
+		end
+		if p_u_78.mobileController then
+			task.spawn(function()
+				-- upvalues: (copy) p_u_78, (ref) v_u_17
+				if p_u_78.deactivate then
+					p_u_78.mobileController:FireButtonToggle(true, function()
+						-- upvalues: (ref) p_u_78
+						p_u_78:deactivate()
+					end, function()
+						-- upvalues: (ref) p_u_78
+						p_u_78:activate()
+					end, v_u_17.Swing)
+				else
+					p_u_78.mobileController:FireButtonToggle(true, function()
+						-- upvalues: (ref) p_u_78
+						p_u_78:activate()
+					end, nil, v_u_17.Swing)
+				end
+				if p_u_78.captain then
+					p_u_78.mobileController:CreateActionButton("Charge", v_u_17.Charge, function()
+						-- upvalues: (ref) p_u_78
+						p_u_78:charge()
+					end, UDim2.fromScale(0.75, 0.75))
+				elseif p_u_78.sergeant then
+					p_u_78.mobileController:CreateActionButton("Charge", v_u_17.Charge, function()
+						-- upvalues: (ref) p_u_78
+						p_u_78:charge()
+					end, UDim2.fromScale(0.75, 0.75))
+				end
+				if p_u_78.Stats.UseFlip then
+					p_u_78.mobileController:CreateActionButton("Flip", "rbxassetid://8848554011", function()
+						-- upvalues: (ref) p_u_78
+						p_u_78:Flip()
+					end, UDim2.fromScale(0.75, 0.75))
+				end
+				if p_u_78.Stats.Entrenchment then
+					p_u_78.mobileController:CreateActionButton("Entrenchment", "rbxassetid://10098013519", function()
+						-- upvalues: (ref) p_u_78
+						p_u_78:dig()
+					end, UDim2.fromScale(0.75, 0.75))
+				end
+				if p_u_78.Stats.PowerSwingUp then
+					p_u_78.mobileController:CreateActionButton("PickaxeCharge", "rbxassetid://8848554011", function()
+						-- upvalues: (ref) p_u_78
+						p_u_78:VisualizeSwitch()
+					end, UDim2.fromScale(0.75, 0.75))
+				end
+				if p_u_78.hasShield then
+					p_u_78.mobileController:CreateActionButton("Shield", "rbxassetid://18271719331", function()
+						-- upvalues: (ref) p_u_78
+						p_u_78:key_Q()
+						p_u_78.mobileController:UpdateActionButtonIcon("Shield", p_u_78.shieldActive and "rbxassetid://18271719331" or "rbxassetid://18271719502")
+					end, UDim2.fromScale(0.75, 0.75))
+				end
+				if p_u_78.tool.Name == "Shovel" then
+					p_u_78.mobileController:CreateActionButton("Shovel", "rbxassetid://10098013519", function()
+						-- upvalues: (ref) p_u_78
+						p_u_78:dig()
+					end)
+				end
+				if p_u_78.Stats.CanShove then
+					p_u_78.mobileController:CreateActionButton("Shove", "rbxassetid://15727004113", function()
+						-- upvalues: (ref) p_u_78
+						if p_u_78.shoveActive then
+							p_u_78:releaseM2()
+						else
+							task.spawn(function()
+								-- upvalues: (ref) p_u_78
+								p_u_78:shove()
+							end)
+						end
+					end, UDim2.fromScale(0.75, 0.75))
+				end
+				if p_u_78.Stats.AimLock then
+					p_u_78.mobileController:CreateActionButton("AimLock", "rbxassetid://13137621651", function()
+						-- upvalues: (ref) p_u_78
+						if p_u_78.AimLockToggle then
+							p_u_78:AimLockToggle()
+						end
+					end, UDim2.fromScale(0.75, 0.75))
+				end
+				local v82 = {}
+				for v83, _ in pairs(p_u_78.dirs) do
+					v82[tostring(v83):lower()] = true
+				end
+				p_u_78.mobileController:ToggleSwingEvent(true, v82)
+			end)
+		end
+	end
+end
+function v_u_1.unequip(p_u_84)
+	-- upvalues: (copy) v_u_2
+	v_u_2.MouseIconEnabled = true
+	p_u_84.cursor.Visible = false
+	p_u_84.arrow.Visible = false
+	p_u_84.arrow_meter.Visible = false
+	if p_u_84.powerHold then
+		p_u_84.speedChange = nil
+	end
+	p_u_84.powerHold = false
+	p_u_84.powerHoldScale = nil
+	if p_u_84.guiVisualizer ~= nil then
+		p_u_84.guiVisualizer.Visible = false
+	end
+	p_u_84.SpeedController.RemoveModifier("MeleeWalkDebuff")
+	p_u_84.SpeedController.RemoveModifier("MeleeAction")
+	task.wait()
+	for _, v85 in pairs(p_u_84.animations) do
+		v85:Stop()
+	end
+	if p_u_84.Stats.ThrustCharge and p_u_84.player.Character:HasTag(p_u_84.Stats.ThrustCharge) then
+		game.CollectionService:RemoveTag(p_u_84.player.Character, p_u_84.Stats.ThrustCharge)
+	end
+	task.spawn(function()
+		-- upvalues: (copy) p_u_84
+		if p_u_84.mobileController then
+			p_u_84.mobileController:FireButtonToggle(false)
+			p_u_84.mobileController:DestroyActionButton("Charge")
+			if p_u_84.tool.Name == "Shovel" then
+				p_u_84.mobileController:DestroyActionButton("Shovel")
+			end
+			if p_u_84.Stats.CanShove then
+				p_u_84.mobileController:DestroyActionButton("Shove")
+			end
+			if p_u_84.Stats.UseFlip then
+				p_u_84.mobileController:DestroyActionButton("Flip")
+			end
+			if p_u_84.Stats.Entrenchment then
+				p_u_84.mobileController:DestroyActionButton("Entrenchment")
+			end
+			if p_u_84.hasShield then
+				p_u_84.mobileController:DestroyActionButton("Shield")
+			end
+			if p_u_84.Stats.AimLock then
+				p_u_84.mobileController:DestroyActionButton("AimLock")
+			end
+			task.delay(task.wait(), function()
+				-- upvalues: (ref) p_u_84
+				local v86 = p_u_84.character:FindFirstChildOfClass("Tool")
+				if not v86 or v86:GetAttribute("Melee") ~= true then
+					p_u_84.mobileController:ToggleSwingEvent(false)
+				end
+			end)
+		end
+	end)
+	p_u_84.stance = "Hold"
+	p_u_84.stancing = false
+	p_u_84.remoteEvent:FireServer("Unequip")
+	p_u_84.m1Down = false
+	p_u_84.neck.C0 = p_u_84.neckC0
+	p_u_84.rShoulder.C0 = p_u_84.rC0
+	p_u_84.lShoulder.C0 = p_u_84.lC0
+end
+function v_u_1.activate(p87)
+	if p87.equipped and not p87.digging then
+		p87.m1Down = true
+		if not p87.stancing and (p87.lastSwing < tick() and (not p87.character:GetAttribute("SwungMelee") or p87.character:GetAttribute("SwungMelee") < tick())) then
+			local v88 = game.CollectionService:HasTag(p87.character, "Charging")
+			if (v88 or p87.tool:GetAttribute("Bracing")) and p87.Stats.ThrustCharge then
+				return
+			end
+			if v88 and p87.hasChargeSwings then
+				if p87.animations.ChargeHoldLeft.IsPlaying or p87.animations.ChargeHoldRight.IsPlaying then
+					p87:swing()
+					return
+				end
+				if p87.stance == "Hold" then
+					p87.stancing = true
+					local _ = p87.animations.PrepareThrust
+					local v89
+					if math.random(1, 2) == 2 then
+						p87.swingType = "Right"
+						v89 = p87.animations.ChargePrepareRight
+					else
+						p87.swingType = "Left"
+						v89 = p87.animations.ChargePrepareLeft
+					end
+					v89:Play(0, 1, 1)
+					p87:PreparedSwing(v89)
+					if p87.equipped and p87.stance == "Prepared" then
+						p87:swing()
+						return
+					end
+				end
+			elseif p87.stance == "Hold" then
+				p87.stancing = true
+				if not p87.dirs[p87.swingType] then
+					for v90, _ in p87.dirs do
+						p87.swingType = v90
+						break
+					end
+				end
+				if (p87.swingType == "Right" or p87.swingType == "Left") and (p87.Stats.PowerSwingUp and p87.powerSwingActive) then
+					print("SET TO TRUE")
+					p87.powerHold = true
+					p87.powerHoldScale = tick() + (p87.Stats.PowerSwingTime or 2)
+					p87.remoteEvent:FireServer("TriggerCharge")
+				end
+				local v91 = p87.animations[p87.preAnimText .. "PrepareThrust"]
+				if p87.swingType == "Up" and p87.animations[p87.preAnimText .. "PrepareDown"] then
+					v91 = p87.animations[p87.preAnimText .. "PrepareDown"]
+				elseif p87.swingType == "Right" and p87.animations[p87.preAnimText .. "PrepareRight"] then
+					v91 = p87.animations[p87.preAnimText .. "PrepareRight"]
+				elseif p87.swingType == "Left" and p87.animations[p87.preAnimText .. "PrepareLeft"] then
+					v91 = p87.animations[p87.preAnimText .. "PrepareLeft"]
+				end
+				if v91 == nil then
+					v91 = p87.animations[p87.preAnimText .. "PrepareLeft"]
+				end
+				v91:Play(0, 1, 1)
+				p87:PreparedSwing(v91)
+			end
+		end
+	end
+end
+function v_u_1.YieldAnim(p92, p93)
+	p93.Stopped:Wait()
+	return p92.equipped
+end
+function v_u_1.VisualizeSwitch(p_u_94)
+	-- upvalues: (copy) v_u_9
+	if p_u_94.LockGlowTween ~= nil then
+		p_u_94.LockGlowTween:Cancel()
+		task.wait()
+	end
+	v_u_9.SFX.LockDing:Play()
+	local v_u_95 = game.Players.LocalPlayer.PlayerGui:WaitForChild("NewUI"):WaitForChild("InGame"):WaitForChild("Cursor"):WaitForChild("FlipGlow")
+	v_u_95.ImageTransparency = 0.4
+	p_u_94.LockGlowTween = game.TweenService:Create(v_u_95, TweenInfo.new(0.6, Enum.EasingStyle.Linear, Enum.EasingDirection.In, 0, false, 0.4), {
+		["ImageTransparency"] = 1
+	})
+	p_u_94.LockGlowTween.Completed:Connect(function()
+		-- upvalues: (copy) v_u_95, (copy) p_u_94
+		v_u_95.ImageTransparency = 1
+		p_u_94.LockGlowTween:Destroy()
+		p_u_94.LockGlowTween = nil
+	end)
+	p_u_94.LockGlowTween:Play()
+end
+function v_u_1.Flip(p_u_96)
+	-- upvalues: (copy) v_u_17
+	if p_u_96.Stats.UseFlip == true and (not p_u_96.stancing and p_u_96.stance == "Hold") then
+		local v97 = not p_u_96.flipped
+		local v98 = p_u_96.animations[p_u_96.preAnimText .. "Hold"]
+		local v99 = p_u_96.animations[p_u_96.preAnimText .. "Return"]
+		if v99 == nil or v99 ~= nil and v99.IsPlaying then
+			return
+		end
+		p_u_96.stancing = true
+		v99:Play(0, 1, 1)
+		v98:Stop(0)
+		if p_u_96.guiVisualizer ~= nil then
+			local v100 = p_u_96.guiVisualizer
+			local v101
+			if v97 then
+				v101 = v_u_17.AxeBack
+			else
+				v101 = v_u_17.AxeFront
+			end
+			v100.Image = v101
+		end
+		task.defer(function()
+			-- upvalues: (copy) p_u_96
+			p_u_96:VisualizeSwitch()
+		end)
+		if p_u_96:YieldAnim(v99) then
+			p_u_96.preAnimText = v97 and "Flip_" or ""
+			p_u_96.animations[p_u_96.preAnimText .. "Hold"]:Play(0, 1, 1)
+			p_u_96.flipped = v97
+			p_u_96.remoteEvent:FireServer("Flip", p_u_96.flipped)
+		end
+		p_u_96.stancing = false
+	end
+end
+function v_u_1.PreparedSwing(p102, p103)
+	p102.remoteEvent:FireServer("PrepareSwing")
+	if p102:StanceWait(p103) and p102.equipped then
+		p102.stancing = false
+		p102.stance = "Prepared"
+		if game.CollectionService:HasTag(p102.character, "Charging") == true and p102.hasChargeSwings then
+			local v104 = p102.Stats.UseFlip and p102.flipped and "Flip_" or ""
+			if p102.swingType == "Left" then
+				p102.animations[v104 .. "ChargeHoldLeft"]:Play(0, 1, 1)
+				return
+			end
+			if p102.swingType == "Right" then
+				p102.animations[v104 .. "ChargeHoldRight"]:Play(0, 1, 1)
+				return
+			end
+		else
+			if p102.swingType == "Down" then
+				p102.animations[p102.preAnimText .. "HoldThrust"]:Play(0, 1, 1)
+				return
+			end
+			if p102.swingType == "Up" then
+				p102.animations[p102.preAnimText .. "HoldUp"]:Play(0, 1, 1)
+				return
+			end
+			if p102.swingType == "Right" then
+				p102.animations[p102.preAnimText .. "HoldRight"]:Play(0, 1, 1)
+				return
+			end
+			if p102.swingType == "Left" then
+				p102.animations[p102.preAnimText .. "HoldLeft"]:Play(0, 1, 1)
+			end
+		end
+	end
+end
+function v_u_1.deactivate(p105)
+	if p105.equipped then
+		p105.m1Down = false
+		if p105.powerHold then
+			p105.speedChange = nil
+		end
+		p105.powerHold = false
+	end
+end
+function v_u_1.MeleeHitCheck(p106, p107, p108, p109, p110, p111)
+	-- upvalues: (copy) v_u_10, (copy) v_u_14, (copy) v_u_15, (copy) v_u_7, (copy) v_u_8
+	local v112 = workspace:Raycast(p107, p108, p109)
+	if v112 then
+		if v112.Instance.Parent.Name == "m_Zombie" then
+			local v113 = p109.FilterDescendantsInstances
+			local v114 = v112.Instance
+			table.insert(v113, v114)
+			p109.FilterDescendantsInstances = v113
+			local v115 = v112.Instance.Parent:FindFirstChild("Orig")
+			if v115 then
+				if p106.sharp and shared.Gib ~= nil then
+					if v112.Instance.Name == "Head" and v115.Value then
+						local v116 = v115.Value:FindFirstChild("Zombie")
+						local v117 = not p106.Stats.HeadshotMulti and 2.3 or p106.Stats.HeadshotMulti
+						if v116 and v116.Health - p106.Stats.Damage * v117 <= 0 then
+							shared.Gib(v115.Value, v112.Instance.Name, v112.Position, v112.Normal, true)
+						end
+					else
+						shared.Gib(v115.Value, v112.Instance.Name, v112.Position, v112.Normal, true)
+					end
+				end
+				if not p110[v115] or p110[v115] < (p106.Stats.MaxHits or 3) and v115.Value then
+					if p111 then
+						p106.remoteEvent:FireServer("ThrustCharge", v115.Value, v112.Position, v112.Normal)
+					else
+						local v_u_118 = v115.Value
+						local v119 = v112.Position - p107
+						if v119:Dot(v119) > 1 then
+							v119 = v119.Unit
+						end
+						local v120 = v119 * 25
+						p106.remoteEvent:FireServer("HitZombie", v_u_118, v112.Position, v112.Instance.Name == "Head", v120, v112.Instance.Name, v112.Normal)
+						if not v_u_118:GetAttribute("WepHitDirection") then
+							local v_u_121 = tick()
+							v_u_118:SetAttribute("WepHitID", tick())
+							v_u_118:SetAttribute("WepHitDirection", v120)
+							v_u_118:SetAttribute("WepHitPos", v112.Position)
+							task.delay(0.2, function()
+								-- upvalues: (copy) v_u_118, (copy) v_u_121
+								if v_u_118:GetAttribute("WepHitID") == v_u_121 then
+									v_u_118:SetAttribute("WepHitDirection", nil)
+									v_u_118:SetAttribute("WepHitPos", nil)
+									v_u_118:SetAttribute("WepHitID", nil)
+								end
+							end)
+						end
+						v_u_10:CastSphere("MeleeHitValid", CFrame.new(p107), Color3.fromRGB(0, 255, 0))
+						v_u_10:CastSphere("PartPosition", CFrame.new(v112.Position), Color3.fromRGB(255, 85, 0))
+						v_u_10:CastLine("MeleeHit", CFrame.new(p107, p107 + p108) * CFrame.new(0, 0, -p108.Magnitude / 2), Color3.fromRGB(0, 255, 0), p108.Magnitude / 1)
+					end
+					if p110[v115] then
+						p110[v115] = p110[v115] + 1
+					else
+						table.insert(p110, v115)
+						p110[v115] = 1
+						if v_u_14.Value and (v_u_15.Value and p106.player:GetAttribute("Platform") ~= "Console") then
+							local v122 = p106.bloodSaturation + 0.1
+							p106.bloodSaturation = math.min(v122, 1)
+							local v123 = 1 - (not (v_u_14.Value and v_u_15.Value) and 0 or p106.bloodSaturation)
+							for v124 = 1, p106.bloodSplatterTexNum do
+								p106.bloodSplatterTextures[v124].Transparency = v123
+							end
+						end
+					end
+				end
+			end
+			return 1
+		end
+		if not p111 then
+			local v125 = v112.Instance.Parent:FindFirstChild("DoorHit") or v112.Instance:FindFirstChild("BreakGlass")
+			if v125 and not table.find(p110, v125) then
+				table.insert(p110, v125)
+				p106.remoteEvent:FireServer("HitCon", v112.Instance)
+				v_u_10:CastSphere("MeleeHitValid", CFrame.new(p107), Color3.fromRGB(0, 255, 0))
+				v_u_10:CastLine("MeleeHit", CFrame.new(p107, p107 + p108) * CFrame.new(0, 0, -p108.Magnitude / 2), Color3.fromRGB(255, 255, 0), p108.Magnitude / 1)
+				return 2
+			end
+			local v126 = v112.Instance.Parent:FindFirstChild("Humanoid") or v112.Instance.Parent.Parent:FindFirstChild("Humanoid")
+			if v126 and not table.find(p110, v126) then
+				table.insert(p110, v126)
+				p106.remoteEvent:FireServer("HitPlayer", v126, v112.Position)
+				v_u_10:CastSphere("MeleeHitValid", CFrame.new(p107), Color3.fromRGB(0, 255, 0))
+				v_u_10:CastLine("MeleeHit", CFrame.new(p107, p107 + p108) * CFrame.new(0, 0, -p108.Magnitude / 2), Color3.fromRGB(0, 255, 0), p108.Magnitude / 1)
+				return 2
+			end
+			if v_u_7:GetAttribute("Active") == true then
+				local v127 = v112.Instance.Parent:FindFirstChild("BuildingHealth") or v112.Instance.Parent.Parent:FindFirstChild("BuildingHealth")
+				if v127 ~= nil and not table.find(p110, v127) then
+					table.insert(p110, v127)
+					local v128 = v127.Parent:FindFirstChild("Creator")
+					if v128 then
+						v128 = v128.Value
+					end
+					if v128 ~= nil and (v128.Neutral == false and (p106.player.Team ~= nil and (v128.Team ~= nil and p106.player.Team.Name == v128.Team.Name))) then
+						return 2
+					end
+					p106.remoteEvent:FireServer("HitBuilding", v127.Parent)
+					v_u_10:CastSphere("MeleeHitValid", CFrame.new(p107), Color3.fromRGB(0, 255, 0))
+					v_u_10:CastLine("MeleeHit", CFrame.new(p107, p107 + p108) * CFrame.new(0, 0, -p108.Magnitude / 2), Color3.fromRGB(255, 255, 0), p108.Magnitude / 1)
+					return 2
+				end
+			end
+			if p106.Stats.BreaksDown and v_u_8:HasTag(v112.Instance, "Breakable") then
+				local v129 = OverlapParams.new()
+				v129.FilterDescendantsInstances = p109.FilterDescendantsInstances
+				local v130 = workspace:GetPartBoundsInRadius(v112.Position, 0.1, v129)
+				local v131 = {}
+				for v132 = 1, #v130 do
+					if v_u_8:HasTag(v130[v132], "Breakable") then
+						local v133 = v130[v132]
+						table.insert(v131, v133)
+					end
+				end
+				p106.remoteEvent:FireServer("HitBreakable", v131, (v112.Position - p107).Unit)
+				v_u_10:CastSphere("MeleeHitValid", CFrame.new(p107), Color3.fromRGB(0, 255, 0))
+				v_u_10:CastLine("MeleeHit", CFrame.new(p107, p107 + p108) * CFrame.new(0, 0, -p108.Magnitude / 2), Color3.fromRGB(255, 255, 0), p108.Magnitude / 1)
+				return 2
+			end
+			v_u_10:CastLine("MeleeHit", CFrame.new(p107, p107 + p108) * CFrame.new(0, 0, -p108.Magnitude / 2), Color3.fromRGB(255, 0, 0), p108.Magnitude / 1)
+		end
+	else
+		v_u_10:CastLine("MeleeHit", CFrame.new(p107, p107 + p108) * CFrame.new(0, 0, -p108.Magnitude / 2), Color3.fromRGB(255, 0, 0), p108.Magnitude / 1)
+	end
+	return 0
+end
+function v_u_1.swing(p_u_134)
+	-- upvalues: (copy) v_u_4, (copy) v_u_6, (copy) v_u_7
+	if not p_u_134.stancing and (not p_u_134.chargeAttack and (p_u_134.stance == "Prepared" and not p_u_134.digging)) then
+		local v135 = p_u_134.animations[p_u_134.preAnimText .. "Thrust"]
+		tick()
+		local v136 = p_u_134.swingType
+		local v_u_137 = p_u_134.powerHoldScale ~= nil
+		local v_u_138, v139
+		if p_u_134.Stats.PowerSwingUp and (v_u_137 and (v136 == "Left" or v136 == "Right")) then
+			local v140 = (p_u_134.powerHoldScale - tick()) / p_u_134.Stats.PowerSwingTime
+			v_u_138 = 1 - math.clamp(v140, 0, 1)
+			v139 = p_u_134.Stats.PowerSwingRateIncrease * v_u_138
+		else
+			v_u_138 = 0
+			v139 = 0
+		end
+		if game.CollectionService:HasTag(p_u_134.character, "Charging") and (p_u_134.animations.ChargePrepareLeft and p_u_134.animations.ChargePrepareRight) then
+			if p_u_134.swingType ~= "Right" and p_u_134.swingType ~= "Left" then
+				p_u_134.swingType = math.random(1, 2) == 2 and "Right" or "Left"
+			end
+			if p_u_134.swingType == "Right" and p_u_134.animations.ChargeSwingRight then
+				v135 = p_u_134.animations.ChargeSwingRight
+				p_u_134.animations.ChargeHoldRight:Stop(0)
+			elseif p_u_134.swingType == "Left" and p_u_134.animations.ChargeSwingLeft then
+				v135 = p_u_134.animations.ChargeSwingLeft
+				p_u_134.animations.ChargeHoldLeft:Stop(0)
+			end
+			p_u_134.animations.ChargePrepareRight:Stop(0)
+			p_u_134.animations.ChargePrepareLeft:Stop(0)
+		else
+			if not p_u_134.dirs[p_u_134.swingType] then
+				if p_u_134.swingType == "Right" and p_u_134.dirs.Left then
+					p_u_134.swingType = "Left"
+				elseif p_u_134.swingType == "Left" and p_u_134.dirs.Right then
+					p_u_134.swingType = "Right"
+				elseif p_u_134.swingType == "Up" and p_u_134.dirs.Down then
+					p_u_134.swingType = "Down"
+				elseif p_u_134.swingType == "Down" and p_u_134.dirs.Up then
+					p_u_134.swingType = "Up"
+				else
+					for v141, _ in p_u_134.dirs do
+						p_u_134.swingType = v141
+						break
+					end
+				end
+			end
+			if p_u_134.swingType == "Up" and p_u_134.animations[p_u_134.preAnimText .. "SwingDown"] then
+				v135 = p_u_134.animations[p_u_134.preAnimText .. "SwingDown"]
+				p_u_134.animations[p_u_134.preAnimText .. "HoldUp"]:Stop(0)
+			elseif p_u_134.swingType == "Right" and p_u_134.animations[p_u_134.preAnimText .. "SwingRight"] then
+				v135 = p_u_134.animations[p_u_134.preAnimText .. "SwingRight"]
+				p_u_134.animations[p_u_134.preAnimText .. "HoldRight"]:Stop(0)
+			elseif p_u_134.swingType == "Left" and p_u_134.animations[p_u_134.preAnimText .. "SwingLeft"] then
+				v135 = p_u_134.animations[p_u_134.preAnimText .. "SwingLeft"]
+				p_u_134.animations[p_u_134.preAnimText .. "HoldLeft"]:Stop(0)
+			elseif p_u_134.animations[p_u_134.preAnimText .. "HoldThrust"] then
+				p_u_134.animations[p_u_134.preAnimText .. "HoldThrust"]:Stop(0)
+			end
+		end
+		local v142 = p_u_134.swingType
+		p_u_134.remoteEvent:FireServer("Swing", p_u_134.swingType == "Up" and "Over" or (p_u_134.swingType == "Down" and "Thrust" or "Side"))
+		v_u_4:Fire(false, true, v135.Length)
+		p_u_134:CalculateBuffScalar()
+		v135:Play(0, 1, p_u_134.buffScalar)
+		v135.Priority = Enum.AnimationPriority.Action3
+		p_u_134.lastSwing = tick() + v135.Length / p_u_134.buffScalar + (p_u_134.cooldown or 0) + v139
+		p_u_134.character:SetAttribute("SwungMelee", p_u_134.lastSwing)
+		if game.CollectionService:HasTag(p_u_134.character, "Charging") then
+			p_u_134.lastSwing = tick() + (v135.Length + (p_u_134.cooldown or 0)) / 1.25
+		end
+		p_u_134.stancing = true
+		p_u_134.stance = "Swinging"
+		task.delay(0.1, function()
+			-- upvalues: (copy) p_u_134, (copy) v_u_137, (ref) v_u_138
+			if p_u_134.equipped then
+				if p_u_134.Stats.PowerSwingUp and (v_u_137 and p_u_134.Stats.LungePower ~= nil) then
+					local v143 = p_u_134.humanoid.RootPart.CFrame
+					local v144 = v143.LookVector.X
+					local v145 = v143.LookVector.Z
+					local v146 = Vector3.new(v144, 0, v145).Unit
+					local v147 = v146 ~= v146 and Vector3.new(0, 0, 0) or v146
+					p_u_134.root:ApplyImpulse(v147 * (p_u_134.Stats.LungePower * v_u_138))
+				end
+			end
+		end)
+		task.spawn(function()
+			-- upvalues: (ref) v_u_6, (copy) p_u_134, (ref) v_u_7
+			local v_u_148 = RaycastParams.new()
+			local v149
+			if v_u_6.Value then
+				v149 = { workspace.Zombies, workspace.Buildings, p_u_134.character }
+			else
+				v149 = { workspace.Zombies, workspace.Buildings, workspace:FindFirstChild("Players") }
+			end
+			v_u_148.FilterDescendantsInstances = v_u_7:GetAttribute("Active") == true and { workspace.Zombies, p_u_134.character } or v149
+			local v150 = {}
+			local v151 = p_u_134.castPoints
+			if p_u_134.flipped and (p_u_134.flipCastPoints ~= nil and #p_u_134.flipCastPoints > 0) then
+				v151 = p_u_134.flipCastPoints
+			end
+			for v152 = 1, #v151 do
+				v150[v152] = v151[v152].WorldPosition
+			end
+			local v_u_153 = {}
+			task.delay(0.1, function()
+				-- upvalues: (ref) p_u_134, (copy) v_u_148, (copy) v_u_153
+				if p_u_134.stancing and p_u_134.equipped then
+					local v154 = p_u_134.root.CFrame.RightVector * p_u_134.branchWidth
+					local v155 = p_u_134.root.Position - p_u_134.root.CFrame.LookVector * 0.5 + Vector3.new(0, 0.25, 0) - v154 * 2
+					local v156 = p_u_134.root.CFrame.LookVector * (p_u_134.branchLength + 0.5)
+					for _ = 1, 4 do
+						p_u_134:MeleeHitCheck(v155, v156, v_u_148, v_u_153)
+						v155 = v155 + v154
+					end
+					local v157 = p_u_134.root.Position - p_u_134.root.CFrame.LookVector * 0.5 + Vector3.new(0, 0.25, 0) - v154 * 2
+					local v158 = (p_u_134.root.CFrame.LookVector - Vector3.new(0, 0.5, 0)) * (p_u_134.branchLength + 0.5)
+					for _ = 1, 4 do
+						p_u_134:MeleeHitCheck(v157, v158, v_u_148, v_u_153)
+						v157 = v157 + v154
+					end
+				end
+			end)
+			while p_u_134.stancing and p_u_134.equipped do
+				for v159 = 1, #v151 do
+					local v160 = v151[v159].WorldPosition
+					if p_u_134.castMeleeForward then
+						local v161 = v160 - v150[v159]
+						local v162 = v151[v159].WorldCFrame.LookVector
+						p_u_134:MeleeHitCheck(v160, v162 * (v162:Dot(v161) + 0.5), v_u_148, v_u_153)
+					else
+						local v163 = v160 - v150[v159]
+						p_u_134:MeleeHitCheck(v150[v159] - v163 * 0.5, v163 * 1.5, v_u_148, v_u_153)
+					end
+					v150[v159] = v160
+				end
+				task.wait()
+			end
+			if p_u_134.powerHold then
+				p_u_134.speedChange = nil
+			end
+			p_u_134.powerHold = false
+			p_u_134.powerHoldScale = nil
+		end)
+		if p_u_134:StanceWait(v135) then
+			if game.CollectionService:HasTag(p_u_134.character, "Charging") and p_u_134.hasChargeSwings then
+				if v142 == "Left" then
+					p_u_134.animations.ChargeHoldRight:Play(0, 1, 1)
+					p_u_134.swingType = "Right"
+				else
+					p_u_134.animations.ChargeHoldLeft:Play(0, 1, 1)
+					p_u_134.swingType = "Left"
+				end
+				p_u_134.stancing = false
+				p_u_134.stance = "Prepared"
+			elseif p_u_134.cooldown then
+				task.delay(p_u_134.cooldown, function()
+					-- upvalues: (copy) p_u_134
+					p_u_134.stancing = false
+					p_u_134.stance = "Hold"
+				end)
+			else
+				p_u_134.stancing = false
+				p_u_134.stance = "Hold"
+			end
+		end
+	end
+end
+function v_u_1.GetMousePos(p164, p165, _)
+	-- upvalues: (copy) v_u_3
+	local v166 = p164.mouse.UnitRay.Origin
+	local v167 = p164.mouse.UnitRay.Direction * 999
+	local v168 = p164.character:GetAttribute("UsingGamepad")
+	if p165 or (v168 or p164.player:GetAttribute("Mobile")) then
+		v166 = v_u_3.CFrame.Position
+		if v168 then
+			v166 = v166 - Vector3.new(0, 0.05, 0)
+		end
+		v167 = v_u_3.CFrame.LookVector * 999
+	end
+	local v169 = workspace:Raycast(v166, v167, p164.mouseParams)
+	if v169 and (v169.Position - v_u_3.CFrame.Position).Magnitude > 5 then
+		return v169.Position
+	else
+		return v_u_3.CFrame.Position + v167
+	end
+end
+function v_u_1.update(p170, p171)
+	-- upvalues: (copy) v_u_14, (copy) v_u_15, (copy) v_u_12, (copy) v_u_3, (copy) v_u_2, (copy) v_u_13
+	if p170.equipped then
+		p170.torso.CanCollide = false
+		if p170.powerHold then
+			local v172 = (p170.powerHoldScale - tick()) / p170.Stats.PowerSwingTime
+			local v173 = 1 - math.clamp(v172, 0, 1)
+			local v174 = p170.character and (p170.character:GetAttribute("MaxSpeed") or 16) or 16
+			p170.arrow_meter.Visible = true
+			p170.arrow_meter_bar.Size = UDim2.fromScale(v173 * 1, 1)
+			p170.speedChange = v174 - v173 * 2
+		else
+			p170.arrow_meter.Visible = false
+		end
+		local v175 = p170.character:GetAttribute("UsingGamepad")
+		local v176 = p170.player:GetAttribute("Mobile")
+		local v177 = game:GetService("GuiService"):GetGuiInset()
+		if v175 or v176 then
+			p170.cursor.Position = UDim2.new(0.5, 0, 0.5, 0)
+		else
+			p170.cursor.Position = UDim2.new(0, p170.mouse.X, 0, p170.mouse.Y + v177.Y)
+		end
+		local v178 = game.CollectionService:HasTag(p170.character, "Charging")
+		local v179 = p170.tool:GetAttribute("Bracing")
+		if p170.speedChange then
+			p170.SpeedController.SetModifier("MeleeAction", p170.speedChange)
+		else
+			p170.SpeedController.RemoveModifier("MeleeAction")
+		end
+		if p170.bloodSplatterTexNum > 0 then
+			if p170.lastBloodUpdate <= 0 then
+				local v180 = 1 - (not (v_u_14.Value and v_u_15.Value) and 0 or p170.bloodSaturation)
+				for v181 = 1, p170.bloodSplatterTexNum do
+					p170.bloodSplatterTextures[v181].Transparency = v180
+				end
+				local v182 = p170.bloodSaturation - p171 * 5
+				p170.bloodSaturation = math.max(v182, 0)
+				p170.lastBloodUpdate = 5
+			else
+				p170.lastBloodUpdate = p170.lastBloodUpdate - p171
+			end
+		end
+		local v183 = p170.head.LocalTransparencyModifier >= 0.98 and not p170.InventoryFrame.Visible
+		if v183 then
+			v183 = not p170.ShopFrame.Visible
+		end
+		p170.first_person = v183
+		if v183 then
+			p170.handle.LocalTransparencyModifier = 0
+			p170.rarm.LocalTransparencyModifier = v_u_12.Value
+			p170.larm.LocalTransparencyModifier = v_u_12.Value
+			if p170.shield then
+				for _, v184 in p170.shield:GetChildren() do
+					if v184:IsA("BasePart") and v184.Transparency == 0 then
+						v184.LocalTransparencyModifier = 0.5
+					end
+				end
+			end
+			for v185 = 1, #p170.parts do
+				p170.parts[v185].LocalTransparencyModifier = 0
+			end
+			for v186 = 1, #p170.arm3dClothing do
+				p170.arm3dClothing[v186].LocalTransparencyModifier = v_u_12.Value
+			end
+			local v187 = p170.character:FindFirstChild("LeftGlove") and p170.character:FindFirstChild("LeftGlove"):FindFirstChild("Handle")
+			if v187 then
+				v187.LocalTransparencyModifier = v_u_12.Value
+			end
+			local v188 = p170.character:FindFirstChild("RightGlove") and p170.character:FindFirstChild("RightGlove"):FindFirstChild("Handle")
+			if v188 then
+				v188.LocalTransparencyModifier = v_u_12.Value
+			end
+			local v189 = v_u_3.CFrame + v_u_3.CFrame.LookVector * 100
+			local v190 = v189.X
+			local v191 = p170.root.Position.Y
+			local v192 = v189.Z
+			local v193 = Vector3.new(v190, v191, v192)
+			if not p170.humanoid:GetAttribute("OnCannon") then
+				p170.root.CFrame = CFrame.new(p170.root.Position, v193)
+			end
+			local v194 = v_u_3.CFrame.LookVector.Y
+			local v195 = -math.asin(v194)
+			p170.neck.C0 = p170.neckC0 * CFrame.Angles(v195, 0, 0)
+			local v196, _, v197 = p170.rootJoint.Transform:ToEulerAnglesYXZ()
+			local v198 = p170.torso.CFrame:ToObjectSpace(v_u_3.CFrame * p170.viewmodelOffset * CFrame.Angles(-v196, v197, 0))
+			if v178 then
+				v198 = CFrame.identity
+			end
+			p170.rShoulder.C0 = v198 * p170.rC0
+			p170.lShoulder.C0 = v198 * p170.lC0
+		elseif p170.complexLookRotation and not v178 then
+			local v199 = (p170:GetMousePos(false) - p170.mouse.Origin.p).Unit
+			local v200
+			if p170.complexAimLock and p170.lastTheta then
+				v200 = p170.lastTheta
+			else
+				local v201 = v199.Y
+				local v202 = math.asin(v201)
+				v200 = math.clamp(v202, -0.3, 0.3)
+			end
+			local v203 = p170.root.CFrame * CFrame.new(0, -v200 * (p170.Stats.ShoulderModifier or 0), 0) * CFrame.new(0, 0, -v200 * 0.7) * CFrame.Angles(v200, 0, 0)
+			local v204, _, v205 = p170.rootJoint.Transform:ToEulerAnglesYXZ()
+			local v206 = p170.torso.CFrame:ToObjectSpace(v203 * CFrame.Angles(0, v205, v204))
+			p170.rShoulder.C0 = v206 * p170.rC0
+			if p170.leftArmOff then
+				p170.lShoulder.C0 = p170.lC0
+			else
+				p170.lShoulder.C0 = v206 * p170.lC0
+			end
+			p170.neck.C0 = p170.neckC0 * CFrame.Angles(-v200, 0, 0)
+			p170.lastTheta = v200
+		else
+			p170.neck.C0 = p170.neckC0
+			p170.rShoulder.C0 = p170.rC0
+			p170.lShoulder.C0 = p170.lC0
+		end
+		p170.handleWeld.CurrentAngle = 0
+		local v207 = Vector2.new(p170.mouse.X, p170.mouse.Y)
+		if p170.Stats.ThrustCharge and (v178 or v179) then
+			local v208 = tick()
+			if not p170.LastThrustCheck or p170.LastThrustCheck < v208 then
+				local v209 = p170.castPoints
+				if p170.flipped and (p170.flipCastPoints ~= nil and #p170.flipCastPoints > 0) then
+					v209 = p170.flipCastPoints
+				end
+				local v210 = RaycastParams.new()
+				v210.FilterDescendantsInstances = p170.defaultRayParams.FilterDescendantsInstances
+				local v211 = {}
+				for v212 = 1, #v209 do
+					p170:MeleeHitCheck(v209[v212].WorldPosition - v209[v212].WorldCFrame.LookVector * 1.5, v209[v212].WorldCFrame.LookVector * 3, v210, v211, true)
+				end
+				p170.LastThrustCheck = v208 + 0.08
+			end
+		end
+		if p170.stance == "Hold" and not p170.stancing then
+			if p170.player:GetAttribute("Mobile") == true then
+				if p170.mobileUI then
+					p170.arrow.Visible = false
+					p170.swingType = p170.mobileUI:GetAttribute("Direction")
+					p170.arrow_glow.Position = UDim2.fromScale(0.5, 0.5)
+				end
+			else
+				local v213 = v_u_2:GetMouseDelta()
+				if v175 then
+					v213 = p170._gamepad_delta * 7
+				end
+				if v213.Magnitude == 0 then
+					v213 = v207 - p170.lastMousePos
+				end
+				if v_u_13.Value then
+					v213 = Vector2.new(-v213.X, v213.Y)
+				end
+				if v213.Magnitude > 1 and not p170.tool:HasTag("DirectionLock") then
+					local v214 = p170.dirs.Up
+					local v215 = (1 / 0)
+					local v216 = "Up"
+					for v217, v218 in pairs(p170.dirs) do
+						local v219 = (v218 - v213).Magnitude
+						if v219 < v215 then
+							v216 = v217
+							v214 = v218
+							v215 = v219
+						end
+					end
+					p170.arrow.Visible = true
+					local v220 = p170.arrow
+					local v221 = -v214.Y
+					local v222 = -v214.X
+					local v223 = math.atan2(v221, v222)
+					v220.Rotation = math.deg(v223) + 90
+					p170.arrow.Position = UDim2.new(0.5, v214.X * 20, 0.5, v214.Y * 20)
+					p170.arrow_glow.Position = p170.arrow.Position
+					p170.swingType = v216
+				end
+			end
+		elseif p170.stance == "Prepared" and not (p170.stancing or p170.m1Down) then
+			local v224 = game.CollectionService:HasTag(p170.character, "Charging") and p170.hasChargeSwings
+			if v224 then
+				v224 = p170.animations.ChargeHoldRight.IsPlaying or p170.animations.ChargeHoldLeft.IsPlaying
+			end
+			if not v224 then
+				p170:swing()
+			end
+		end
+		p170.lastMousePos = v207
+	end
+end
+return v_u_1
