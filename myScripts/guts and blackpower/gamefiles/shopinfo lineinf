@@ -1,0 +1,372 @@
+--game:GetService("ReplicatedStorage").Modules.Data.ShopInfo.Items.LineInfantry
+local v1 = game.ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Data"):WaitForChild("ShopInfo"):WaitForChild("Models")
+local v2 = {}
+local v3 = {
+	["LayoutOrder"] = 0
+}
+local v6 = {
+	["DisplayName"] = "Musket",
+	["DisplayModel"] = v1:WaitForChild("Musket"),
+	["DisplayCFrame"] = function(p4, p5)
+		p5:ScaleTo(0.6)
+		return p4 * CFrame.Angles(0, -1.5707963267948966, 0)
+	end,
+	["ViewportCFrame"] = CFrame.new(0, 0.850000024, 1.4000001, 0, 0, 1, 0, 1, 0, -1, 0, 0),
+	["BriefDesc"] = "A strong firearm used by standard infantry.\n\nGood for long-ranged picks, and comes with Bayonet.",
+	["Statistics"] = {
+		["Damage"] = 120,
+		["ReloadTime"] = 10,
+		["Penetration"] = 10,
+		["MaxDistance"] = 700,
+		["Pellet"] = 1
+	},
+	["OtherInfo"] = {
+		"+ High Penetration.",
+		"+ Extended Distance.",
+		"+ Low Spread.",
+		"+ Bayonet Attachment: Deals 55 damage.",
+		"+ On Charge Buff: Bayonet deals 3x base damage.",
+		"- Medium reload time.",
+		"- Low pellet count."
+	},
+	["ShopAudio"] = {
+		["Id"] = "Generic"
+	},
+	["Cost"] = 0,
+	["Default"] = true
+}
+v3.Musket = v6
+local v8 = {
+	["DisplayName"] = "Carbine",
+	["DisplayModel"] = v1:WaitForChild("Carbine"),
+	["DisplayCFrame"] = function(p7, _)
+		return p7 * CFrame.Angles(0, -1.5707963267948966, 0)
+	end,
+	["ViewportCFrame"] = CFrame.new(0, 0.850000024, -1.4000001, 0, 0, 1, 0, 1, 0, -1, 0, 0),
+	["BriefDesc"] = "Ditches the precision and bayonet of the Musket for quick attacks.\n\nGood for scouting.",
+	["Statistics"] = {
+		["Damage"] = 95,
+		["ReloadTime"] = 7.7,
+		["Penetration"] = 5,
+		["MaxDistance"] = 600,
+		["Pellet"] = 1
+	},
+	["ShopAudio"] = {
+		["Id"] = 16800316493,
+		["Text"] = {
+			{ 0, "It may not have a Bayonet attached, but it\'s very light.", 8 },
+			{ 5, "And easier to reload.", 3 }
+		}
+	},
+	["OtherInfo"] = {
+		"+ Quick Reload Speed.",
+		"+ Extended Distance.",
+		"+ Medium Penetration.",
+		"+ Lower reload Walkspeed penalty.",
+		"- No Bayonet attachment."
+	},
+	["Cost"] = 300
+}
+v3.Carbine = v8
+local v10 = {
+	["DisplayName"] = "Rifle",
+	["DisplayModel"] = v1:WaitForChild("Rifle"),
+	["DisplayCFrame"] = function(p9, _)
+		return p9 * CFrame.Angles(0, 1.5707963267948966, 0)
+	end,
+	["ViewportCFrame"] = CFrame.new(0, 0.850000024, -1.4000001, 0, 0, 1, 0, 1, 0, -1, 0, 0) * CFrame.Angles(0, 3.141592653589793, 0),
+	["BriefDesc"] = "The standard rifle of Austrian J\195\164gers, trades reload time for damage and accuracy.\n\nGreat for sniping.",
+	["Statistics"] = {
+		["Damage"] = 195,
+		["ReloadTime"] = 14,
+		["Penetration"] = 15,
+		["MaxDistance"] = 1500,
+		["Pellet"] = 1
+	},
+	["ShopAudio"] = {
+		["Id"] = 128474888653791,
+		["Text"] = {
+			{ 0, "See that sliver of metal next to your hammer?", 17 },
+			{ 3.5, "The Austrians used that to improve their aiming.", 13.5 },
+			{ 7.5, "Though the process of reloading is a bit long...", 6 }
+		}
+	},
+	["OtherInfo"] = {
+		"+ High Damage",
+		"+ Very High Penetration.",
+		"+ Extreme Distance.",
+		"+ Pin-point Accuracy.",
+		"- No Bayonet.",
+		"- Long reload time.",
+		"- Slower reload walk speed."
+	},
+	["Cost"] = 600
+}
+v3.Rifle = v10
+local v12 = {
+	["DisplayName"] = "Horse Artillery Pistol",
+	["DisplayModel"] = v1:WaitForChild("Horse Artillery Pistol"),
+	["DisplayCFrame"] = function(p11, _)
+		return p11 * CFrame.Angles(0, -1.5707963267948966, 0)
+	end,
+	["ViewportCFrame"] = CFrame.new(0, 0.850000024, -1.4000001, 0, 0, 1, 0, 1, 0, -1, 0, 0),
+	["BriefDesc"] = "Unique double-barrel pistol-carbine with a smoothbore right barrel and rifled left barrel.",
+	["Statistics"] = {
+		["Damage"] = 85,
+		["ReloadTime"] = 13.4,
+		["Penetration"] = 5,
+		["MaxDistance"] = 550,
+		["Pellet"] = 1
+	},
+	["ShopAudio"] = {
+		["Id"] = 96281303481218,
+		["Text"] = {
+			{ 0, "This is a bit of a civilian weapon", 21 },
+			{ 3, "but it was also used by the British Calvary.", 18 },
+			{ 6.5, "The left barrel is rifled, and the other is smoothbore.", 11.5 },
+			{ 12, "Which means one\'s more accurate than the other.", 11.5 }
+		}
+	},
+	["OtherInfo"] = {
+		"+ Double Barrels: Can fire either one shot or both at the same time.",
+		"+ Reload length is based on what you want.",
+		"+ Average Damage output, only increases based on how many shots you fire.",
+		"+ Accurate left barrel.",
+		"- Long overall reload speed.",
+		"- Inaccurate right barrel.",
+		"- Low Penetration."
+	},
+	["Cost"] = 700
+}
+v3["Horse Artillery Pistol"] = v12
+local v15 = {
+	["DisplayName"] = "Lance",
+	["AltName"] = "Pike",
+	["DisplayModel"] = v1:WaitForChild("Lance"),
+	["DisplayCFrame"] = function(p13, p14)
+		p14:ScaleTo(0.06)
+		return p13 * CFrame.Angles(0, -3.141592653589793, 0)
+	end,
+	["ViewportCFrame"] = CFrame.new(0, 0.850000024, 3.4000001, 0, 0, 1, 0, 1, 0, -1, 0, 0) * CFrame.Angles(0, 1.5707963267948966, 0),
+	["BriefDesc"] = "Trades a firearm for a long-ranged melee.\n\nGood for controlling chokepoints.",
+	["Statistics"] = {
+		["Damage"] = 50,
+		["SwingRate"] = 0.5,
+		["HeadshotMultiplier"] = 2.3,
+		["Penetration"] = 3,
+		["MaxDistance"] = 13
+	},
+	["ShopAudio"] = {
+		["Id"] = 16800361129,
+		["Text"] = {
+			{ 0, "It\'s difficult to handle at first, but it\'s very useful for distant attacks.", 5 }
+		}
+	},
+	["OtherInfo"] = {
+		"+ Replaces firearm with long-distance melee.",
+		"+ Transforms \"Infantry\" to \"Pikeman\".",
+		"+ Above average damage output.",
+		"+ Great for controlling chokepoints.",
+		"+ On Charge Buff: Lance deals 5x base damage.",
+		"+ Regains up to 2 hits during a swing on kill.",
+		"- Cannot use firearm."
+	},
+	["Cost"] = 700,
+	["LayoutOrder"] = 3
+}
+v3.Lance = v15
+local v18 = {
+	["DisplayName"] = "Air Rifle",
+	["DisplayModel"] = v1:WaitForChild("AirRifle"),
+	["DisplayCFrame"] = function(p16, p17)
+		p17:ScaleTo(0.75)
+		return p16 * CFrame.Angles(1.5707963267948966, 0, 1.5707963267948966)
+	end,
+	["ViewportCFrame"] = CFrame.new(0.800000012, 1, -1, -4.37113883e-8, 1, -4.37113883e-8, 0, -4.37113883e-8, -1, -1, -4.37113883e-8, 1.91068547e-15),
+	["BriefDesc"] = "A rare and delicate rifle that utilizes compressed air to propel pellets.\nMost expensive item in the game.",
+	["Statistics"] = {
+		["Damage"] = 65,
+		["ReloadTime"] = 13.4,
+		["Penetration"] = 1,
+		["MaxDistance"] = 300,
+		["Pellet"] = 1
+	},
+	["ShopAudio"] = {
+		["Id"] = 128771235138166,
+		["Text"] = {
+			{ 0, "Ain\'t this a marvel? It uses air to shoot the pellets", 12 },
+			{ 3.5, "instead of gunpowder.", 8.5 },
+			{ 5.5, "I even got some canisters in the back.", 3.5 }
+		}
+	},
+	["OtherInfo"] = {
+		"+ Up to 20 shots in one magazine.",
+		"+ Fast reload.",
+		"+ Rapid fire",
+		"- Low damage",
+		"- High damage fall-off",
+		"- Low headshot multiplier.",
+		"- Damage begins dropping off at low air pressure.",
+		"- Limited air supply.",
+		"- Requires air canisters from the shop."
+	},
+	["Cost"] = 10000,
+	["LayoutOrder"] = 3
+}
+v3.AirRifle = v18
+v2.Firearms = v3
+local v19 = {
+	["LayoutOrder"] = 1
+}
+local v21 = {
+	["DisplayName"] = "Sabre",
+	["DisplayModel"] = v1:WaitForChild("Sabre"),
+	["DisplayCFrame"] = function(p20, _)
+		return p20 * CFrame.Angles(0, -1.5707963267948966, 1.5707963267948966)
+	end,
+	["ViewportCFrame"] = CFrame.new(0, 0.850000024, -1.4000001, 0, 0, 1, 0, 1, 0, -1, 0, 0) * CFrame.Angles(0, 0, 1.5707963267948966),
+	["BriefDesc"] = "The standard bladed weapon for all soldiers. Your real primary weapon.\n\nGood for close-ranged attacks.",
+	["Statistics"] = {
+		["Damage"] = 30,
+		["SwingRate"] = 0.55,
+		["HeadshotMultiplier"] = 2.3,
+		["Penetration"] = 3,
+		["MaxDistance"] = 6
+	},
+	["ShopAudio"] = {
+		["Id"] = "Generic"
+	},
+	["OtherInfo"] = {
+		"+ Base melee.",
+		"+ Average damage output.",
+		"+ Average melee range.",
+		"+ Average swing rate.",
+		"+ Great for general crowd control."
+	},
+	["Cost"] = 0,
+	["Default"] = true
+}
+v19.Sabre = v21
+local v24 = {
+	["DisplayName"] = "Hand Axe",
+	["DisplayModel"] = v1:WaitForChild("Hand Axe"),
+	["DisplayCFrame"] = function(p22, p23)
+		p23:ScaleTo(0.7)
+		return p22 * CFrame.Angles(0, 0, 1.5707963267948966)
+	end,
+	["ViewportCFrame"] = CFrame.new(0, 1.150000024, -1.8000001, 0, 0, 1, 0, 1, 0, -1, 0, 0) * CFrame.Angles(0, 1.5707963267948966, 1.5707963267948966),
+	["BriefDesc"] = "Trade your range for consistent attacking power.\n\nGreat for quick kills, but worse against the Zapper.",
+	["Statistics"] = {
+		["Damage"] = 45,
+		["SwingRate"] = 0.4,
+		["HeadshotMultiplier"] = 2.3,
+		["Penetration"] = 3,
+		["MaxDistance"] = 4
+	},
+	["ShopAudio"] = {
+		["Id"] = 16800318333,
+		["Text"] = {
+			{ 0, "It\'s not like your Sabre there, but it gets the job done.", 7.5 },
+			{ 4.5, "I even sharpened it for this occasion.", 3 }
+		}
+	},
+	["OtherInfo"] = {
+		"+ Above average damage output.",
+		"+ Above average swing rate.",
+		"+ Great for quick executions.",
+		"- Short-ranged melee option: can only reach up to 4 studs."
+	},
+	["Cost"] = 250
+}
+v19["Hand Axe"] = v24
+local v26 = {
+	["DisplayName"] = "Heavy Sabre",
+	["DisplayModel"] = v1:WaitForChild("Heavy Sabre"),
+	["DisplayCFrame"] = function(p25, _)
+		return p25 * CFrame.new(2, 0, 0) * CFrame.Angles(0, 0, 0)
+	end,
+	["ViewportCFrame"] = CFrame.new(-2.388, 1, -1.5, -0.999548554, 0, 0.0300457105, 0.00377220009, 0.992087543, 0.125492021, -0.0298079737, 0.125548705, -0.991639614),
+	["BriefDesc"] = "Heavy Cavalry Sabre.\nGood for long-reach stabbing/thrusting.",
+	["Statistics"] = {
+		["Damage"] = "38 (27)",
+		["SwingRate"] = 0.7,
+		["HeadshotMultiplier"] = 2.3,
+		["Penetration"] = 3,
+		["MaxDistance"] = 8
+	},
+	["ShopAudio"] = {
+		["Id"] = 82517436067573,
+		["Text"] = {
+			{ 0, "It\'s a lot heavier than your sabre, but its reach is much better.", 14 },
+			{ 4.25, "But it\'s more for jabbing than slicing", 9.75 },
+			{ 8, "So be careful with that.", 6 }
+		}
+	},
+	["OtherInfo"] = {
+		"+ Higher damage output.",
+		"+ Side slash stagger.",
+		"+ Longer melee range.",
+		"+ Charge ability.",
+		"- Worse side-slash damage.",
+		"- Slower swing rate."
+	},
+	["Cost"] = 500,
+	["Default"] = false
+}
+v19["Heavy Sabre"] = v26
+local v28 = {
+	["Hidden"] = true,
+	["HiddenValue"] = "Untouchable",
+	["DisplayName"] = "Delicious Leg",
+	["DisplayModel"] = v1:WaitForChild("DeliciousLeg"),
+	["DisplayCFrame"] = function(p27, _)
+		return p27 * CFrame.Angles(0, 0, 1.5707963267948966)
+	end,
+	["ViewportCFrame"] = CFrame.new(0, 0.850000024, -3.4000001, 0, 0, 1, 0, 1, 0, -1, 0, 0) * CFrame.Angles(1.5707963267948966, 0, 0),
+	["BriefDesc"] = "The best melee weapon in the game. All bragging rights reserved for unlocking \"Untouchable\".",
+	["Statistics"] = {
+		["Damage"] = 5,
+		["SwingRate"] = 0.4,
+		["HeadshotMultiplier"] = 2.3,
+		["Penetration"] = 3,
+		["MaxDistance"] = 6
+	},
+	["OtherInfo"] = { "+ A piece of a delicious leg. It looks so good that you forget it came from a diseased cow.", "+ Bragging status." },
+	["ShopAudio"] = {
+		["Id"] = "Generic"
+	},
+	["Cost"] = 0,
+	["Default"] = false
+}
+v19.DeliciousHam = v28
+local v30 = {
+	["Hidden"] = true,
+	["HiddenValue"] = "LeRevenant",
+	["DisplayName"] = "Le Revenant",
+	["DisplayModel"] = v1:WaitForChild("LeRevenant"),
+	["DisplayCFrame"] = function(p29, _)
+		return p29 * CFrame.Angles(0, 1.5707963267948966, 0) * CFrame.new(0, 0, 2)
+	end,
+	["ViewportCFrame"] = CFrame.new(-1.8, 0.9, -3, 0, 0, 1, 0, 1, 0, -1, 0, 0) * CFrame.Angles(0, 3.141592653589793, 0),
+	["BriefDesc"] = "Won from Road to Sleepy Hollow and Sleepy Hollow boss fight.",
+	["Statistics"] = {
+		["Damage"] = 30,
+		["SwingRate"] = 0.55,
+		["HeadshotMultiplier"] = 2.3,
+		["Penetration"] = 3,
+		["MaxDistance"] = 6
+	},
+	["ShopAudio"] = {
+		["Id"] = 112645606624327,
+		["Text"] = {
+			{ 0, "I\'ve never seen a blade like that before...", 12 },
+			{ 3.5, "W-Where did you find this?", 8.5 }
+		}
+	},
+	["OtherInfo"] = { "+ Sabre skin." },
+	["Cost"] = 0,
+	["Default"] = false
+}
+v19["Le Revenant"] = v30
+v2.Melees = v19
+return v2
