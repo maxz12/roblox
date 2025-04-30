@@ -1,0 +1,989 @@
+--game:GetService("ReplicatedStorage").ModuleScripts.Weapons
+local v1 = {}
+local v2 = {}
+local v3 = {
+	["Name"] = "Tier 1",
+	["List"] = {
+		{
+			["Name"] = "M4",
+			["Class"] = "Carbine",
+			["Price"] = 750
+		},
+		{
+			["Name"] = "PDW-R",
+			["Class"] = "Personal Defense Weapon",
+			["Price"] = 750
+		},
+		{
+			["Name"] = "SV98",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 750
+		},
+		{
+			["Name"] = "SVD-200",
+			["Class"] = "Marksman Rifle",
+			["Price"] = 750
+		},
+		{
+			["Name"] = "M16A3",
+			["Class"] = "Assault Rifle",
+			["Price"] = 750
+		},
+		{
+			["Name"] = "LSAT",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 750
+		},
+		{
+			["Name"] = "870 MCS",
+			["Class"] = "Shotgun",
+			["Price"] = 750
+		},
+		{
+			["Name"] = "M9",
+			["Class"] = "Pistol",
+			["Price"] = 750,
+			["Updated"] = true
+		},
+		{
+			["Name"] = "RPG-7",
+			["Class"] = "Rkt. Launcher",
+			["Price"] = 750
+		},
+		{
+			["Name"] = "Bandolier",
+			["Class"] = "Perk",
+			["Price"] = 750,
+			["Description"] = "+50% Ammo"
+		},
+		{
+			["Name"] = "Mk2",
+			["Class"] = "Grenade",
+			["Price"] = 750
+		}
+	}
+}
+local v4 = {
+	["Name"] = "Tier 2",
+	["List"] = {
+		{
+			["Name"] = "QBB-95B",
+			["Class"] = "Carbine",
+			["Price"] = 1000
+		},
+		{
+			["Name"] = "MP7",
+			["Class"] = "Personal Defense Weapon",
+			["Price"] = 1000
+		},
+		{
+			["Name"] = "L96",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 1000
+		},
+		{
+			["Name"] = "AUG A3",
+			["Class"] = "Assault Rifle",
+			["Price"] = 1000
+		},
+		{
+			["Name"] = "PKP",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 1000
+		},
+		{
+			["Name"] = "M1911",
+			["Class"] = "Pistol",
+			["Price"] = 1000
+		},
+		{
+			["Name"] = "Quick Hands",
+			["Class"] = "Perk",
+			["Price"] = 1000,
+			["Description"] = "-10% Reload Time"
+		}
+	}
+}
+local v5 = {
+	["Name"] = "Tier 3",
+	["List"] = {
+		{
+			["Name"] = "AKU-205",
+			["Class"] = "Carbine",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "SR-2",
+			["Class"] = "Personal Defense Weapon",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "SR-25",
+			["Class"] = "Marksman Rifle",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "AEK-971",
+			["Class"] = "Assault Rifle",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "MG4",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "SPAS-12",
+			["Class"] = "Shotgun",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "G18",
+			["Class"] = "Pistol",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "Doomslayer",
+			["Class"] = "Perk",
+			["Price"] = 777,
+			["Description"] = "+10% Movement Speed"
+		},
+		{
+			["Name"] = "Flashbang",
+			["Class"] = "Grenade",
+			["Price"] = 2000
+		}
+	}
+}
+local v6 = {
+	["Name"] = "Tier 4",
+	["List"] = {
+		{
+			["Name"] = "Mini-14",
+			["Class"] = "Carbine",
+			["Price"] = 2000,
+			["New"] = true
+		},
+		{
+			["Name"] = "G36C",
+			["Class"] = "Carbine",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "FAMAS",
+			["Class"] = "Assault Rifle",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "M40A5",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "L86",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "M60",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "AR-10",
+			["Class"] = "Battle Rifle",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "M1014",
+			["Class"] = "Shotgun",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "Shorty",
+			["Class"] = "Shotgun",
+			["Price"] = 2000
+		},
+		{
+			["Name"] = "SMAW",
+			["Class"] = "Rkt. Launcher",
+			["Price"] = 1500
+		},
+		{
+			["Name"] = "Steady Hands",
+			["Class"] = "Perk",
+			["Price"] = 2000,
+			["Description"] = "-20% Reload Time"
+		}
+	}
+}
+local v7 = {
+	["Name"] = "Tier 5",
+	["List"] = {
+		{
+			["Name"] = "MDRX Micron",
+			["Class"] = "Carbine",
+			["Price"] = 3500
+		},
+		{
+			["Name"] = "FNC",
+			["Class"] = "Carbine",
+			["Price"] = 3500
+		},
+		{
+			["Name"] = "SKS",
+			["Class"] = "Carbine",
+			["Price"] = 3500
+		},
+		{
+			["Name"] = "AR160",
+			["Class"] = "Assault Rifle",
+			["Price"] = 3500
+		},
+		{
+			["Name"] = "Scout",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 3500
+		},
+		{
+			["Name"] = "QBB-95",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 3500
+		},
+		{
+			["Name"] = "ShAK-12",
+			["Class"] = "Battle Rifle",
+			["Price"] = 3500
+		},
+		{
+			["Name"] = "Striker",
+			["Class"] = "Shotgun",
+			["Price"] = 3500
+		},
+		{
+			["Name"] = "DEAGLE",
+			["Class"] = "Hand Cannon",
+			["Price"] = 3500
+		},
+		{
+			["Name"] = "USP",
+			["Class"] = "Pistol",
+			["Price"] = 3500
+		},
+		{
+			["Name"] = "Barbarian",
+			["Class"] = "Perk",
+			["Price"] = 3500,
+			["Description"] = "+7% Damage"
+		},
+		{
+			["Name"] = "Sticky",
+			["Class"] = "Grenade",
+			["Price"] = 3500
+		}
+	}
+}
+local v8 = {
+	["Name"] = "Tier 6",
+	["List"] = {
+		{
+			["Name"] = "ACW-R",
+			["Class"] = "Carbine",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "AKS-74U",
+			["Class"] = "Carbine",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "AS VAL",
+			["Class"] = "Assault Rifle",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "AK-103",
+			["Class"] = "Assault Rifle",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "M14 EBR",
+			["Class"] = "Battle Rifle",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "PPSh-41",
+			["Class"] = "Personal Defense Weapon",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "M200",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "QBU-88",
+			["Class"] = "Marksman Rifle",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "M240",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "SAIGA-12K",
+			["Class"] = "Shotgun",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "93R",
+			["Class"] = "Automatic Pistol",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "G40",
+			["Class"] = "Pistol",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "PzF 3",
+			["Class"] = "Rkt. Launcher",
+			["Price"] = 5000
+		},
+		{
+			["Name"] = "Rambo",
+			["Class"] = "Perk",
+			["Price"] = 5000,
+			["Description"] = "+100% Ammo"
+		},
+		{
+			["Name"] = "Bullseye",
+			["Class"] = "Perk",
+			["Price"] = 5000,
+			["Description"] = "+20% Headshot Multiplier"
+		}
+	}
+}
+local v9 = {
+	["Name"] = "Tier 7",
+	["List"] = {
+		{
+			["Name"] = "SG-553",
+			["Class"] = "Carbine",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "M4A1",
+			["Class"] = "Carbine",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "AK-200",
+			["Class"] = "Assault Rifle",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "SCAR-H",
+			["Class"] = "Battle Rifle",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "P90",
+			["Class"] = "Personal Defense Weapon",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "M98B",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "RFB",
+			["Class"] = "Marksman Rifle",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "M16A3 SW",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "Five Seven",
+			["Class"] = "Pistol",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "Anaconda",
+			["Class"] = "Hand Cannon",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "TAC-14",
+			["Class"] = "Shotgun",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "Ammo Box",
+			["Class"] = "Support",
+			["Price"] = 7500
+		},
+		{
+			["Name"] = "Iron Hands",
+			["Class"] = "Perk",
+			["Price"] = 7500,
+			["Description"] = "-25% Reload Time"
+		},
+		{
+			["Name"] = "RGD-5",
+			["Class"] = "Grenade",
+			["Price"] = 7500
+		}
+	}
+}
+local v10 = {
+	["Name"] = "Tier 8",
+	["List"] = {
+		{
+			["Name"] = "MP5",
+			["Class"] = "Personal Defense Weapon",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "BOAR .50",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "AK-74M",
+			["Class"] = "Assault Rifle",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "AKM",
+			["Class"] = "Assault Rifle",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "XM8",
+			["Class"] = "Assault Rifle",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "G3",
+			["Class"] = "Battle Rifle",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "SA58 FAL",
+			["Class"] = "Battle Rifle",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "MSG90",
+			["Class"] = "Marksman Rifle",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "RPK",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "USAS-12",
+			["Class"] = "Shotgun",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "CZ 75",
+			["Class"] = "Pistol",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "MAC-10",
+			["Class"] = "Automatic Pistol",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "KS-23M",
+			["Class"] = "Shotgun",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "Medical Box",
+			["Class"] = "Support",
+			["Price"] = 25000
+		},
+		{
+			["Name"] = "Berserker",
+			["Class"] = "Perk",
+			["Price"] = 15000,
+			["Description"] = "+11% Damage"
+		},
+		{
+			["Name"] = "Molotov",
+			["Class"] = "Grenade",
+			["Price"] = 25000
+		}
+	}
+}
+local v11 = {
+	["Name"] = "Tier 9",
+	["List"] = {
+		{
+			["Name"] = "Honey Badger",
+			["Class"] = "Carbine",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "Groza-1",
+			["Class"] = "Carbine",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "VHS-2",
+			["Class"] = "Assault Rifle",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "MCX",
+			["Class"] = "Assault Rifle",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "CZ 805",
+			["Class"] = "Assault Rifle",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "AK-12",
+			["Class"] = "Assault Rifle",
+			["Price"] = 40000,
+			["New"] = true
+		},
+		{
+			["Name"] = "MDRX",
+			["Class"] = "Battle Rifle",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "SVD",
+			["Class"] = "Marksman Rifle",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "Vector .45",
+			["Class"] = "Personal Defense Weapon",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "AS50",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "M249",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "Minigun",
+			["Class"] = "Heavy Machine Gun",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "AA-12",
+			["Class"] = "Shotgun",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "KS-23K",
+			["Class"] = "Shotgun",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "PAW-20",
+			["Class"] = "Grenade Launcher",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "M17",
+			["Class"] = "Pistol",
+			["Price"] = 40000,
+			["New"] = true
+		},
+		{
+			["Name"] = "Uzi",
+			["Class"] = "Automatic Pistol",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "Plascannon",
+			["Class"] = "Hand Cannon",
+			["Price"] = 40000
+		},
+		{
+			["Name"] = "Logistician",
+			["Class"] = "Perk",
+			["Price"] = 30000,
+			["Description"] = "+150% Ammo"
+		},
+		{
+			["Name"] = "M67",
+			["Class"] = "Grenade",
+			["Price"] = 40000
+		}
+	}
+}
+local v12 = {
+	["Name"] = "Tier 10",
+	["List"] = {
+		{
+			["Name"] = "Pulse Rifle",
+			["Class"] = "Carbine",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = "CZ Scorpion",
+			["Class"] = "Carbine",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = "M82",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = "HECATE II",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = "HK 416",
+			["Class"] = "Assault Rifle",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = "AK-15",
+			["Class"] = "Assault Rifle",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = "NGSW-T",
+			["Class"] = "Battle Rifle",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = "PP-19 Bizon",
+			["Class"] = "Personal Defense Weapon",
+			["Price"] = 90000,
+			["New"] = true
+		},
+		{
+			["Name"] = "MG 42",
+			["Class"] = "Medium Machine Gun",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = "M2HB",
+			["Class"] = "Heavy Machine Gun",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = "MGL",
+			["Class"] = "Grenade Launcher",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = ".500 Magnum",
+			["Class"] = "Hand Cannon",
+			["Price"] = 90000
+		},
+		{
+			["Name"] = "Dexterous",
+			["Class"] = "Perk",
+			["Price"] = 80000,
+			["Description"] = "-30% Reload Time"
+		},
+		{
+			["Name"] = "TNT",
+			["Class"] = "Grenade",
+			["Price"] = 90000
+		}
+	}
+}
+local v13 = {
+	["Name"] = "Tier 11",
+	["List"] = {
+		{
+			["Name"] = "RM277",
+			["Class"] = "Battle Rifle",
+			["Price"] = 200000
+		},
+		{
+			["Name"] = "M95",
+			["Class"] = "Sniper Rifle",
+			["Price"] = 200000
+		},
+		{
+			["Name"] = "XM250",
+			["Class"] = "Light Machine Gun",
+			["Price"] = 200000
+		},
+		{
+			["Name"] = "TS12",
+			["Class"] = "Shotgun",
+			["Price"] = 200000
+		},
+		{
+			["Name"] = "Rsh-12",
+			["Class"] = "Hand Cannon",
+			["Price"] = 200000
+		},
+		{
+			["Name"] = "Multitasker",
+			["Class"] = "Perk",
+			["Price"] = 200000,
+			["Description"] = "+9% Damage & Speed",
+			["New"] = true
+		}
+	}
+}
+local v14 = {
+	["Name"] = "Event Tier",
+	["List"] = {
+		{
+			["Name"] = "G11 K2",
+			["Class"] = "Assault Rifle",
+			["New"] = true
+		},
+		{
+			["Name"] = "StG 44",
+			["Class"] = "Assault Rifle",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "M16A1",
+			["Class"] = "Assault Rifle",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Galil",
+			["Class"] = "Assault Rifle",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "SVT-40",
+			["Class"] = "Battle Rifle",
+			["New"] = true
+		},
+		{
+			["Name"] = "M1918 BAR",
+			["Class"] = "Battle Rifle",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "FAL",
+			["Class"] = "Battle Rifle",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "M14",
+			["Class"] = "Battle Rifle",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "FG 42",
+			["Class"] = "Battle Rifle",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "M1 Garand",
+			["Class"] = "Battle Rifle",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Thompson",
+			["Class"] = "Personal Defense Weapon",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Sten",
+			["Class"] = "Personal Defense Weapon",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "MP 40",
+			["Class"] = "Personal Defense Weapon",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Kar98k",
+			["Class"] = "Sniper Rifle",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Mosin Nagant",
+			["Class"] = "Sniper Rifle",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Commando",
+			["Class"] = "Carbine",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "M1 Carbine",
+			["Class"] = "Carbine",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "RPD",
+			["Class"] = "Light Machine Gun",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "M500",
+			["Class"] = "Shotgun",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Modern 1895",
+			["Class"] = "Lever Action",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Winchester 1873",
+			["Class"] = "Lever Action",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "M79 Thumper",
+			["Class"] = "Grenade Launcher",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Panzerschreck",
+			["Class"] = "Rkt. Launcher",
+			["New"] = true
+		},
+		{
+			["Name"] = "M1A1 Bazooka",
+			["Class"] = "Rkt. Launcher",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Double Barrel Shotgun",
+			["Class"] = "Shotgun",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Model 95 Derringer",
+			["Class"] = "Derringer",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "1911 .38",
+			["Class"] = "Pistol",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "TEC-9",
+			["Class"] = "Pistol",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "P38",
+			["Class"] = "Pistol",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Makarov",
+			["Class"] = "Pistol",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "Model 1860",
+			["Class"] = "Hand Cannon",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "APS",
+			["Class"] = "Automatic Pistol",
+			["Tokens"] = 1
+		},
+		{
+			["Name"] = "MP5K",
+			["Class"] = "Automatic Pistol",
+			["Tokens"] = 1
+		}
+	}
+}
+__set_list(v2, 1, {v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14})
+v1.Weapons = v2
+v1.Melee = {
+	{
+		["Name"] = "Laser Saber",
+		["Price"] = 50000,
+		["Class"] = "Sword",
+		["Image"] = 0,
+		["Colour"] = "Gold"
+	},
+	{
+		["Name"] = "Double Laser Saber",
+		["Price"] = 50000,
+		["Class"] = "Sword",
+		["Image"] = 0,
+		["Colour"] = "Gold"
+	},
+	{
+		["Name"] = "Katana",
+		["Price"] = 50000,
+		["Class"] = "Sword",
+		["Image"] = 0,
+		["Colour"] = "Magenta"
+	},
+	{
+		["Name"] = "Karambit",
+		["Price"] = 50000,
+		["Class"] = "Knife",
+		["Image"] = 0,
+		["Colour"] = "Magenta"
+	},
+	{
+		["Name"] = "KA-BAR",
+		["Price"] = 50000,
+		["Class"] = "Knife",
+		["Image"] = 0,
+		["Colour"] = "Terra Cotta"
+	},
+	{
+		["Name"] = "Bowie Knife",
+		["Price"] = 50000,
+		["Class"] = "Knife",
+		["Image"] = 0,
+		["Colour"] = "Terra Cotta"
+	},
+	{
+		["Name"] = "Baseball Bat",
+		["Price"] = 50000,
+		["Class"] = "Bat",
+		["Image"] = 0,
+		["Colour"] = "Electric blue"
+	},
+	{
+		["Name"] = "Longsword",
+		["Price"] = 50000,
+		["Class"] = "Sword",
+		["Image"] = 0,
+		["Colour"] = "Electric blue"
+	},
+	{
+		["Name"] = "Battle Hammer",
+		["Price"] = 50000,
+		["Class"] = "Hammer",
+		["Image"] = 0,
+		["Colour"] = "Electric blue"
+	}
+}
+return v1
