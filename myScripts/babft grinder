@@ -1,0 +1,308 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+-------------------------------------------------------------------------------------------
+-- CONFIGURATION - MODIFY THESE POSITIONS
+-------------------------------------------------------------------------------------------
+-- ADD, REMOVE OR CHANGE POSITIONS HERE (Vector3.new(X, Y, Z))
+local POSITIONS = {
+    Vector3.new(-47.20000076293945, 72.4000015258789, 1028.699951171875),  -- Position 1 (Start)
+    Vector3.new(-75.30000305175781, 97.9000015258789, 8516.5),             -- Position 2
+    -- ADD MORE POSITIONS BELOW:
+    -- Vector3.new(100, 100, 100),                                         -- Position 3 (example)
+    -- Vector3.new(0, 50, 200),                                            -- Position 4 (example)
+}
+
+-- SETTINGS
+local MOVE_SPEED = 700           -- Speed in studs per second (HIGHER = FASTER MOVEMENT)
+local RESPAWN_DELAY = 0.1        -- Time before respawning (LOWER = FASTER RESPAWN)
+local SHOW_PATH = true           -- Show lines connecting positions
+local SHOW_MARKERS = true        -- Show position markers
+-------------------------------------------------------------------------------------------
+
+-- Set up variables
+local isActive = false
+local currentAttempts = 0
+local shouldRespawn = false
+
+-- Create UI elements
+local gui = Instance.new("ScreenGui")
+gui.Name = "MovementGui"
+gui.ResetOnSpawn = false
+gui.Parent = player.PlayerGui
+
+-- Status display
+local statusFrame = Instance.new("Frame")
+statusFrame.Name = "StatusFrame"
+statusFrame.Size = UDim2.new(0, 250, 0, 100)
+statusFrame.Position = UDim2.new(0.5, -125, 0, 10)
+statusFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+statusFrame.BackgroundTransparency = 0.5
+statusFrame.BorderSizePixel = 0
+statusFrame.Parent = gui
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+titleLabel.BackgroundTransparency = 0.5
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.Text = "POSITION LOOP"
+titleLabel.TextSize = 18
+titleLabel.Parent = statusFrame
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Name = "StatusLabel"
+statusLabel.Size = UDim2.new(1, 0, 0, 30)
+statusLabel.Position = UDim2.new(0, 0, 0, 30)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+statusLabel.Font = Enum.Font.SourceSans
+statusLabel.Text = "Press F to toggle movement loop"
+statusLabel.TextSize = 16
+statusLabel.Parent = statusFrame
+
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Name = "InfoLabel"
+infoLabel.Size = UDim2.new(1, 0, 0, 40)
+infoLabel.Position = UDim2.new(0, 0, 0, 60)
+infoLabel.BackgroundTransparency = 1
+infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+infoLabel.Font = Enum.Font.SourceSans
+infoLabel.Text = "Status: OFF | Loops: 0"
+infoLabel.TextSize = 14
+infoLabel.TextXAlignment = Enum.TextXAlignment.Center
+infoLabel.Parent = statusFrame
+
+-- Create path lines
+if SHOW_PATH then
+    for i = 1, #POSITIONS - 1 do
+        local start = POSITIONS[i]
+        local finish = POSITIONS[i+1]
+        
+        local direction = (finish - start).Unit
+        local distance = (finish - start).Magnitude
+        
+        local pathPart = Instance.new("Part")
+        pathPart.Name = "PathLine_" .. i
+        pathPart.Size = Vector3.new(0.5, 0.5, distance)
+        pathPart.Anchored = true
+        pathPart.CanCollide = false
+        pathPart.Material = Enum.Material.Neon
+        pathPart.BrickColor = BrickColor.new("Really red")
+        pathPart.Transparency = 0.7
+        
+        local midpoint = start + direction * (distance / 2)
+        pathPart.CFrame = CFrame.new(midpoint, finish)
+        pathPart.Parent = workspace
+    end
+end
+
+-- Create position markers
+if SHOW_MARKERS then
+    for i = 1, #POSITIONS do
+        local pos = POSITIONS[i]
+        local color
+        
+        if i == 1 then 
+            color = BrickColor.new("Lime green")
+        elseif i == #POSITIONS then
+            color = BrickColor.new("Really red")
+        else
+            color = BrickColor.new("Deep orange")
+        end
+        
+        local marker = Instance.new("Part")
+        marker.Name = "PositionMarker_" .. i
+        marker.Shape = Enum.PartType.Ball
+        marker.Size = Vector3.new(3, 3, 3)
+        marker.Position = pos
+        marker.Anchored = true
+        marker.CanCollide = false
+        marker.Material = Enum.Material.Neon
+        marker.BrickColor = color
+        marker.Transparency = 0.6
+        
+        -- Add number label
+        local billboardGui = Instance.new("BillboardGui")
+        billboardGui.Size = UDim2.new(0, 50, 0, 50)
+        billboardGui.Adornee = marker
+        billboardGui.Parent = marker
+        
+        local posText = Instance.new("TextLabel")
+        posText.Size = UDim2.new(1, 0, 1, 0)
+        posText.BackgroundTransparency = 1
+        posText.TextColor3 = Color3.new(1, 1, 1)
+        posText.Text = i
+        posText.Font = Enum.Font.SourceSansBold
+        posText.TextSize = 20
+        posText.Parent = billboardGui
+        
+        marker.Parent = workspace
+    end
+end
+
+-- Utility functions
+local function updateStatus()
+    statusLabel.Text = isActive 
+        and "Movement loop ACTIVE - Press F to stop" 
+        or "Press F to start movement loop"
+    
+    infoLabel.Text = "Status: " .. (isActive and "ON" or "OFF") .. 
+                     " | Loops: " .. currentAttempts
+end
+
+local function getHumanoidRootPart()
+    if not player.Character then return nil end
+    return player.Character:FindFirstChild("HumanoidRootPart")
+end
+
+local function resetPlayer()
+    if not player.Character then return end
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.Health = 0
+    end
+end
+
+-- Forward declaration
+local startMovement
+
+-- Move to next position
+local function moveToPosition(fromIndex, toIndex)
+    if not isActive then return end
+    
+    local humanoidRootPart = getHumanoidRootPart()
+    if not humanoidRootPart then
+        -- Wait for character and try again
+        wait(0.5)
+        moveToPosition(fromIndex, toIndex)
+        return
+    end
+    
+    local startPos = POSITIONS[fromIndex]
+    local endPos = POSITIONS[toIndex]
+    local distance = (endPos - startPos).Magnitude
+    local journeyTime = distance / MOVE_SPEED
+    
+    -- Movement logic
+    local startTick = tick()
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if not isActive then 
+            connection:Disconnect()
+            return 
+        end
+        
+        local hrp = getHumanoidRootPart()
+        if not hrp then
+            connection:Disconnect()
+            return
+        end
+        
+        local currentTick = tick()
+        local elapsed = currentTick - startTick
+        local progress = math.min(elapsed / journeyTime, 1)
+        
+        -- Calculate new position
+        local newPosition = startPos:Lerp(endPos, progress)
+        local direction = (endPos - startPos).Unit
+        
+        -- Create orientation that looks in the moving direction
+        local rightVector = Vector3.new(0, 1, 0):Cross(direction).Unit
+        local upVector = direction:Cross(rightVector)
+        
+        -- Set position
+        hrp.CFrame = CFrame.fromMatrix(newPosition, rightVector:Cross(upVector), upVector)
+        
+        -- Check if we've reached the destination
+        if progress >= 1 then
+            connection:Disconnect()
+            
+            -- When we reach the final position
+            if toIndex == #POSITIONS then
+                currentAttempts = currentAttempts + 1
+                updateStatus()
+                
+                -- Reset character to start new cycle
+                if isActive then
+                    shouldRespawn = true
+                    wait(RESPAWN_DELAY)
+                    resetPlayer()
+                end
+            else
+                -- Continue to next position
+                if isActive then
+                    wait(0.1)  -- Short pause
+                    moveToPosition(toIndex, toIndex + 1)
+                end
+            end
+        end
+    end)
+end
+
+-- Start movement loop
+startMovement = function()
+    if not isActive then return end
+    
+    local humanoidRootPart = getHumanoidRootPart()
+    if not humanoidRootPart then
+        -- Wait for character to load then try again
+        wait(0.5)
+        startMovement()
+        return
+    end
+    
+    -- Teleport to start
+    humanoidRootPart.CFrame = CFrame.new(POSITIONS[1])
+    wait(0.2)
+    
+    -- Begin movement chain
+    moveToPosition(1, 2)
+end
+
+-- Handle character respawn
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    wait(0.3)  -- Wait for character to load
+    
+    if isActive and shouldRespawn then
+        shouldRespawn = false
+        wait(0.1)
+        startMovement()
+    end
+end)
+
+-- Handle input
+local UserInputService = game:GetService("UserInputService")
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    -- F to toggle movement
+    if input.KeyCode == Enum.KeyCode.F then
+        isActive = not isActive
+        updateStatus()
+        
+        if isActive then
+            -- Start the loop
+            startMovement()
+        else
+            -- Movement turned off, clear respawn flag
+            shouldRespawn = false
+        end
+    end
+end)
+
+-- Clean up on script termination
+game.Close:Connect(function()
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj.Name:match("^PathLine_") or obj.Name:match("^PositionMarker_") then
+            obj:Destroy()
+        end
+    end
+end)
