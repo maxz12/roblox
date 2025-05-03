@@ -1,0 +1,55 @@
+-- Simplified ThrowPower Hook
+-- Only affects the specific Drop action with ThrowPower
+
+-- Store the original namecall method
+local old
+old = hookmetamethod(game, "__namecall", function(self, ...)
+    -- Get method and args
+    local method = getnamecallmethod()
+    local args = {...}
+    
+    -- Only proceed for InvokeServer
+    if method ~= "InvokeServer" then
+        return old(self, ...)
+    end
+    
+    -- Check if this is exactly our target remote and arguments
+    if self.Name == "Action" and 
+       self.Parent and self.Parent.Name == "System" and
+       args[1] == "Drop" and
+       type(args[2]) == "table" and
+       args[2].ThrowPower ~= nil and
+       args[2].Throw == true then
+        
+        -- Make a copy of the args to avoid modifying tables passed by reference
+        local newArgs = {args[1]}
+        local newData = {}
+        
+        -- Copy all properties from the original data table
+        for k, v in pairs(args[2]) do
+            newData[k] = v
+        end
+        
+        -- Override only ThrowPower
+        newData.ThrowPower = 999
+        newArgs[2] = newData
+        
+        -- Print to confirm it worked
+        print("[ThrowPower Hook] Modified throw power to 99")
+        
+        -- Call original with modified args
+        return old(self, unpack(newArgs))
+    end
+    
+    -- For everything else, pass through unchanged
+    return old(self, ...)
+end)
+
+-- Notification
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "ThrowPower Hook",
+    Text = "Successfully loaded - Throws will use power 99",
+    Duration = 3
+})
+
+print("[ThrowPower Hook] Hook installed successfully!")
