@@ -1,0 +1,20 @@
+local run = game:GetService("RunService") -- Fixed 'loacl' to 'local'
+
+run.Heartbeat:Connect(function()
+
+    local args = {
+        9999999999999
+    }
+
+    game:GetService("ReplicatedStorage"):WaitForChild("TrainSystem"):WaitForChild("Remote"):WaitForChild("ApplyAddFrenzyValue"):InvokeServer(unpack(args))
+    game:GetService("ReplicatedStorage"):WaitForChild("TrainEquipment"):WaitForChild("Remote"):WaitForChild("ApplyMobileTrain"):InvokeServer()
+
+    -- Removed unnecessary '--' which was misused
+
+    local args2 = { -- Renamed variable to avoid overwriting 'args'
+        94222959713079
+    }
+
+    game:GetService("ReplicatedStorage"):WaitForChild("TrainSystem"):WaitForChild("Remote"):WaitForChild("TrainSpeedHasChanged"):FireServer(unpack(args2))
+
+end)
