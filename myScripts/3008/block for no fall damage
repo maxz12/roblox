@@ -1,0 +1,14 @@
+local args = {
+	"FallDamage",
+	{
+		Sliding = false,
+		OriginalDamage = 29.414641952514646,
+		Range = 27.57794952392578,
+		Softened = false,
+		Broken = false,
+		Model = workspace:WaitForChild("GameObjects"):WaitForChild("Physical"):WaitForChild("Map"):WaitForChild("Pathways"),
+		Sound = "small",
+		Damage = 29.414641952514646
+	}
+}
+game:GetService("Players").LocalPlayer.Character:WaitForChild("System"):WaitForChild("Event"):FireServer(unpack(args))
