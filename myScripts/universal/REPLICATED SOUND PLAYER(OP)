@@ -1,0 +1,593 @@
+--by using this script you sign your soul over to team l00serkidd
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local gui = Instance.new("ScreenGui", PlayerGui)
+gui.Name = "l00serkiddDetection"
+gui.ResetOnSpawn = false
+
+local function makeDraggableAndResizable(frame)
+    local dragging = false
+    local resizing = false
+    local dragInput, mousePos, framePos
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                resizing = true
+            else
+                dragging = true
+            end
+            mousePos = input.Position
+            framePos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    resizing = false
+                end
+            end)
+        end
+    end)
+
+    frame.InputChanged:Connect(function(input)
+        if dragging or resizing then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and (dragging or resizing) then
+            local delta = input.Position - mousePos
+            if dragging then
+                frame.Position = UDim2.new(
+                    framePos.X.Scale,
+                    framePos.X.Offset + delta.X,
+                    framePos.Y.Scale,
+                    framePos.Y.Offset + delta.Y
+                )
+            elseif resizing then
+                frame.Size = UDim2.new(
+                    frame.Size.X.Scale,
+                    math.max(300, frame.Size.X.Offset + delta.X),
+                    frame.Size.Y.Scale,
+                    math.max(300, frame.Size.Y.Offset + delta.Y)
+                )
+            end
+        end
+    end)
+end
+
+local function createUI(titleText, position, size)
+    local frame = Instance.new("Frame", gui)
+    frame.Position = position
+    frame.Size = size
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
+    frame.BorderSizePixel = 2
+
+    local frameCorner = Instance.new("UICorner", frame)
+    frameCorner.CornerRadius = UDim.new(0, 10)
+
+    local function applyGlowEffect(object)
+        local glow = Instance.new("UIStroke", object)
+        glow.Color = Color3.fromRGB(0, 255, 0)
+        glow.Thickness = 2
+        glow.Transparency = 0.5
+        glow.LineJoinMode = Enum.LineJoinMode.Round
+        return glow
+    end
+    applyGlowEffect(frame)
+
+    local creditLabel = Instance.new("TextLabel", frame)
+    creditLabel.Position = UDim2.new(0.5, -100, 0, 5)
+    creditLabel.Size = UDim2.new(0, 200, 0, 30)
+    creditLabel.Text = "Made by: teaml00serkidd"
+    creditLabel.Font = Enum.Font.Arcade
+    creditLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    creditLabel.TextSize = 15
+    creditLabel.BackgroundTransparency = 1
+    applyGlowEffect(creditLabel)
+
+    local rotationTween = TweenService:Create(creditLabel, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), 
+        {Rotation = 5})
+    local sizeTween = TweenService:Create(creditLabel, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), 
+        {TextSize = 25})
+    local colorTween = TweenService:Create(creditLabel, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), 
+        {TextColor3 = Color3.fromRGB(255, 255, 0)})
+
+    local rotationBackAndForth = TweenService:Create(creditLabel, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), 
+        {Rotation = -5})
+
+    rotationTween:Play()
+    rotationBackAndForth:Play()
+    sizeTween:Play()
+    colorTween:Play()
+
+    local titleLabel = Instance.new("TextLabel", frame)
+    titleLabel.Position = UDim2.new(0, 0, 0, 40)
+    titleLabel.Size = UDim2.new(1, 0, 0.1, 0)
+    titleLabel.Text = titleText
+    titleLabel.Font = Enum.Font.Arcade
+    titleLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    titleLabel.TextSize = 24
+    titleLabel.BackgroundTransparency = 1
+    applyGlowEffect(titleLabel)
+
+    local closeButton = Instance.new("TextButton", frame)
+    closeButton.Position = UDim2.new(1, -50, 0, 5)
+    closeButton.Size = UDim2.new(0, 25, 0, 25)
+    closeButton.Text = "X"
+    closeButton.Font = Enum.Font.Arcade
+    closeButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+    closeButton.TextSize = 20
+    closeButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    closeButton.BorderColor3 = Color3.fromRGB(0, 255, 0)
+    closeButton.BorderSizePixel = 2
+
+    local closeButtonCorner = Instance.new("UICorner", closeButton)
+    closeButtonCorner.CornerRadius = UDim.new(0, 5)
+
+    applyGlowEffect(closeButton)
+
+    closeButton.MouseEnter:Connect(function()
+        TweenService:Create(closeButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 40, 40)}):Play()
+    end)
+
+    closeButton.MouseLeave:Connect(function()
+        TweenService:Create(closeButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
+    end)
+
+    closeButton.MouseButton1Click:Connect(function()
+        frame:Destroy()
+    end)
+
+    makeDraggableAndResizable(frame)
+    return frame
+end
+
+local systemStatsFrame = createUI("System Events", UDim2.new(0.6, 0, 0.1, 0), UDim2.new(0, 400, 0, 600))
+local systemStatsScrollFrame = Instance.new("ScrollingFrame", systemStatsFrame)
+systemStatsScrollFrame.Position = UDim2.new(0, 10, 0, 50)
+systemStatsScrollFrame.Size = UDim2.new(1, -20, 1, -60)
+systemStatsScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 1000)
+systemStatsScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 0)
+systemStatsScrollFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+
+local function addInfoLabel(parent, text, position, textColor)
+    local label = Instance.new("TextLabel", parent)
+    label.Position = position
+    label.Size = UDim2.new(1, -20, 0, 30)
+    label.Text = text
+    label.Font = Enum.Font.Arcade
+    label.TextColor3 = textColor or Color3.fromRGB(0, 255, 0)
+    label.TextSize = 18
+    label.BackgroundTransparency = 1
+    return label
+end
+
+local function updateSystemStats()
+    systemStatsScrollFrame:ClearAllChildren()
+    local allEvents = {}
+    local specialEvents = {}
+
+    
+    for _, object in pairs(ReplicatedStorage:GetChildren()) do
+        if object:IsA("RemoteEvent") or object:IsA("BindableEvent") or object:IsA("BindableFunction") then
+            if string.match(object.Name:lower(), "sound") or string.match(object.Name:lower(), "fe") then
+                table.insert(specialEvents, object.Name)
+            else
+                table.insert(allEvents, object.Name)
+            end
+        end
+    end
+
+
+    for _, object in pairs(workspace:GetDescendants()) do
+        if object:IsA("RemoteEvent") or object:IsA("BindableEvent") or object:IsA("BindableFunction") then
+            if string.match(object.Name:lower(), "sound") or string.match(object.Name:lower(), "fe") then
+                table.insert(specialEvents, object.Name)
+            else
+                table.insert(allEvents, object.Name)
+            end
+        end
+    end
+
+  
+    local yOffset = 0
+    for _, eventName in ipairs(specialEvents) do
+        addInfoLabel(systemStatsScrollFrame, eventName, UDim2.new(0, 0, 0, yOffset), Color3.fromRGB(255, 0, 0))
+        yOffset = yOffset + 30
+    end
+
+    for _, eventName in ipairs(allEvents) do
+        addInfoLabel(systemStatsScrollFrame, eventName, UDim2.new(0, 0, 0, yOffset))
+        yOffset = yOffset + 30
+    end
+
+
+    systemStatsScrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+end
+
+
+updateSystemStats()
+
+-- by using this script you sign over your soul to team l00serKidd
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local screenGui = Instance.new("ScreenGui", PlayerGui)
+screenGui.Name = "SoundControlGui"
+screenGui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", screenGui)
+frame.Position = UDim2.new(0.3, 0, 0.2, 0)
+frame.Size = UDim2.new(0, 600, 0, 500)
+frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
+frame.BorderSizePixel = 2
+
+local frameCorner = Instance.new("UICorner", frame)
+frameCorner.CornerRadius = UDim.new(0, 10)
+
+local function applyGlowEffect(object)
+    local glow = Instance.new("UIStroke", object)
+    glow.Color = Color3.fromRGB(0, 255, 0)
+    glow.Thickness = 2
+    glow.Transparency = 0.5
+    glow.LineJoinMode = Enum.LineJoinMode.Round
+    return glow
+end
+local function uiCorner(object)
+    local crn = Instance.new("UICorner", object)
+    return crn
+end
+
+applyGlowEffect(frame)
+uiCorner(frame)
+
+local titleLabel = Instance.new("TextLabel", frame)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Position = UDim2.new(0, 0, -0.05, 0)
+titleLabel.Size = UDim2.new(1, 0, 0.2, 0)
+titleLabel.Font = Enum.Font.Arcade
+titleLabel.Text = "team l00serKidd"
+titleLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+titleLabel.TextSize = 36
+titleLabel.TextStrokeTransparency = 0.8
+
+applyGlowEffect(titleLabel)
+uiCorner(titleLabel)
+
+local exitButton = Instance.new("TextButton", frame)
+exitButton.Position = UDim2.new(0.95, -30, 0, 10)
+exitButton.Size = UDim2.new(0, 30, 0, 30)
+exitButton.Text = "X"
+exitButton.Font = Enum.Font.Arcade
+exitButton.TextColor3 = Color3.fromRGB(0, 255, 0)
+exitButton.TextSize = 18
+exitButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+
+applyGlowEffect(exitButton)
+uiCorner(exitButton)
+
+exitButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+local dragging, dragStart, startPos
+
+frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+    end
+end)
+
+frame.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+frame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+local function createTextBox(parent, position, size, placeholderText)
+    local textBox = Instance.new("TextBox", parent)
+    textBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    textBox.Position = position
+    textBox.Size = size
+    textBox.Font = Enum.Font.Arcade
+    textBox.TextColor3 = Color3.fromRGB(0, 255, 0)
+    textBox.TextSize = 22
+    textBox.PlaceholderText = placeholderText
+    textBox.Text = ""
+    textBox.PlaceholderColor3 = Color3.fromRGB(100, 255, 100)
+
+    applyGlowEffect(textBox)
+    uiCorner(textBox)
+
+    return textBox
+end
+
+local function createButton(parent, position, size, text)
+    local button = Instance.new("TextButton", parent)
+    button.BackgroundColor3 = Color3.fromRGB(10, 50, 10)
+    button.Position = position
+    button.Size = size
+    button.Font = Enum.Font.Arcade
+    button.TextColor3 = Color3.fromRGB(0, 255, 0)
+    button.TextSize = 20
+    button.Text = text
+
+    applyGlowEffect(button)
+    uiCorner(button)
+
+    return button
+end
+
+-- i forgot lmfao
+local soundIdBox = createTextBox(frame, UDim2.new(0.1, 0, 0.25, 0), UDim2.new(0.8, 0, 0.1, 0), "Enter Sound ID")
+local volumeBox = createTextBox(frame, UDim2.new(0.1, 0, 0.4, 0), UDim2.new(0.8, 0, 0.1, 0), "Enter Volume")
+
+local playButton = createButton(frame, UDim2.new(0.1, 0, 0.55, 0), UDim2.new(0.35, 0, 0.1, 0), "Play")
+local stopButton = createButton(frame, UDim2.new(0.55, 0, 0.55, 0), UDim2.new(0.35, 0, 0.1, 0), "Stop")
+local loopButton = createButton(frame, UDim2.new(0.1, 0, 0.7, 0), UDim2.new(0.35, 0, 0.1, 0), "Toggle Loop")
+local deleteButton = createButton(frame, UDim2.new(0.55, 0, 0.7, 0), UDim2.new(0.35, 0, 0.1, 0), "Delete")
+local pitchTextBox = createTextBox(frame, UDim2.new(0.1, 0, 0.85, 0), UDim2.new(0.35, 0, 0.1, 0), "Enter Pitch")
+
+
+local creditsLabel = Instance.new("TextLabel", frame)
+creditsLabel.BackgroundTransparency = 1
+creditsLabel.Position = UDim2.new(0.9, -10, -0.08, 0) 
+creditsLabel.Size = UDim2.new(0.1, 0, 0.05, 0)
+creditsLabel.Font = Enum.Font.Arcade
+creditsLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+creditsLabel.TextSize = 20
+creditsLabel.Text = "credit: tiwbc - legend7.0 - cat395excavator"
+creditsLabel.TextStrokeTransparency = 0.7
+
+-- arg
+local function createThrobEffect()
+    local tweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut, -1, true) -- Infinite, reversible
+    local throbGoal = {TextTransparency = 0.4, TextStrokeTransparency = 0.3} -- Semi-transparent
+    local throbTween = TweenService:Create(creditsLabel, tweenInfo, throbGoal)
+    throbTween:Play()
+end
+
+-- arg
+local function createRotateEffect()
+    task.spawn(function()
+        while true do
+            local rotateTweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+            local rotateGoal1 = {Rotation = 5}
+            local rotateGoal2 = {Rotation = -5}
+
+            local tween1 = TweenService:Create(creditsLabel, rotateTweenInfo, rotateGoal1)
+            local tween2 = TweenService:Create(creditsLabel, rotateTweenInfo, rotateGoal2)
+
+            tween1:Play()
+            tween1.Completed:Wait()
+            tween2:Play()
+            tween2.Completed:Wait()
+        end
+    end)
+end
+
+-- func main
+createThrobEffect()
+createRotateEffect()
+
+-- arg
+local filteringLabel = Instance.new("TextLabel", frame)
+filteringLabel.BackgroundTransparency = 1
+filteringLabel.Position = UDim2.new(0.55, 0, 0.82, 0)
+filteringLabel.Size = UDim2.new(0.35, 0, 0.1, 0)
+filteringLabel.Font = Enum.Font.Arcade
+filteringLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+filteringLabel.TextSize = 18
+filteringLabel.Text = "Filtering: Unknown"
+
+local pitchLabel = Instance.new("TextLabel", frame)
+pitchLabel.BackgroundTransparency = 1
+pitchLabel.Position = UDim2.new(0.55, 0, 0.86, 0)
+pitchLabel.Size = UDim2.new(0.35, 0, 0.1, 0)
+pitchLabel.Font = Enum.Font.Arcade
+pitchLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+pitchLabel.TextSize = 18
+pitchLabel.Text = "Pitch: 1.0"
+
+
+local currentSound = nil
+local loopState = false
+local pitch = 1.0 -- DEFAULT
+
+
+local function fireRemoteEvent(eventName, ...)
+    for _, v in pairs(game:GetService("Workspace"):GetDescendants()) do
+        if v:IsA("RemoteEvent") then
+            v:FireServer(eventName, ...)
+        end
+    end
+end
+
+
+local function playSound(soundID)
+    
+    if currentSound then
+        fireRemoteEvent("stopSound", currentSound)
+    end
+
+
+    currentSound = "MySound"
+    fireRemoteEvent("newSound", currentSound, game.ReplicatedStorage, "rbxassetid://" .. soundID, pitch, 100, looped)
+
+  
+    fireRemoteEvent("setSoundPitch", currentSound, pitch)
+    fireRemoteEvent("setSoundLoop", currentSound, loopState)
+
+    -- simple
+    fireRemoteEvent("playSound", currentSound)
+end
+
+local function stopSound()
+    if currentSound then
+        fireRemoteEvent("stopSound", currentSound)
+        currentSound = nil
+    end
+end
+
+-- line 304
+local function deleteSound()
+    if currentSound then
+        fireRemoteEvent("stopSound", currentSound)
+        currentSound = nil
+    end
+end
+
+-- Handling the play button click
+playButton.MouseButton1Click:Connect(function()
+    local soundID = soundIdBox.Text
+    if soundID and tonumber(soundID) then
+        playSound(soundID)
+    else
+        warn("Invalid Sound ID")
+    end
+end)
+
+
+stopButton.MouseButton1Click:Connect(stopSound)
+
+
+loopButton.MouseButton1Click:Connect(function()
+    loopState = not loopState
+    loopButton.Text = loopState and "Loop: On" or "Loop: Off"
+    
+   
+    if currentSound then
+        fireRemoteEvent("setSoundLoop", currentSound, loopState)
+    end
+end)
+
+-- 15
+pitchTextBox.FocusLost:Connect(function()
+    local newPitch = tonumber(pitchTextBox.Text)
+    if newPitch then
+        pitch = newPitch
+        pitchLabel.Text = "Pitch: " .. tostring(pitch)
+
+     
+        if currentSound then
+            fireRemoteEvent("setSoundPitch", currentSound, pitch)
+        end
+    else
+        pitchTextBox.Text = tostring(pitch) 
+    end
+end)
+
+
+deleteButton.MouseButton1Click:Connect(function()
+    deleteSound()
+end)
+
+
+
+
+frame.Size = UDim2.new(0, 600, 0, 550)
+
+
+local playAllSoundsButton = createButton(frame, UDim2.new(0.1, 0, 0.25, 0), UDim2.new(0.8, 0, 0.1, 0), "Play All Sounds")
+
+
+playAllSoundsButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0) 
+playAllSoundsButton.BorderColor3 = Color3.fromRGB(0, 255, 0)  
+playAllSoundsButton.BorderSizePixel = 2  
+applyGlowEffect(playAllSoundsButton)  
+uiCorner(playAllSoundsButton)  
+
+
+local function playAllSounds()
+    if not game:GetService("SoundService").RespectFilteringEnabled then
+        for _, sound in pairs(game:GetService("Workspace"):GetDescendants()) do
+            if sound:IsA("Sound") then
+                -- Play the sound if it is a Sound instance and filtering is disabled
+                sound:Play()
+            end
+        end
+    else
+        warn("Filtering is enabled. Cannot play all sounds.")
+    end
+end
+
+
+playAllSoundsButton.MouseButton1Click:Connect(function()
+    playAllSounds()
+end)
+
+
+if game:GetService("SoundService").RespectFilteringEnabled then
+    filteringLabel.Text = "Filtering: Enabled (No)"
+    playAllSoundsButton.Visible = false
+else
+    filteringLabel.Text = "Filtering: Enabled (Yes)"
+    playAllSoundsButton.Visible = true
+end
+
+
+playAllSoundsButton.Size = UDim2.new(0.8, 0, 0.1, 0)
+playAllSoundsButton.Position = UDim2.new(0.1, 0, 0.10, 0)
+playAllSoundsButton.TextColor3 = Color3.new
+
+-- cos
+local player = game.Players.LocalPlayer
+local screenGui = player:WaitForChild("PlayerGui"):FindFirstChild("ScreenGui")
+
+if not screenGui then
+    screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ScreenGui"
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+end
+
+local imageLabel = Instance.new("ImageLabel")
+imageLabel.Parent = screenGui
+imageLabel.Position = UDim2.new(0.461, 0, 0.407, 0)
+imageLabel.Size = UDim2.new(0, 148, 0, 147)
+imageLabel.Image = "rbxassetid://92046967431478"
+imageLabel.BackgroundTransparency = 1
+imageLabel.ImageTransparency = 1
+
+local fadeInTweenInfo = TweenInfo.new(1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local fadeInGoal = {ImageTransparency = 0}
+local fadeInTween = TweenService:Create(imageLabel, fadeInTweenInfo, fadeInGoal)
+
+fadeInTween:Play()
+
+fadeInTween.Completed:Connect(function()
+    local moveTweenInfo = TweenInfo.new(1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+    local moveGoal = {Position = UDim2.new(0.029, 0, 0.735, 0)}
+    local moveTween = TweenService:Create(imageLabel, moveTweenInfo, moveGoal)
+    moveTween:Play()
+
+    local spinTweenInfo = TweenInfo.new(5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, false)
+    local spinGoal = {Rotation = 360}
+    local spinTween = TweenService:Create(imageLabel, spinTweenInfo, spinGoal)
+    spinTween:Play()
+end)
