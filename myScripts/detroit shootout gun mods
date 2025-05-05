@@ -1,0 +1,45 @@
+local player = game.Players.LocalPlayer
+local backpack = player.Backpack
+
+local function modifyGun(settingModule)
+    local data = require(settingModule)
+    local gun = settingModule.Parent
+    
+    -- Gun basic settings
+    gun.Jammed.Value = false
+    data.AmmoPerMag = 99999
+    data.Ammo = 12
+    data.MaxAmmo = 99994
+    data.FireRate = 0.05
+    data.AutoReload = true
+    data.JamChance = 0
+    data.Accuracy = 0
+    data.Auto = true
+    
+    -- Recoil settings
+    data.Recoil = -10003
+    data.BulletSpeed = 999
+    data.WalkSpeedRedution = 0
+    data.TweenLength = 13
+    data.EquipTime = 0
+    data.CrossSpeed = 0
+    data.AngleX_Min = 0
+    data.AngleX_Max = 0
+    data.AngleY_Min = 0
+    data.AngleY_Max = 0
+    data.AngleZ_Min = 0
+    data.AngleZ_Max = 0
+    data.RecoilSpeed = 0
+    data.RecoilDamper = 0
+    data.RecoilRedution = 1
+    
+    print("Modified gun: " .. gun.Name)
+end
+
+for _, item in pairs(backpack:GetDescendants()) do
+    if item.Name == "Setting" then
+        modifyGun(item)
+    end
+end
+
+print("All guns have been modified")
