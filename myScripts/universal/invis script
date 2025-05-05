@@ -6,12 +6,13 @@ local Lighting = game:GetService("Lighting")
 local localPlayer = Players.LocalPlayer
 local invisRunning = false
 local isInvisible = false
+local wasInvisibleBeforeDeath = false
 local invisibleCharacter = nil
 local originalCharacter = nil
 local invisFix = nil
 local invisDied = nil
 
--- Function to create notification (basic version)
+-- Function to create notification
 local function notify(title, text)
     game.StarterGui:SetCore("SendNotification", {
         Title = title,
@@ -20,23 +21,16 @@ local function notify(title, text)
     })
 end
 
--- Function to toggle invisibility
-local function toggleInvisibility()
-    if invisRunning then
-        -- If already running, turn visible
-        if isInvisible then
-            turnVisible()
-        end
-        return
-    end
-    
-    invisRunning = true
-    makeInvisible()
+-- Function to fix camera
+local function fixCamera()
+    workspace.CurrentCamera.CameraSubject = localPlayer.Character:FindFirstChildOfClass("Humanoid")
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 end
 
 -- Function to make player invisible
 function makeInvisible()
-    if isInvisible then return end
+    if invisRunning then return end
+    invisRunning = true
     
     -- Wait for character to load if needed
     repeat wait(0.1) until localPlayer.Character
@@ -55,6 +49,7 @@ function makeInvisible()
     local CF = workspace.CurrentCamera.CFrame
     
     -- Setup fall detection to handle respawning
+    if invisFix then invisFix:Disconnect() end
     invisFix = RunService.Stepped:Connect(function()
         pcall(function()
             local IsInteger
@@ -93,9 +88,10 @@ function makeInvisible()
     end
     
     -- Handle death of invisible character
+    if invisDied then invisDied:Disconnect() end
     invisDied = invisibleCharacter:FindFirstChildOfClass('Humanoid').Died:Connect(function()
+        wasInvisibleBeforeDeath = true
         respawn()
-        invisDied:Disconnect()
     end)
     
     -- Record camera and character positions
@@ -130,6 +126,7 @@ end
 
 -- Function to turn player visible again
 function turnVisible()
+    wasInvisibleBeforeDeath = false
     if not isInvisible then return end
     
     -- Disconnect events
@@ -138,6 +135,13 @@ function turnVisible()
     
     -- Record camera position
     local CF = workspace.CurrentCamera.CFrame
+    
+    -- Check if character references exist
+    if not originalCharacter or not invisibleCharacter then
+        invisRunning = false
+        isInvisible = false
+        return
+    end
     
     -- Get position of invisible character
     local CF_1 = localPlayer.Character.HumanoidRootPart.CFrame
@@ -158,8 +162,10 @@ function turnVisible()
     
     -- Set up death detection
     invisDied = originalCharacter:FindFirstChildOfClass('Humanoid').Died:Connect(function()
+        if isInvisible then
+            wasInvisibleBeforeDeath = true
+        end
         respawn()
-        invisDied:Disconnect()
     end)
     
     -- Reset flags
@@ -176,26 +182,41 @@ end
 -- Function to handle respawning
 function respawn()
     invisRunning = false
+    isInvisible = false
     
+    if invisFix then invisFix:Disconnect() end
+    if invisDied then invisDied:Disconnect() end
+    
+    pcall(function()
+        if originalCharacter and originalCharacter.Parent then
+            originalCharacter:Destroy()
+        end
+        if invisibleCharacter and invisibleCharacter.Parent then
+            invisibleCharacter:Destroy()
+        end
+    end)
+    
+    originalCharacter = nil
+    invisibleCharacter = nil
+end
+
+-- Function to toggle invisibility
+local function toggleInvisibility()
     if isInvisible then
-        pcall(function()
-            localPlayer.Character = originalCharacter
-            wait()
-            originalCharacter.Parent = workspace
-            originalCharacter:FindFirstChildWhichIsA('Humanoid'):Destroy()
-            isInvisible = false
-            invisibleCharacter.Parent = nil
-        end)
+        turnVisible()
     else
-        pcall(function()
-            localPlayer.Character = originalCharacter
-            wait()
-            originalCharacter.Parent = workspace
-            originalCharacter:FindFirstChildWhichIsA('Humanoid'):Destroy()
-            turnVisible()
-        end)
+        makeInvisible()
     end
 end
+
+-- Handle character respawning - maintain invisibility state through death
+localPlayer.CharacterAdded:Connect(function(character)
+    if wasInvisibleBeforeDeath then
+        -- Small delay to ensure character is fully loaded
+        wait(0.5)
+        makeInvisible()
+    end
+end)
 
 -- Listen for Q key press to toggle invisibility
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
