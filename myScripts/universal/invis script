@@ -12,6 +12,11 @@ local originalCharacter = nil
 local invisFix = nil
 local invisDied = nil
 
+-- Auto-invis on damage toggle
+local autoInvisOnDamage = false
+local lastHealth = 100
+local healthConnection = nil
+
 -- Function to create notification
 local function notify(title, text)
     game.StarterGui:SetCore("SendNotification", {
@@ -19,12 +24,6 @@ local function notify(title, text)
         Text = text,
         Duration = 3
     })
-end
-
--- Function to fix camera
-local function fixCamera()
-    workspace.CurrentCamera.CameraSubject = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 end
 
 -- Function to make player invisible
@@ -121,6 +120,7 @@ function makeInvisible()
     invisibleCharacter.Animate.Disabled = false
     
     isInvisible = true
+    updateGUI()
     notify('Invisible', 'You now appear invisible to other players')
 end
 
@@ -140,6 +140,7 @@ function turnVisible()
     if not originalCharacter or not invisibleCharacter then
         invisRunning = false
         isInvisible = false
+        updateGUI()
         return
     end
     
@@ -176,6 +177,7 @@ function turnVisible()
     workspace.CurrentCamera.CameraSubject = originalCharacter.Humanoid
     workspace.CurrentCamera.CFrame = CF
     
+    updateGUI()
     notify('Visible', 'You are now visible to other players')
 end
 
@@ -198,10 +200,12 @@ function respawn()
     
     originalCharacter = nil
     invisibleCharacter = nil
+    
+    updateGUI()
 end
 
 -- Function to toggle invisibility
-local function toggleInvisibility()
+function toggleInvisibility()
     if isInvisible then
         turnVisible()
     else
@@ -209,21 +213,208 @@ local function toggleInvisibility()
     end
 end
 
--- Handle character respawning - maintain invisibility state through death
-localPlayer.CharacterAdded:Connect(function(character)
-    if wasInvisibleBeforeDeath then
-        -- Small delay to ensure character is fully loaded
-        wait(0.5)
-        makeInvisible()
+-- Function to toggle auto-invisibility on damage
+function toggleAutoInvis()
+    autoInvisOnDamage = not autoInvisOnDamage
+    
+    if autoInvisOnDamage then
+        notify("Auto-Invis", "Auto invisibility on damage enabled")
+        setupHealthMonitor()
+    else
+        notify("Auto-Invis", "Auto invisibility on damage disabled")
+        if healthConnection then
+            healthConnection:Disconnect()
+            healthConnection = nil
+        end
     end
-end)
+    
+    updateGUI()
+end
 
--- Listen for Q key press to toggle invisibility
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.Q then
-        toggleInvisibility()
+-- Function to monitor health for damage
+function setupHealthMonitor()
+    if healthConnection then healthConnection:Disconnect() end
+    
+    -- Wait for character and humanoid to be available
+    local character = localPlayer.Character
+    if not character then
+        return
     end
-end)
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then
+        return
+    end
+    
+    -- Set initial health value
+    lastHealth = humanoid.Health
+    
+    -- Monitor for health changes (damage)
+    healthConnection = humanoid.HealthChanged:Connect(function(newHealth)
+        if autoInvisOnDamage and newHealth < lastHealth and not isInvisible then
+            -- Player took damage, activate invisibility
+            makeInvisible()
+            notify("Auto-Invis", "Damage detected! Going invisible")
+        end
+        lastHealth = newHealth
+    end)
+end
 
--- Notify on script load
-notify("Invisibility Script", "Press Q to toggle invisibility")
+-- Create GUI
+function createGUI()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "InvisibilityGUI"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+    
+    -- Main Frame
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Position = UDim2.new(0.8, 0, 0.5, 0)
+    MainFrame.Size = UDim2.new(0, 200, 0, 140)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.BackgroundTransparency = 0.3
+    MainFrame.Parent = ScreenGui
+    
+    -- Title
+    local Title = Instance.new("TextLabel")
+    Title.Name = "Title"
+    Title.Size = UDim2.new(1, 0, 0, 30)
+    Title.BackgroundTransparency = 1
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.Text = "Invisibility Controls"
+    Title.TextSize = 18
+    Title.Font = Enum.Font.SourceSansBold
+    Title.Parent = MainFrame
+    
+    -- Invis Status
+    local InvisStatus = Instance.new("TextLabel")
+    InvisStatus.Name = "InvisStatus"
+    InvisStatus.Position = UDim2.new(0, 10, 0, 40)
+    InvisStatus.Size = UDim2.new(1, -20, 0, 20)
+    InvisStatus.BackgroundTransparency = 1
+    InvisStatus.TextColor3 = Color3.fromRGB(255, 255, 255)
+    InvisStatus.Text = "Invisibility: OFF (Press Q)"
+    InvisStatus.TextXAlignment = Enum.TextXAlignment.Left
+    InvisStatus.TextSize = 14
+    InvisStatus.Font = Enum.Font.SourceSans
+    InvisStatus.Parent = MainFrame
+    
+    -- Auto-Invis Status
+    local AutoInvisStatus = Instance.new("TextLabel")
+    AutoInvisStatus.Name = "AutoInvisStatus"
+    AutoInvisStatus.Position = UDim2.new(0, 10, 0, 65)
+    AutoInvisStatus.Size = UDim2.new(1, -20, 0, 20)
+    AutoInvisStatus.BackgroundTransparency = 1
+    AutoInvisStatus.TextColor3 = Color3.fromRGB(255, 255, 255)
+    AutoInvisStatus.Text = "Auto-Invis: OFF (Press E)"
+    AutoInvisStatus.TextXAlignment = Enum.TextXAlignment.Left
+    AutoInvisStatus.TextSize = 14
+    AutoInvisStatus.Font = Enum.Font.SourceSans
+    AutoInvisStatus.Parent = MainFrame
+    
+    -- Invis Button
+    local InvisButton = Instance.new("TextButton")
+    InvisButton.Name = "InvisButton"
+    InvisButton.Position = UDim2.new(0, 10, 0, 95)
+    InvisButton.Size = UDim2.new(0.45, 0, 0, 30)
+    InvisButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    InvisButton.BorderSizePixel = 0
+    InvisButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    InvisButton.Text = "Toggle Invis"
+    InvisButton.TextSize = 14
+    InvisButton.Font = Enum.Font.SourceSans
+    InvisButton.Parent = MainFrame
+    InvisButton.MouseButton1Click:Connect(toggleInvisibility)
+    
+    -- Auto-Invis Button
+    local AutoInvisButton = Instance.new("TextButton")
+    AutoInvisButton.Name = "AutoInvisButton"
+    AutoInvisButton.Position = UDim2.new(0.55, 0, 0, 95)
+    AutoInvisButton.Size = UDim2.new(0.45, -10, 0, 30)
+    AutoInvisButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    AutoInvisButton.BorderSizePixel = 0
+    AutoInvisButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    AutoInvisButton.Text = "Toggle Auto"
+    AutoInvisButton.TextSize = 14
+    AutoInvisButton.Font = Enum.Font.SourceSans
+    AutoInvisButton.Parent = MainFrame
+    AutoInvisButton.MouseButton1Click:Connect(toggleAutoInvis)
+    
+    return ScreenGui
+end
+
+-- Function to update GUI based on current state
+function updateGUI()
+    local playerGui = localPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return end
+    
+    local gui = playerGui:FindFirstChild("InvisibilityGUI")
+    if not gui then return end
+    
+    local mainFrame = gui:FindFirstChild("MainFrame")
+    if not mainFrame then return end
+    
+    -- Update invisibility status
+    local invisStatus = mainFrame:FindFirstChild("InvisStatus")
+    if invisStatus then
+        if isInvisible then
+            invisStatus.Text = "Invisibility: ON (Press Q)"
+            invisStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
+        else
+            invisStatus.Text = "Invisibility: OFF (Press Q)"
+            invisStatus.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
+    end
+    
+    -- Update auto-invis status
+    local autoInvisStatus = mainFrame:FindFirstChild("AutoInvisStatus")
+    if autoInvisStatus then
+        if autoInvisOnDamage then
+            autoInvisStatus.Text = "Auto-Invis: ON (Press E)"
+            autoInvisStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
+        else
+            autoInvisStatus.Text = "Auto-Invis: OFF (Press E)"
+            autoInvisStatus.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
+    end
+end
+
+-- Setup GUI and input handling
+local function setup()
+    -- Create the GUI
+    local gui = createGUI()
+    
+    -- Handle character respawning - maintain invisibility state through death
+    localPlayer.CharacterAdded:Connect(function(character)
+        -- Reset health monitoring when character respawns
+        if autoInvisOnDamage then
+            wait(0.5) -- Wait for humanoid to be created
+            setupHealthMonitor()
+        end
+        
+        if wasInvisibleBeforeDeath then
+            -- Small delay to ensure character is fully loaded
+            wait(0.5)
+            makeInvisible()
+        end
+    end)
+    
+    -- Listen for Q key press to toggle invisibility
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.Q then
+            toggleInvisibility()
+        elseif input.KeyCode == Enum.KeyCode.E then
+            toggleAutoInvis()
+        end
+    end)
+    
+    notify("Invisibility Script", "Press Q to toggle invisibility\nPress E to toggle auto-invis on damage")
+    updateGUI()
+end
+
+-- Initialize the script
+setup()
