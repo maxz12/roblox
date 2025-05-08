@@ -1,0 +1,9 @@
+local plr = game.Players.LocalPlayer
+local backpack = plr:WaitForChild("Backpack")
+
+for _, item in ipairs(backpack:GetChildren()) do
+    if item:IsA("Tool") then
+		    item:SetAttribute("CD", 0)
+            print("set abilitiy: "..item.Name.."'s CD to 0") 
+    end
+end
