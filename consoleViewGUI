@@ -1,28 +1,30 @@
--- Custom Terminal Viewer (Draggable + Log Buffer + Clear Button)
+-- Custom Terminal Viewer (Draggable + Log Buffer + Clear Button + Copyable)
 -- Place this LocalScript in StarterPlayerScripts or run via your executor.
 
 local Players = game:GetService("Players")
 local LogService = game:GetService("LogService")
 local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
 local player = Players.LocalPlayer
 
 -- Configuration for the log buffer
 local maxLogLines = 100
 local logBuffer = {}
 
--- Create a ScreenGui for the terminal (give it a unique name so monitoring scripts can ignore it)
+-- Create a ScreenGui for the terminal (unique name so monitoring scripts can ignore it)
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "CustomTerminalViewer"  -- unique identifier
 screenGui.ResetOnSpawn = false
-screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Create a top bar for dragging
-local topBar = Instance.new("Frame")
-topBar.Name = "TerminalTopBar"
-topBar.Size = UDim2.new(1, 0, 0, 30)
-topBar.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
-topBar.BorderSizePixel = 0
-topBar.Parent = screenGui
+-- Parent to CoreGui, fallback to PlayerGui if not permitted
+local parented = false
+pcall(function()
+	screenGui.Parent = CoreGui
+	parented = true
+end)
+if not parented then
+	screenGui.Parent = player:WaitForChild("PlayerGui")
+end
 
 -- Create the main terminal frame
 local frame = Instance.new("Frame")
@@ -33,7 +35,12 @@ frame.BackgroundColor3 = Color3.new(0, 0, 0)
 frame.BackgroundTransparency = 0.5
 frame.Parent = screenGui
 
--- Parent the topBar into the frame so that dragging the topBar moves the whole frame.
+-- Create a top bar for dragging
+local topBar = Instance.new("Frame")
+topBar.Name = "TerminalTopBar"
+topBar.Size = UDim2.new(1, 0, 0, 30)
+topBar.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+topBar.BorderSizePixel = 0
 topBar.Parent = frame
 
 -- Add a title to the terminal
@@ -62,6 +69,19 @@ clearButton.TextSize = 14
 clearButton.TextColor3 = Color3.new(1, 1, 1)
 clearButton.Parent = topBar
 
+-- Add a COPY button to the top bar
+local copyButton = Instance.new("TextButton")
+copyButton.Name = "CopyButton"
+copyButton.Size = UDim2.new(0, 60, 0, 20)
+copyButton.Position = UDim2.new(1, -140, 0.5, -10) -- To the left of CLEAR
+copyButton.BackgroundColor3 = Color3.new(0, 0.5, 1) -- Blue color for copy
+copyButton.BorderSizePixel = 0
+copyButton.Text = "COPY"
+copyButton.Font = Enum.Font.SourceSansBold
+copyButton.TextSize = 14
+copyButton.TextColor3 = Color3.new(1, 1, 1)
+copyButton.Parent = topBar
+
 -- Create a ScrollingFrame inside the frame to hold the log text
 local scrollingFrame = Instance.new("ScrollingFrame")
 scrollingFrame.Name = "LogScrollingFrame"
@@ -69,54 +89,76 @@ scrollingFrame.Size = UDim2.new(1, -10, 1, -40)  -- leave space for top bar and 
 scrollingFrame.Position = UDim2.new(0, 5, 0, 35)
 scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 200)
 scrollingFrame.BackgroundTransparency = 1
+scrollingFrame.BorderSizePixel = 0
+scrollingFrame.ScrollBarThickness = 8
 scrollingFrame.Parent = frame
 
 -- Create a multi-line, selectable TextBox to display logs
 local logTextBox = Instance.new("TextBox")
 logTextBox.Name = "LogTextBox"
-logTextBox.Size = UDim2.new(1, 0, 1, 0)
+logTextBox.Size = UDim2.new(1, -8, 1, 0)
+logTextBox.Position = UDim2.new(0, 0, 0, 0)
 logTextBox.BackgroundTransparency = 1
 logTextBox.TextColor3 = Color3.new(1, 1, 1)
 logTextBox.Font = Enum.Font.Code
 logTextBox.TextSize = 14
-logTextBox.TextWrapped = true
+logTextBox.TextWrapped = false
 logTextBox.ClearTextOnFocus = false
 logTextBox.MultiLine = true
 logTextBox.TextEditable = false
 logTextBox.Text = "Custom Terminal Initialized...\n"
+logTextBox.TextXAlignment = Enum.TextXAlignment.Left
+logTextBox.TextYAlignment = Enum.TextYAlignment.Top
 logTextBox.Parent = scrollingFrame
+logTextBox.SelectionStart = 1 -- Allow selection from the start
 
 -- Function to update the TextBox from the log buffer
 local function updateLogText()
-    logTextBox.Text = table.concat(logBuffer, "\n")
-    -- Update the canvas size based on text bounds (with a little extra space)
-    scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, logTextBox.TextBounds.Y + 20)
-    -- Scroll to the bottom
-    scrollingFrame.CanvasPosition = Vector2.new(0, scrollingFrame.CanvasSize.Y.Offset)
+	logTextBox.Text = table.concat(logBuffer, "\n")
+	-- Update the canvas size based on text bounds (with a little extra space)
+	scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, logTextBox.TextBounds.Y + 20)
+	-- Scroll to the bottom
+	scrollingFrame.CanvasPosition = Vector2.new(0, scrollingFrame.CanvasSize.Y.Offset)
 end
 
 -- Function to append log messages to the buffer
 local function appendLog(message)
-    table.insert(logBuffer, message)
-    if #logBuffer > maxLogLines then
-        -- Remove the oldest log line
-        table.remove(logBuffer, 1)
-    end
-    updateLogText()
+	table.insert(logBuffer, message)
+	if #logBuffer > maxLogLines then
+		table.remove(logBuffer, 1)
+	end
+	updateLogText()
 end
 
 -- Function to clear the log buffer
 local function clearLogs()
-    logBuffer = {"Terminal logs cleared."}
-    updateLogText()
+	logBuffer = {"Terminal logs cleared."}
+	updateLogText()
 end
 
--- Connect the clear button to the clearLogs function
+-- Function to copy log text to clipboard (requires syn or similar environments for clipboard)
+local function copyLogs()
+	local success = false
+	if setclipboard then
+		setclipboard(logTextBox.Text)
+		success = true
+	elseif toclipboard then
+		toclipboard(logTextBox.Text)
+		success = true
+	end
+	if success then
+		appendLog("[Info] Log text copied to clipboard.")
+	else
+		appendLog("[Warn] Copy to clipboard not supported in this environment.")
+	end
+end
+
 clearButton.MouseButton1Click:Connect(clearLogs)
+copyButton.MouseButton1Click:Connect(copyLogs)
 
 -- Connect LogService.MessageOut to capture log messages
 LogService.MessageOut:Connect(function(message, messageType)
-    appendLog("[" .. tostring(messageType) .. "] " .. message)
+	appendLog("[" .. tostring(messageType) .. "] " .. message)
 end)
 
 -- Draggable functionality using the top bar
@@ -124,36 +166,42 @@ local dragging = false
 local dragInput, dragStart, startPos
 
 local function update(input)
-    local delta = input.Position - dragStart
-    frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	local delta = input.Position - dragStart
+	frame.Position = UDim2.new(
+		startPos.X.Scale,
+		startPos.X.Offset + delta.X,
+		startPos.Y.Scale,
+		startPos.Y.Offset + delta.Y
+	)
 end
 
 topBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = frame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
 end)
 
 topBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        dragInput = input
-    end
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		dragInput = input
+	end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        update(input)
-    end
+	if dragging and input == dragInput then
+		update(input)
+	end
 end)
 
 appendLog("Custom Terminal loaded. Logs are now displayed in this terminal.")
 appendLog("Click the CLEAR button to clear all logs.")
+appendLog("Click the COPY button to copy all logs to clipboard (if supported).")
 
 print("Custom Terminal Viewer loaded.")
