@@ -1,0 +1,16 @@
+local abilityControllerModule = require(game:GetService("Players").LocalPlayer.PlayerScripts.TS.controllers.ability)
+local AbilityController = abilityControllerModule.AbilityController
+
+-- Save a reference to the original
+local originalTryActivate = AbilityController.tryActivate
+
+AbilityController.tryActivate = function(self, slot, ...)
+    -- Ignore cooldown
+    self.onCooldown[slot] = nil
+    -- Optionally, remove all cooldowns
+    for k in pairs(self.onCooldown) do
+        self.onCooldown[k] = nil
+    end
+    -- Proceed as if never on cooldown
+    return originalTryActivate(self, slot, ...)
+end 
