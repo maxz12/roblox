@@ -1,4 +1,4 @@
-local abilityControllerModule = require(game:GetService("Players").LocalPlayer.PlayerScripts.TS.controllers.ability)
+rlocal abilityControllerModule = require(game:GetService("Players").LocalPlayer.PlayerScripts.TS.controllers.ability)
 local AbilityController = abilityControllerModule.AbilityController
 
 -- Save a reference to the original
