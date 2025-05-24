@@ -1,0 +1,10 @@
+for _, v in next, getgc(true) do
+    if type(v) == "table" then
+        for k, val in pairs(v) do
+            if type(k) == "string" and k:lower():find("ammo") and type(val) == "number" then
+                v[k] = 999
+                task.wait()
+            end
+        end
+    end
+end
