@@ -1,0 +1,32 @@
+1. What is getscriptclosure?
+getscriptclosure(script)
+
+What it does:
+This function takes a LocalScript or ModuleScript as input and returns a closure—a Lua function object that represents the main chunk of that script’s bytecode.
+Why it’s cool:
+It lets you dynamically obtain and execute the logic of any script as a callable function, even if you don’t have its source code (only its bytecode in memory).
+What can you do with it?
+Call or run the script’s code yourself:
+You can execute the script’s main body outside of its normal context, passing your own environment if needed.
+Hook or patch the script:
+Once you have the closure, you can use hookfunction to intercept or modify its behavior, e.g., prevent ammo deduction, teleportation, anti-cheat checks, etc.
+Analyze or debug:
+You can inspect the upvalues, environment, or see how the script behaves in different scenarios.
+Bypass protection:
+If a script is obfuscated or protected, getting its closure lets you interact with it directly.
+Example Usage
+Suppose you want to block a gun script from removing your ammo:
+
+Lua
+-- Find the gun script (using getscripts, getrunningscripts, etc.)
+local gunScript = ... -- however you get it
+
+-- Get the closure from the script
+local gunClosure = getscriptclosure(gunScript)
+
+-- Now hook the closure to block ammo loss
+local originalGun = hookfunction(gunClosure, function(...)
+    print("Blocked gun script from running!")
+    -- Optionally call originalGun(...) if you want to let it run
+end)
+Now, whenever the game tries to run the gun script’s main chunk, your code runs instead.
