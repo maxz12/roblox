@@ -1,0 +1,139 @@
+--[[
+  Simple Decompiler Output GUI
+  - Call: showDecompile(instance) to display decompiled output in a movable, scrollable GUI.
+  - Press X to close window.
+  - Output is shown in a simple scrolling TextBox.
+  - Only works in exploit environments with 'decompile' global function.
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+
+-- Remove old GUI if it exists
+local old = player.PlayerGui:FindFirstChild("DecompilerOutputGui")
+if old then old:Destroy() end
+
+-- The main function to show output
+function showDecompile(instance)
+    -- Try to get output
+    local output = ""
+    if typeof(decompile) == "function" then
+        local success, result = pcall(decompile, instance)
+        if success and result then
+            output = result
+        else
+            output = "-- Failed to decompile: " .. tostring(result or "Unknown error")
+        end
+    else
+        output = "-- No decompiler available in this environment."
+    end
+
+    -- GUI Setup
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "DecompilerOutputGui"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+
+    local frame = Instance.new("Frame")
+    frame.Name = "MainFrame"
+    frame.Size = UDim2.new(0, 600, 0, 400)
+    frame.Position = UDim2.new(0.5, -300, 0.5, -200)
+    frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+
+    -- Top bar for dragging & close button
+    local topBar = Instance.new("Frame")
+    topBar.Size = UDim2.new(1, 0, 0, 30)
+    topBar.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    topBar.BorderSizePixel = 0
+    topBar.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Text = "Decompiler Output"
+    title.TextColor3 = Color3.new(1,1,1)
+    title.BackgroundTransparency = 1
+    title.Size = UDim2.new(1, -40, 1, 0)
+    title.Position = UDim2.new(0, 5, 0, 0)
+    title.Font = Enum.Font.SourceSans
+    title.TextSize = 18
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = topBar
+
+    local closeButton = Instance.new("TextButton")
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.fromRGB(255,80,80)
+    closeButton.BackgroundColor3 = Color3.fromRGB(80,30,30)
+    closeButton.BorderSizePixel = 0
+    closeButton.Size = UDim2.new(0, 30, 1, 0)
+    closeButton.Position = UDim2.new(1, -30, 0, 0)
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.TextSize = 18
+    closeButton.Parent = topBar
+
+    closeButton.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+
+    -- Dragging logic
+    local dragging, dragStart, startPos
+    topBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    -- ScrollingFrame for output
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Name = "OutputScroll"
+    scroll.Size = UDim2.new(1, -20, 1, -40)
+    scroll.Position = UDim2.new(0, 10, 0, 35)
+    scroll.BackgroundColor3 = Color3.fromRGB(20,20,20)
+    scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 8
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.Parent = frame
+
+    local textBox = Instance.new("TextBox")
+    textBox.Size = UDim2.new(1, -10, 0, 0)
+    textBox.Position = UDim2.new(0, 5, 0, 5)
+    textBox.BackgroundTransparency = 1
+    textBox.TextColor3 = Color3.fromRGB(220,220,220)
+    textBox.Font = Enum.Font.Code
+    textBox.TextSize = 15
+    textBox.TextXAlignment = Enum.TextXAlignment.Left
+    textBox.TextYAlignment = Enum.TextYAlignment.Top
+    textBox.TextWrapped = false
+    textBox.ClearTextOnFocus = false
+    textBox.MultiLine = true
+    textBox.TextEditable = false
+    textBox.Text = output or "-- No output."
+    textBox.AutomaticSize = Enum.AutomaticSize.Y
+    textBox.Parent = scroll
+
+    -- Adjust canvas size
+    textBox:GetPropertyChangedSignal("TextBounds"):Connect(function()
+        textBox.Size = UDim2.new(1, -10, 0, textBox.TextBounds.Y + 20)
+        scroll.CanvasSize = UDim2.new(0, 0, 0, textBox.AbsoluteSize.Y + 10)
+    end)
+end
+
+-- Usage: showDecompile(game.StarterGui.SomeScript)
