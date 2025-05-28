@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Roblox Remote Executor</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #181818;
+      color: #eee;
+      margin: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    #terminal {
+      background: #222;
+      padding: 15px;
+      min-height: 300px;
+      max-height: 400px;
+      overflow-y: auto;
+      margin-bottom: 15px;
+      border: 1px solid #333;
+      white-space: pre-wrap;
+    }
+    #code {
+      width: 100%;
+      font-family: monospace;
+      font-size: 14px;
+      background: #2a2a2a;
+      color: #eee;
+      border: 1px solid #444;
+      padding: 10px;
+      resize: vertical;
+    }
+    button {
+      font-size: 14px;
+      padding: 10px 20px;
+      background: #333;
+      color: #eee;
+      border: 1px solid #555;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #444;
+    }
+    button:disabled {
+      background: #222;
+      color: #666;
+      cursor: not-allowed;
+    }
+    .controls {
+      margin-top: 10px;
+    }
+    .status-bar {
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #333;
+      background: #222;
+    }
+    .success { color: #4caf50; }
+    .error { color: #ff5252; }
+    .status { color: #64b5f6; }
+    .roblox { color: #ffd54f; }
+    .you { color: #81d4fa; }
+    .connected { color: #4caf50; }
+    .disconnected { color: #ff5252; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Roblox Remote Executor</h2>
+
+    <div id="statusBar" class="status-bar">
+      Status: <span id="statusText" class="disconnected">Checking...</span>
+    </div>
+
+    <div id="terminal"></div>
+
+    <textarea id="code" rows="6" placeholder="Type Lua code to run in Roblox..."></textarea>
+
+    <div class="controls">
+      <button id="runBtn" onclick="sendCommand()" disabled>Run Code</button>
+      <button onclick="clearTerminal()">Clear</button>
+    </div>
+  </div>
+
+  <script>
+    const terminal = document.getElementById('terminal');
+    const codeInput = document.getElementById('code');
+    const runBtn = document.getElementById('runBtn');
+    const statusText = document.getElementById('statusText');
+
+    let isConnected = false;
+    let wasConnected = false;
+
+    function addLine(msg, className = '') {
+      const div = document.createElement('div');
+      if (className) div.className = className;
+
+      // Handle newlines properly
+      if (typeof msg === 'string') {
+        msg = msg.replace(/\\n/g, '\n');
+      }
+
+      div.textContent = msg;
+      terminal.appendChild(div);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function checkStatus() {
+      fetch('/status')
+        .then(response => response.json())
+        .then(data => {
+          const newConnected = data.connected;
+
+          // Detect connection state changes
+          if (wasConnected && !newConnected) {
+            addLine('Roblox: Disconnected.', 'status');
+          } else if (!wasConnected && newConnected) {
+            addLine('Roblox: Connected.', 'status');
+          }
+
+          isConnected = newConnected;
+          wasConnected = newConnected;
+
+          if (isConnected) {
+            statusText.textContent = 'Roblox Connected';
+            statusText.className = 'connected';
+          } else {
+            statusText.textContent = 'Roblox Disconnected';
+            statusText.className = 'disconnected';
+          }
+
+          runBtn.disabled = !isConnected;
+        })
+        .catch(() => {
+          statusText.textContent = 'Server Error';
+          statusText.className = 'disconnected';
+          runBtn.disabled = true;
+          if (wasConnected) {
+            addLine('Server connection lost', 'error');
+            wasConnected = false;
+          }
+        });
+    }
+
+    function sendCommand() {
+      const code = codeInput.value.trim();
+      if (!code) {
+        addLine('Please enter some code!', 'error');
+        return;
+      }
+
+      if (!isConnected) {
+        addLine('Roblox not connected!', 'error');
+        return;
+      }
+
+      addLine('[You] ' + code, 'you');
+      runBtn.disabled = true;
+      runBtn.textContent = 'Running...';
+
+      fetch('/send', {
+        method: 'POST',
+        body: code
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to send command');
+        }
+
+        addLine('Command sent to Roblox!', 'status');
+
+        const startTime = Date.now();
+        function pollResult() {
+          if (!isConnected) {
+            addLine('Connection lost while waiting for result', 'error');
+            runBtn.disabled = !isConnected;
+            runBtn.textContent = 'Run Code';
+            return;
+          }
+
+          fetch('/getresult')
+            .then(response => response.text())
+            .then(resultText => {
+              if (resultText) {
+                try {
+                  const result = JSON.parse(resultText);
+
+                  if (result.type === 'command_success') {
+                    if (result.output && result.output.trim()) {
+                      addLine(result.output, 'success');
+                    } else {
+                      addLine('(no output)', 'success');
+                    }
+                  } else if (result.type === 'command_error') {
+                    addLine(result.output || 'Unknown error', 'error');
+                  } else if (result.type === 'raw') {
+                    addLine(result.output, 'roblox');
+                  } else {
+                    addLine(JSON.stringify(result), 'roblox');
+                  }
+                } catch (e) {
+                  // Fallback for non-JSON responses
+                  addLine(resultText, 'success');
+                }
+
+                runBtn.disabled = !isConnected;
+                runBtn.textContent = 'Run Code';
+              } else if (Date.now() - startTime < 15000) {
+                setTimeout(pollResult, 250);
+              } else {
+                addLine('Command timeout (no response)', 'error');
+                runBtn.disabled = !isConnected;
+                runBtn.textContent = 'Run Code';
+              }
+            })
+            .catch(() => {
+              addLine('Error getting result', 'error');
+              runBtn.disabled = !isConnected;
+              runBtn.textContent = 'Run Code';
+            });
+        }
+        pollResult();
+      })
+      .catch(() => {
+        addLine('Error sending command', 'error');
+        runBtn.disabled = !isConnected;
+        runBtn.textContent = 'Run Code';
+      });
+    }
+
+    function clearTerminal() {
+      terminal.innerHTML = '';
+    }
+
+    codeInput.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        if (!runBtn.disabled) {
+          sendCommand();
+        }
+      }
+    });
+
+    window.onload = function() {
+      codeInput.focus();
+      checkStatus();
+      setInterval(checkStatus, 2000);
+      addLine('Web GUI connected!', 'status');
+    };
+  </script>
+</body>
+</html>
