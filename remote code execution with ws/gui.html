@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Roblox Remote Executor</title>
+  <style>
+    body { font-family: monospace; background: #181818; color: #eee; }
+    #terminal { background: #222; padding: 10px; min-height: 250px; max-height: 300px; overflow-y: auto; margin-bottom: 10px; }
+    #code { width: 100%; font-family: monospace; font-size: 14px; }
+    button { font-size: 14px; padding: 5px 12px; }
+    .success { color: #4caf50; white-space: pre-line; }
+    .error { color: #ff5252; white-space: pre-line; }
+    .status { color: #64b5f6; }
+    .roblox { color: #ffd54f; }
+    .you { color: #81d4fa; }
+  </style>
+</head>
+<body>
+  <h2>Roblox Remote Executor</h2>
+  <div id="terminal"></div>
+  <textarea id="code" rows="5" placeholder="Type Lua code to run in Roblox..."></textarea><br>
+  <button onclick="sendCommand()">Run Code</button>
+  <script>
+    const terminal = document.getElementById('terminal');
+    const ws = new WebSocket(`ws://${location.host}`);
+
+    ws.onmessage = (event) => {
+      let data;
+      try { data = JSON.parse(event.data); } catch { data = {type:"unknown", msg: event.data}; }
+      if (data.type === "status") {
+        addLine(data.msg, "status");
+      } else if (data.type === "roblox") {
+        // Roblox JSON responses
+        if (typeof data.msg === "object" && data.msg !== null) {
+          if (data.msg.type === "connected") {
+            addLine("Roblox: Connected.", "status");
+          } else if (data.msg.type === "disconnected") {
+            addLine("Roblox: Disconnected.", "status");
+          } else if (data.msg.type === "command_success") {
+            addLine(data.msg.output, "success");
+          } else if (data.msg.type === "command_error") {
+            addLine(data.msg.output, "error");
+          } else {
+            addLine(JSON.stringify(data.msg), "roblox");
+          }
+        } else {
+          // If not JSON, print as is
+          addLine(data.msg, "roblox");
+        }
+      } else if (data.type === "you") {
+        addLine("[You] " + data.msg, "you");
+      } else {
+        addLine(event.data, "roblox");
+      }
+    };
+
+    function addLine(msg, cls) {
+      // Replace literal \n with real line breaks if needed
+      msg = typeof msg === "string" ? msg.replace(/\\n/g, "\n") : msg;
+      terminal.innerHTML += `<div class="${cls}">${msg}</div>`;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function sendCommand() {
+      const code = document.getElementById('code').value;
+      if (code.trim()) {
+        ws.send(code);
+        addLine(code, "you");
+        // Do NOT clear the input!
+      }
+    }
+  </script>
+</body>
+</html>
