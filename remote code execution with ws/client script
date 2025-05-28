@@ -1,0 +1,46 @@
+local ws = WebSocket.connect("ws://localhost:3000/?role=roblox")
+
+-- Utility to capture print output
+local function capturePrint(fn)
+    local output = {}
+    local oldPrint = print
+    print = function(...)
+        local args = table.pack(...)
+        local str = ""
+        for i = 1, args.n do
+            str = str .. tostring(args[i])
+            if i < args.n then str = str .. "\t" end
+        end
+        table.insert(output, str)
+        oldPrint(...)
+    end
+    local ok, result = pcall(fn)
+    print = oldPrint
+    return ok, result, table.concat(output, "\n")
+end
+
+ws.OnMessage:Connect(function(code)
+    -- Only run if code is not empty
+    if code and #code > 0 then
+        local fn, err = loadstring(code)
+        if fn then
+            local ok, result, printout = capturePrint(fn)
+            if ok then
+                ws:Send('{"type":"command_success","output":' .. game:GetService("HttpService"):JSONEncode(printout) .. '}')
+            else
+                ws:Send('{"type":"command_error","output":' .. game:GetService("HttpService"):JSONEncode(printout .. "\n" .. tostring(result)) .. '}')
+            end
+        else
+            ws:Send('{"type":"command_error","output":' .. game:GetService("HttpService"):JSONEncode(tostring(err)) .. '}')
+        end
+    end
+end)
+
+ws.OnClose:Connect(function()
+    -- Inform Node server if connection lost
+    ws:Send('{"type":"disconnected"}')
+end)
+
+-- Inform Node server upon successful connection
+ws:Send('{"type":"connected"}')
+print("[Remote] Connected to remote control server.")
