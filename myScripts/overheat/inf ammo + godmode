@@ -1,0 +1,24 @@
+local data = require(game:GetService("ReplicatedStorage").Assets.Weapons.Guns.Eyecatcher.Data)
+local struct = require(game.ReplicatedStorage.shared.structs.weapon.data)
+local firemodesMetatable = struct.Firemode
+
+data.ammo.spare = 9999999
+data.firerate = 600
+data.firemodes = {firemodesMetatable.Auto}
+data.ammo.magazine = 99999999
+
+
+cache.invalidate(game:GetService("ReplicatedStorage").Assets.Weapons.Guns.Eyecatcher.Data)
+
+
+local tether = game:GetService("ReplicatedStorage"):FindFirstChild("@rbxts/tether:message-emitter@remotes")
+local remote = tether and tether:FindFirstChild("sendServerMessage")
+local run = game:GetService("RunService")
+
+run.Heartbeat:Connect(function()
+remote:FireServer{
+    blobs = {},
+    buffer = buffer.fromstring("\x01"),
+    messageBuffer = buffer.fromstring("\x28")
+}
+end)
