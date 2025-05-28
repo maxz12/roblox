@@ -1,0 +1,20 @@
+local remotes = game:GetService("ReplicatedStorage"):WaitForChild("@rbxts/tether:message-emitter@remotes")
+local enemys = workspace.ClientEnemyStorage
+
+for _, enemy in pairs(enemys:GetChildren()) do
+    local enemyID = enemy:GetAttribute("EnemyID")
+    if enemyID then
+        -- Damage/initiate kill
+        remotes.sendServerMessage:FireServer{
+            blobs = {Instance.new("Model")},
+            buffer = buffer.fromstring(string.char(1, enemyID, 1, 1, 0, 4, 0, 10, 0, 1, 1, 0)),
+            messageBuffer = buffer.fromstring("$")
+        }
+        -- Finish/cleanup
+        remotes.sendServerMessage:FireServer{
+            blobs = {},
+            buffer = buffer.fromstring(string.char(1, 0, 0, 0, enemyID, 2, 0, 0, 0, 1, 0, 1, 0)),
+            messageBuffer = buffer.fromstring("\025")
+        }
+    end
+end
