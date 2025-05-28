@@ -6,7 +6,20 @@ data.ammo.spare = 9999999
 data.firerate = 600
 data.firemodes = {firemodesMetatable.Auto}
 data.ammo.magazine = 99999999
+data.ammoOnKill = 9999999
 
+
+for key, val in pairs(data.recoil) do
+    for subKey, subVal in pairs(val) do
+        val[subKey] = 0
+    end
+end
+
+for key, val in pairs(data.aimedRecoil) do
+    for subKey, subVal in pairs(val) do
+        val[subKey] = 0
+    end
+end
 
 cache.invalidate(game:GetService("ReplicatedStorage").Assets.Weapons.Guns.Eyecatcher.Data)
 
