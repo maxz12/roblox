@@ -1,0 +1,41 @@
+local lastHealth = nil
+local healEvents = {}
+
+-- Track recent healing
+spawn(function()
+    while true do
+        local current = getHealth()
+        if current and lastHealth and current > lastHealth then
+            recentHeal = true
+            spawn(function()
+                wait(0.8)
+                recentHeal = false
+            end)
+        end
+        lastHealth = current
+        wait(0.05)
+    end
+end)
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    if method == "FireServer" and tostring(self) == "sendServerMessage" and recentHeal then
+        if args[1] and type(args[1]) == "table" then
+            local data = args[1]
+            local bufferHex = safeBufferToHex(data.buffer)
+            local msgBufferHex = safeBufferToHex(data.messageBuffer)
+            local blobs = data.blobs and #data.blobs or 0
+            local hp = getHealth() or "?"
+            local summary = string.format(
+                "[HEAL] HP:%s Buffer:%s MsgBuffer:%s Blobs:%d",
+                hp, bufferHex, msgBufferHex, blobs
+            )
+            print(summary)
+            table.insert(healEvents, summary)
+            if #healEvents > 15 then table.remove(healEvents, 1) end
+        end
+    end
+    return oldNamecall(self, ...)
+end)
