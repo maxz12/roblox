@@ -1,0 +1,6 @@
+local data = require(game:GetService("ReplicatedStorage").Assets.Weapons.Guns.Eyecatcher.Data)
+
+data.ammo.spare = 9999999
+data.ammo.magazine = 99999999
+
+cache.invalidate(game:GetService("ReplicatedStorage").Assets.Weapons.Guns.Eyecatcher.Data)
