@@ -1,0 +1,109 @@
+local SERVER_URL = "http://localhost:3000"
+local HttpService = game:GetService("HttpService")
+
+-- Simple function to evaluate expressions and statements
+local function executeCode(code)
+    local output = {}
+    local oldPrint = print
+    
+    -- Capture print calls
+    print = function(...)
+        local args = table.pack(...)
+        local str = ""
+        for i = 1, args.n do
+            str = str .. tostring(args[i])
+            if i < args.n then str = str .. "\t" end
+        end
+        table.insert(output, str)
+        oldPrint(...)
+    end
+    
+    -- Try to execute as expression first (for things like "1+1", "math.pi", etc.)
+    local fn, err = loadstring("return " .. code)
+    local isExpression = fn ~= nil
+    
+    if not isExpression then
+        -- Not an expression, try as statement
+        fn, err = loadstring(code)
+    end
+    
+    if fn then
+        local results = table.pack(pcall(fn))
+        local success = results[1]
+        
+        if success then
+            -- If it was an expression and returned values, show them
+            if isExpression and results.n > 1 then
+                for i = 2, results.n do
+                    if results[i] ~= nil then
+                        table.insert(output, tostring(results[i]))
+                    end
+                end
+            end
+        else
+            table.insert(output, "Error: " .. tostring(results[2]))
+        end
+    else
+        table.insert(output, "Syntax Error: " .. tostring(err))
+    end
+    
+    print = oldPrint
+    return table.concat(output, "\n")
+end
+
+print("[Remote] Connecting...")
+
+local connectResponse = request({
+    Url = SERVER_URL .. "/connect",
+    Method = "POST",
+    Body = ""
+})
+
+if connectResponse.StatusCode == 200 then
+    print("[Remote] Connected! Polling for commands...")
+
+    while true do
+        local success, error = pcall(function()
+            local pollResponse = request({
+                Url = SERVER_URL .. "/poll",
+                Method = "GET"
+            })
+
+            if pollResponse.StatusCode == 200 and pollResponse.Body and pollResponse.Body ~= "" then
+                local code = pollResponse.Body
+                print("[Remote] Received command: " .. code:sub(1, 50) .. (code:len() > 50 and "..." or ""))
+
+                if code and #code > 0 then
+                    local output = executeCode(code)
+                    local responseData = {
+                        type = "command_success",
+                        output = output and output ~= "" and output or "(no output)"
+                    }
+                    
+                    print("[Remote] Sending result: " .. (output:sub(1, 50) or "no output"))
+                    
+                    local resultResponse = request({
+                        Url = SERVER_URL .. "/result",
+                        Method = "POST",
+                        Body = HttpService:JSONEncode(responseData)
+                    })
+                    
+                    if resultResponse.StatusCode == 200 then
+                        print("[Remote] Result sent!")
+                    else
+                        print("[Remote] Failed to send result: " .. tostring(resultResponse.StatusCode))
+                    end
+                end
+            end
+        end)
+        
+        if not success then
+            print("[Remote] Error in main loop: " .. tostring(error))
+            wait(5)
+        else
+            wait(1)
+        end
+    end
+else
+    print("[Remote] Connection failed! Status code: " .. tostring(connectResponse.StatusCode))
+end
