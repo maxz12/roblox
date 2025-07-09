@@ -1,6 +1,3 @@
--- Zero-Lag Cheat GUI (Optimized)
--- Created for maxz12 on 2025-04-27
-
 -- Services
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
