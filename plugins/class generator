@@ -1,0 +1,105 @@
+local selection = game:GetService("Selection")
+local toolbar = plugin:CreateToolbar("class generator")
+local button = toolbar:CreateButton("open", "opens main gui", "")
+
+local info = DockWidgetPluginGuiInfo.new(
+	Enum.InitialDockState.Right,
+	true, 
+	false,
+	200,
+	300
+)
+local widget = plugin:CreateDockWidgetPluginGui("MyWidget", info)
+widget.Title = "class generator"
+
+local main:Frame = Instance.new("Frame")
+local title = Instance.new("TextLabel")
+local nameEnter:TextBox = Instance.new("TextBox")
+local createBtn:TextButton = Instance.new("TextButton")
+
+main.Name = "Main"
+main.Parent = widget
+main.BackgroundColor3 = Color3.fromRGB(175, 198, 176)
+main.BorderColor3 = Color3.fromRGB(0, 0, 0)
+main.BorderSizePixel = 0
+main.Position = UDim2.new(0, 0, 0, 0)
+main.Size = UDim2.new(1, 0, 1, 0)
+
+title.Name = "title"
+title.Parent = main
+title.BackgroundColor3 = Color3.fromRGB(202, 255, 242)
+title.BorderColor3 = Color3.fromRGB(0, 0, 0)
+title.BorderSizePixel = 0
+title.Size = UDim2.new(0, 377, 0, 29)
+title.Font = Enum.Font.SourceSans
+title.Text = "class generator"
+title.TextColor3 = Color3.fromRGB(0, 0, 0)
+title.TextSize = 29.000
+
+nameEnter.Name = "nameEnter"
+nameEnter.Parent = main
+nameEnter.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
+nameEnter.BorderColor3 = Color3.fromRGB(0, 0, 0)
+nameEnter.BorderSizePixel = 0
+nameEnter.Position = UDim2.new(0.0450928397, 0, 0.111111112, 0)
+nameEnter.Size = UDim2.new(0, 344, 0, 33)
+nameEnter.Font = Enum.Font.SourceSans
+nameEnter.PlaceholderColor3 = Color3.fromRGB(117, 117, 117)
+nameEnter.PlaceholderText = "class name"
+nameEnter.Text = ""
+nameEnter.TextColor3 = Color3.fromRGB(0, 0, 0)
+nameEnter.TextSize = 14.000
+
+createBtn.Name = "createBtn"
+createBtn.Parent = main
+createBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+createBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
+createBtn.BorderSizePixel = 0
+createBtn.Position = UDim2.new(0.233421758, 0, 0.83739835, 0)
+createBtn.Size = UDim2.new(0, 200, 0, 50)
+createBtn.Font = Enum.Font.SourceSans
+createBtn.Text = "create class"
+createBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+createBtn.TextSize = 14.000
+
+local function generateClass(name)
+	return ([[local %s = {}
+%s.__index = %s
+
+function %s.new()
+    local self = setmetatable({}, %s)
+    
+    return self
+end
+
+return %s
+]]):gsub("%%s", name)
+
+end
+
+createBtn.Activated:Connect(function()
+	local name = nameEnter.Text
+	if name == "" then
+		warn("please enter a name")
+		return
+	end
+	
+	local selection = selection:Get()
+	if #selection == 0 or not selection[1]:IsA("Folder") then
+		warn("please select a folder in explorer")
+		return
+	end
+	
+	local folder = selection[1]
+	local module = Instance.new("ModuleScript")
+	module.Name = name
+	local code = generateClass(name)
+	module.Source = code
+	module.Parent = folder
+	print(string.format("created class tempalte: %s at: %s", name, folder.Name))
+	
+end)
+
+button.Click:Connect(function()
+	widget.Enabled = not widget.Enabled
+end)
