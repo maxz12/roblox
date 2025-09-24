@@ -5,14 +5,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local promiseTypes = require(ReplicatedStorage.packages.Promise.types)
 local Promise = require(ReplicatedStorage.packages.Promise) :: promiseTypes.PromiseModule
 
-local playerStore = DataStoreService:GetDataStore("PlayerData12")
-
-
 local orderedStores = {}
 local playerSessions = {}
 local datastoreManager = {}
 
 -----config-------
+local storeName = "PlayerData12"
+
 local maxRetries = 5
 local retryDelay = 1
 local defaultSchema = {
@@ -28,8 +27,10 @@ local orderedConfig = {
 	wins = {ascending = false, pageSize = 100}
 }
 
+local playerStore = DataStoreService:GetDataStore(storeName)
+
 for key, cfg in pairs(orderedConfig) do
-	orderedStores[key] = DataStoreService:GetOrderedDataStore("PlayerData12_" .. key)
+	orderedStores[key] = DataStoreService:GetOrderedDataStore(storeName .. key)
 end
 
 
