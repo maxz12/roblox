@@ -84,6 +84,8 @@ addRemote.OnServerEvent:Connect(function(plr, amount)
 	end
 end)
 
-game:BindToClose(function()
-	
+game:BindToClose(function() --save when server closes
+	for _, plr in ipairs(game.Players:GetChildren()) do
+		DatasoreManager:Save(plr, true)
+	end
 end)
