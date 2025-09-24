@@ -1,0 +1,89 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local remotes = ReplicatedStorage:WaitForChild("remotes")
+local addRemote = remotes:WaitForChild("add")
+local Players = game:GetService("Players")
+
+local leaderboard = workspace:WaitForChild("leaderboard")
+local surfaceGui = leaderboard:WaitForChild("SurfaceGui")
+local mainFrame = surfaceGui:WaitForChild("Main")
+local scrollingFrame = mainFrame:WaitForChild("scrollingFrame")
+local template = scrollingFrame:WaitForChild("template")
+
+local ServerStorage = game:GetService("ServerStorage")
+local DatasoreManager = require(ServerStorage.DatasoreManager)
+
+local Promise = require(ReplicatedStorage.packages.Promise)
+
+Players.PlayerAdded:Connect(function(plr)
+	local uid = plr.UserId
+	assert(uid, "error fetching player user id")
+	
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name = "leaderstats"
+	
+	local money = Instance.new("IntValue")
+	money.Name = "money"
+	money.Parent = leaderstats
+	leaderstats.Parent = plr
+	
+	DatasoreManager:InitPlayer(plr):andThen(function(store)
+		--print("plr loaded w data:", store)
+		local plrTable = store
+		print("player table:", store)
+	end):andThen(function(coins)
+		local coins = DatasoreManager:GetData(uid, "coins")
+		print("coins val:", coins)
+		money.Value = coins
+	end):catch(error)
+	
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+	DatasoreManager:Save(plr, true)
+end)
+
+local function getUsernameFromId(userId: number): string?
+	local success, result = pcall(function()
+		return Players:GetNameFromUserIdAsync(userId)
+	end)
+
+	if success then
+		return result
+	else
+		warn(`Failed to get username for {userId}: {result}`)
+		return nil
+	end
+end
+
+addRemote.OnServerEvent:Connect(function(plr, amount)
+	local plrLeaderstats = Players:FindFirstChild(plr.Name):FindFirstChild("leaderstats")
+	local money: IntValue = plrLeaderstats:WaitForChild("money")
+	
+	amount = amount or 5
+	money.Value += amount
+	DatasoreManager:UpdateData(plr, "coins", money.Value)
+	
+	--DatasoreManager:AddFakeData("coins", math.random(1000000,9999999), math.random(1,99999))
+	
+	local orderedData = DatasoreManager:GetLeaderboard("coins")
+	
+	for _, child in ipairs(scrollingFrame:GetChildren()) do
+		if child:IsA("TextLabel") and child.Name ~= "template" then
+			child:Destroy()
+		end
+	end
+	
+	for _, data in ipairs(orderedData) do
+		--print(data)
+		local listItem = template:Clone()
+		listItem.Text = `name: {getUsernameFromId(data.key)}, coins: {data.value}`
+		listItem.Name = data.key
+		
+		listItem.Parent = scrollingFrame
+		
+	end
+end)
+
+game:BindToClose(function()
+	
+end)
