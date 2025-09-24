@@ -1,0 +1,235 @@
+--!strict
+local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local promiseTypes = require(ReplicatedStorage.packages.Promise.types)
+local Promise = require(ReplicatedStorage.packages.Promise) :: promiseTypes.PromiseModule
+
+local playerStore = DataStoreService:GetDataStore("PlayerData12")
+
+
+local orderedStores = {}
+local playerSessions = {}
+local datastoreManager = {}
+
+-----config-------
+local maxRetries = 5
+local retryDelay = 1
+local defaultSchema = {
+	data = {
+		coins = 50
+	},
+	meta = {
+		lastJoin = 0,
+	}
+}
+local orderedConfig = {
+	coins = {ascending = false, pageSize = 50},
+	wins = {ascending = false, pageSize = 100}
+}
+
+for key, cfg in pairs(orderedConfig) do
+	orderedStores[key] = DataStoreService:GetOrderedDataStore("PlayerData12_" .. key)
+end
+
+
+local function mergeDefaults(target, defaults)
+	if not target then return table.clone(defaults) end
+	for k,v in pairs(defaults) do
+		if target[k] == nil then
+			target[k] = typeof(v) == "table" and table.clone(v) or v
+		elseif typeof(v) == "table" and typeof(target[k]) == "table" then
+			mergeDefaults(target[k], v)
+		end
+	end
+	return target
+end
+
+function datastoreManager:InitPlayer(plr:Player)
+	assert(plr.UserId,"provided player isnt valid")
+	return self:Get(plr.UserId):andThen(function(ds) --ds: datastore
+		if not ds then
+			ds = table.clone(defaultSchema)
+			playerStore:UpdateAsync(tostring(plr.UserId), function(oldVal)
+				return ds
+			end)
+			print("created datastore entry for plr:", plr.Name)
+		else
+			ds = mergeDefaults(ds, defaultSchema)
+		end
+		playerSessions[plr.UserId] = ds
+		return ds --send to the andThen()
+	end):andThen(function(ds)
+		playerSessions[plr.UserId] = ds
+		return ds
+	end):catch(error)
+end
+
+
+function datastoreManager:Save(plr: Player, leaving: boolean?)
+	assert(plr.UserId, "provided player isnt valid")
+
+	local sessionData = playerSessions[plr.UserId]
+	if not sessionData or not (sessionData.data or sessionData.meta) then
+		warn(`not saving data for player {plr.Name} because a scheme component is missing`)
+		return
+	end
+	
+	local currRetries = 0
+	local success = false
+
+	while currRetries < maxRetries and not success do
+		local succ, err = pcall(function()
+			playerStore:UpdateAsync(tostring(plr.UserId), function(old)
+				old = mergeDefaults(old, defaultSchema)
+				old.data = mergeDefaults(sessionData.data, old.data)
+				old.meta = mergeDefaults(sessionData.meta, old.meta)
+				return old
+			end)
+
+		end)
+
+		if succ then
+			print(`successfully saved data for player: {plr.Name}`, sessionData)
+			success = true
+			if leaving == true then
+				playerSessions[plr.UserId] = nil -- cleanup
+			end
+			
+			for key, store in pairs(orderedStores) do
+				local value = sessionData.data[key]
+				if typeof(value) == "number" then
+					local ok, err2 = pcall(function()
+						store:SetAsync(tostring(plr.UserId), value)
+					end)
+					if not ok then
+						warn(`failed to update ordered datastore {key} for {plr.Name}: {err2}`)
+					end
+				end
+			end
+		else
+			currRetries += 1
+			warn(`save failed for player {plr.Name}, retrying {currRetries}/{maxRetries}: {err}`)
+			task.wait(retryDelay)
+		end
+	end
+
+	if not success then
+		warn(`final save failed for player {plr.Name} after {maxRetries} retries`)
+	end
+end
+
+function datastoreManager:GetLeaderboard(statName: string, ascending: boolean, pageSize: number)
+	local store = orderedStores[statName]
+	assert(store, `ordered store: {statName}, not found`)
+
+	local pages
+	ascending = ascending or false
+	pageSize = pageSize or 10
+	local ok, err = pcall(function()
+		pages = store:GetSortedAsync(ascending, pageSize)
+	end)
+	if not ok then
+		warn(`failed to fetch leaderboard for {statName}: {err}`)
+		return nil
+	end
+
+	return pages:GetCurrentPage()
+end
+
+
+function datastoreManager:Get(userId: number): {string}
+	assert(type(userId) == "number", "Get expects numeric userId")
+	return Promise.new(function(resolve, reject)
+		local currRetries = 0
+		local result
+		
+		while currRetries < maxRetries do
+			local succ, res = pcall(function()
+				return playerStore:GetAsync(tostring(userId))
+			end)
+
+			if succ then
+				resolve(res)
+				break
+			else
+				currRetries += 1
+				if currRetries < maxRetries then
+					warn(`data fetch failed for userid {userId} retrying {currRetries}/{maxRetries}`)
+				else
+					reject(`failed to fetch data for userid {userId}`)
+					warn(`data fetch failed for userid {userId} after: {currRetries} retries`)
+					return
+				end
+			end
+		end
+	end)
+end
+
+function datastoreManager:UpdateData(plr: Player, key: string?, value: string?)
+	assert(plr:IsA("Player"), "Get expects a player for first arg")
+	
+	local userId = plr.UserId
+	assert(userId, "invalid player recived")
+	
+	local playerTable = playerSessions[userId]
+	assert(playerTable, `player table for userid {userId} not found`)
+	
+	local dataTable = playerTable.data
+	if dataTable == nil then
+		warn(`data table for player: {plr.Name}, not found`)
+	end
+	
+	local metaTable = playerTable.meta
+	if metaTable == nil then
+		warn(`meta table for player: {plr.Name}, not found`)
+	end
+	
+	if dataTable[key] == nil then warn(`table entry: {key}, for player id {userId} not found`) end
+	local entry = dataTable[key]
+	
+	if typeof(value) ~= typeof(entry) then
+		warn(`tried to index values of different types together`)
+		return
+	end
+	
+	dataTable[key] = value
+end
+
+function datastoreManager:GetData(userId, key)
+	assert(type(userId) == "number", "Get expects numeric userId")
+
+	local playerTable = playerSessions[userId]
+	assert(playerTable, `player table for userid {userId}, not found`)
+
+	local dataTable = playerTable.data
+	if dataTable == nil then
+		warn(`data table for key: {userId}, not found`)
+	end
+
+	local metaTable = playerTable.meta
+	if metaTable == nil then
+		warn(`meta table for key: {userId}, not found`)
+	end
+	
+	if dataTable[key] == nil then warn(`table entry: {key}, for player id {userId} not found`) end
+	
+	return dataTable[key]
+end
+
+function datastoreManager:AddFakeData(statName: string, userId: number, value: number)
+	local store = orderedStores[statName]
+	assert(store, `ordered store: {statName}, not found`)
+
+	local ok, err = pcall(function()
+		store:SetAsync(tostring(userId), value)
+	end)
+
+	if ok then
+		print(`Inserted fake {statName}={value} for userId {userId}`)
+	else
+		warn(`Failed to insert fake data for {statName}: {err}`)
+	end
+end
+
+return datastoreManager
