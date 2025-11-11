@@ -1,4 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local objectPooling = {}
 objectPooling.__index = objectPooling
@@ -35,7 +36,7 @@ function objectPooling.new(config: poolConf): objectPool
 	
 	local folder = Instance.new("Folder")
 	folder.Parent = workspace
-	folder.Name = config.name or "__PoolObjects"
+	folder.Name = config.name or `pool_{(RunService:IsClient() and "cli") or "serv"}`
 	self.worldFolder = folder
 	
 	self._pool = {}
@@ -53,7 +54,7 @@ function objectPooling:_createPool()
 	end
 end
 
-function objectPooling:_CreateObject()
+function objectPooling:_createObject()
 	local obj: Instance = self.template:Clone()
 	obj:SetAttribute("Active", true)
 	
@@ -75,10 +76,11 @@ function objectPooling:GetObject()
 	
 	if object == nil then
 		if self.lockedSize == false then
-			object = self:_CreateObject()
+			object = self:_createObject()
 			index = #self._pool
 		else
 			warn("no available objects in pool")
+			return nil
 		end
 	end
 	
@@ -87,7 +89,7 @@ function objectPooling:GetObject()
 	return object
 end
 
-function objectPooling:ReturnObject(obj: Instance, delayTime)
+function objectPooling:ReturnObject(obj: Instance, delayTime: number?)
 	local function retObj()
 		obj.Parent = nil
 		obj:SetAttribute("Active", false)
