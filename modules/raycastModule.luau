@@ -33,7 +33,9 @@ function m:cast(dir: Direction, dist: number, visualize: boolean?)
 	
 	local origin = hrp.Position
 	local finalDir = vecDir * dist
-	debugModule:VisualizeRay(origin, finalDir, 1, 0.05)
+	local rayPart = debugModule:VisualizeRay(origin, finalDir, 1, 0.05)
+	rayPart.CanQuery = false
+	
 	return game.Workspace:Raycast(origin, finalDir, params)
 end
 
