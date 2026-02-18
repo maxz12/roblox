@@ -48,12 +48,12 @@ function m:SetState(name)
 	if not self:CanTransition(self.currentState, name) then return end
 	
 	if self.currentState and self.states[self.currentState].OnExit then
-		self.states[self.currentState].OnExit()
+		self.states[self.currentState].onExit()
 	end
 	
 	self.currentState = name
 	if state and state.OnStart then
-		state.OnStart()
+		state.onStart()
 	end
 end
 
